@@ -1,59 +1,60 @@
-# Flow — Especificação funcional (versão 1.0)
+# Flow — especificação funcional 1.2
 
 ## Propósito
-Organizar demandas de trabalho oriundas de e-mails, atividades manuais ou reuniões, agrupadas por projeto; permitir planejamento, execução cronometrada, retorno ao e-mail de origem e assistência de escrita com Gemini.
 
-## Identidade visual
-- Nome: **Flow**.
-- Cor primária: `#3268DC`.
-- Navegação: barra lateral azul-marinho `#182B48`.
-- Superfícies: branco `#FFFFFF` e fundo `#F6F8FC`.
-- Cinco visões de trabalho — **Tarefas, Projetos, Agenda, Gmail, Alertas**. Não confundir com diferentes temas visuais nem com BI.
+Receber demandas de várias frentes, classificá-las por destino e urgência, organizar a execução em uma esteira comum e dedicar atenção a uma única tarefa por vez.
 
-## Entidades
-- **Projeto:** nome, cor, membros (futuramente), datas e preferências.
-- **Tarefa:** título, descrição, projeto, status, prioridade, data de execução, horário, prazo final, vínculo ao Gmail, datas de criação/conclusão.
-- **Subtarefa:** texto, ordem, concluída.
-- **Sessão de trabalho:** início, fim, segundos acumulados; uma por intervalo de execução.
-- **Vínculo Gmail:** assunto, remetente, endereço/ID da conversa; acesso depende da conta Google conectada.
-- **Evento de agenda:** ID de evento no Google e vínculo com tarefa (fase posterior).
-- **Regra de alerta:** tipo, antecedência, canal e destinatário (fase posterior).
-- **Texto Gemini:** modo, rascunho original, resultado, aprovação; chamada somente mediante ação explícita.
+## Classificação antes da execução
 
-## Regras do cronômetro
-1. Um usuário deve ter no máximo um cronômetro ativo por vez; ao iniciar outro, o anterior é pausado.
-2. O tempo é calculado por timestamps e continua consistente mesmo ao fechar e reabrir a aba.
-3. Pausar encerra a sessão corrente; retomar cria uma nova sessão.
-4. Concluir pausa a sessão ativa, marca o status e registra o horário de conclusão.
-5. Reabrir a tarefa não apaga tempos passados.
-6. A implementação local usa hora do dispositivo; futuramente o servidor será a referência para integridade e sincronização.
+As duas perguntas são **“Para onde vai?”** (área) e **“Para quando?”** (data/prazo). Carga Horária, Folha Docente, Contratos PJ, CPA e Ouvidoria são exemplos de áreas. É possível criar novas áreas.
 
-## Fluxo de e-mail
-1. Usuário abre uma conversa no Gmail e clica em **Incluir no Flow**, ao lado do assunto (extensão Chrome instalada).
-2. A extensão lê assunto/remetente quando disponíveis e a URL da conversa.
-3. Uma caixa no próprio Gmail permite ajustar o título, escolher uma lista (projeto) e salvar a tarefa com o link capturado.
-4. A extensão grava na base do Flow do mesmo perfil do Chrome por uma aba de apoio, sem tirar o usuário do Gmail. Execução e prazo podem ser definidos depois no Flow.
-5. Ao trabalhar na tarefa, pode iniciar o cronômetro e abrir a conversa Gmail em outra aba.
-6. A resposta continua manual no Gmail na versão 1; o Flow não envia mensagens sem autorização expressa.
+Uma demanda sem área existente ou data válida permanece na **Entrada / A classificar**, mesmo que já tenha uma das respostas. A captura não atribui automaticamente a primeira área ou um prazo arbitrário. A classificação é condição para entrar em foco.
 
-## Gemini
-- Melhorar descrição, redigir resposta, sugerir subtarefas.
-- A resposta pode ser revisada, aprovada, copiada ou descartada.
-- Nunca afirmar conclusão, inventar respostas do setor ou prazos não registrados.
-- Chamada de servidor; chave Gemini nunca é exposta no navegador.
-- API Interactions com `store: false`, evitando armazenamento opcional de histórico de interações pelo serviço.
+O prazo determina a urgência: atrasada, hoje, amanhã ou programada. A prioridade manual antiga é preservada nos dados, mas não governa a interface nem a ordenação. A execução planejada e o horário são opcionais e continuam separados do prazo final.
 
-## V1 local
-- HTML/CSS/JavaScript sem dependências e `localStorage`.
-- Exportação/importação JSON para backup.
-- Exportação manual `.ics` por tarefa para Google Agenda.
-- API Gemini opcional e protegida por segredo distinto da chave Gemini.
-- Extensão Chrome Manifest V3.
+## Esteira única
 
-## Etapa institucional (ainda não implementada)
-- Autenticação Google OAuth / login corporativo.
-- Banco PostgreSQL por usuário com controle de acesso, backup e trilhas de auditoria.
-- Google Calendar API com criação, atualização, cancelamento e deduplicação de eventos.
-- Integração Gmail via OAuth se for necessário ler/enviar rascunhos; revisar escopos e exigências de verificação.
-- Notificações automáticas, filas/cron e gerenciamento de fuso horário.
-- Políticas de proteção de dados, retenção, autorização e logs antes de usar dados acadêmicos reais.
+Todas as tarefas, de qualquer área, compartilham **A classificar → A fazer → Em andamento → Aguardando → Concluídas**. Aguardando é uma situação operacional, não uma etapa obrigatória. A área acompanha a tarefa sem criar um fluxo independente. O filtro por área apenas restringe a visualização.
+
+As tarefas são ordenadas pela data mais próxima em cada coluna. Mover etapa permite encaminhar ou reabrir uma demanda; o detalhe reúne contexto, subtarefas, histórico e vínculo ao Gmail. Em andamento pode ter várias demandas iniciadas ou pausadas; apenas uma pode estar em foco ativo.
+
+## Foco e Pomodoro
+
+- Padrão de 25 minutos de foco e 5 de descanso; foco configurável de 1 a 180 minutos, pausa de 1 a 60 minutos.
+- Iniciar uma tarefa encerra a sessão ativa de outra tarefa. Iniciar a mesma tarefa já ativa não cria sessão duplicada.
+- Pausar encerra a sessão de trabalho, preserva o restante do ciclo e não conta tempo pausado. Retomar cria outra sessão usando o tempo restante.
+- O fim do foco encerra a sessão exatamente no timestamp previsto e incrementa o número de ciclos completos da tarefa.
+- O descanso começa automaticamente, sem registrar trabalho. É possível pausá-lo, retomá-lo ou escolher começar o próximo ciclo.
+- Ao terminar a pausa, a interface fica pronta; trabalho só recomeça mediante ação do usuário.
+- Fechar/reabrir a aba mantém o ciclo. Se foco e pausa já terminaram, a reconciliação registra apenas o foco previsto e não inicia sessões enquanto o usuário está ausente.
+- Alterações no ritmo valem para o próximo período; o período atual mantém sua duração.
+- Concluir ou excluir uma tarefa encerra seu foco. Reabrir não elimina históricos anteriores.
+- O relógio do dispositivo é a referência nesta versão local. Notificações do sistema e sincronização com servidor não estão implementadas.
+
+## Dados e compatibilidade
+
+Armazenamento local na chave `flow.workspace.v1`, com versão de backup 1 preservada. A propriedade `projects` e o campo `task.project` representam as áreas na interface, mantendo IDs e vínculos antigos.
+
+Tarefas mantêm título, descrição, situação, execução planejada, prazo, subtarefas, sessões e metadados Gmail. O campo adicional `focusCycles` guarda ciclos completos. `preferences.focusMinutes` e `preferences.breakMinutes` guardam o ritmo. `focus` guarda tarefa, fase (`work`, `break`, `ready`), término, tempo restante e duração.
+
+A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de foco quando ausentes. Um cronômetro antigo ativo mantém sua sessão e recebe um ciclo contado a partir da migração. As novas áreas de exemplo não são inseridas automaticamente em bases existentes.
+
+## Gmail
+
+A extensão Chrome 1.2 adiciona **Incluir no Flow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa.
+
+A extensão usa uma aba do Flow no mesmo perfil e domínio configurado, preservando a navegação no Gmail. Não lê o corpo da mensagem nem envia respostas. Retentativas da mesma captura não duplicam tarefas. Áreas removidas e datas inválidas são recusadas. Capturas de versões anteriores sem data permanecem compatíveis e ficam a classificar.
+
+A instalação real é feita pelo usuário no Chrome desktop. O teste automatizado na nuvem usa Gmail simulado e adaptador para `chrome.*`, pois o Chromium gerenciado bloqueia extensões sem compactação.
+
+## Identidade e navegação
+
+O símbolo de caminhos convergindo para um ponto reúne fluxo operacional e atenção concentrada. Azul `#295F9B`, marinho `#182B48`, verde `#159B8B` e superfícies claras.
+
+Navegação: Entrada, Esteira, Foco, Áreas, Agenda, Gmail e Alertas. Detalhe de tarefa é uma visão acessada a partir das demandas.
+
+## Integrações e etapas futuras
+
+Gemini opcional melhora descrição, prepara resposta e sugere subtarefas mediante clique e revisão; a chave permanece no servidor. Agenda exporta `.ics`, sem sincronização automática. Alertas salvam preferências, sem envio ativo.
+
+Login, banco de dados, sincronização entre dispositivos, Google OAuth, notificações e automação institucional permanecem etapas futuras. A modelagem SQL em `docs/schema-postgresql-futuro.sql` não está conectada à versão local.

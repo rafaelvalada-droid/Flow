@@ -53,14 +53,15 @@
       <dialog aria-labelledby="flow-dialog-title">
         <div class="brand">FLOW · GMAIL</div>
         <h2 id="flow-dialog-title">Incluir no Flow</h2>
-        <p>Escolha a lista que vai receber este e-mail.</p>
+        <p>Classifique a demanda e inclua na esteira comum.</p>
         <form>
           <label>Título da tarefa<input name="title" maxlength="180" required></label>
           <div class="sender"></div>
-          <label>Lista<select name="project" required disabled><option value="">Carregando listas…</option></select></label>
+          <label>1. Para onde vai? (área)<select name="project" required disabled><option value="">Carregando áreas…</option></select></label>
+          <label>2. Para quando?<input name="dueDate" type="date" required></label>
           <div id="flow-status" role="status" aria-live="polite">Conectando ao Flow…</div>
           <div class="actions"><button type="button" id="flow-close">Cancelar</button><button class="primary" type="submit" disabled>Salvar no Flow</button></div>
-          <p class="footnote">As listas são os seus projetos do Flow neste perfil do Chrome.</p>
+          <p class="footnote">Área e data determinam a classificação. Todas as tarefas seguem pela mesma esteira.</p>
         </form>
       </dialog>`;
     document.body.appendChild(host);
@@ -70,6 +71,7 @@
     const form = shadow.querySelector('form');
     const title = form.elements.title;
     const select = form.elements.project;
+    const dueDate = form.elements.dueDate;
     const status = shadow.querySelector('#flow-status');
     const save = shadow.querySelector('[type="submit"]');
     const cancel = shadow.querySelector('#flow-close');
@@ -93,10 +95,11 @@
       cancel.disabled = true;
       title.disabled = true;
       select.disabled = true;
+      dueDate.disabled = true;
       update('Salvando no Flow…');
       try {
         await send('FLOW_SAVE_EMAIL', {
-          requestId, projectId: select.value, title: title.value.trim(),
+          requestId, projectId: select.value, title: title.value.trim(), dueDate: dueDate.value,
           gmailUrl: email.gmailUrl, gmailSubject: email.gmailSubject, gmailSender: email.gmailSender
         });
         if (dialogHost !== host) return;
@@ -110,6 +113,7 @@
         save.disabled = false;
         title.disabled = false;
         select.disabled = false;
+        dueDate.disabled = false;
       } finally {
         saving = false;
         cancel.disabled = false;
@@ -118,10 +122,10 @@
     try {
       const result = await send('FLOW_LISTS');
       if (dialogHost !== host) return;
-      select.replaceChildren(new Option('Escolha uma lista', ''));
+      select.replaceChildren(new Option('Escolha uma área', ''));
       for (const project of result.projects) select.add(new Option(project.name, project.id));
       if (!result.projects.length) {
-        update('Crie um projeto no Flow para que ele apareça aqui como lista.', 'error');
+        update('Crie uma área no Flow para que ela apareça aqui.', 'error');
         return;
       }
       select.disabled = false;

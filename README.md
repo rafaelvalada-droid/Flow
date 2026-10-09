@@ -1,102 +1,69 @@
-# Flow — Gestão de projetos, tarefas e tempo de trabalho
+# Flow — demandas em fluxo, uma tarefa em foco
 
-Base executável do **Flow**, em azul executivo. Projetada para desenvolvimento no VS Code, repositório GitHub e publicação na Vercel.
+Classifique as demandas por **área e data**, conduza todas pela **mesma esteira** e concentre-se em uma tarefa por vez com ciclos de trabalho e descanso.
 
-## Comece por aqui
+Aplicativo: https://flow-blue-theta.vercel.app/
 
-1. Extraia o ZIP e abra a pasta **flow-v1** no VS Code.
-2. Abra o terminal integrado (**Terminal > Novo Terminal**).
-3. Execute:
+Repositório: https://github.com/rafaelvalada-droid/Flow
+
+## Usar o Flow
+
+1. **Entrada:** capture uma demanda. Responda “Para onde vai?” (área) e “Para quando?” (data). Se faltar uma dessas respostas, ela permanece a classificar.
+2. **Esteira:** todas as áreas compartilham as etapas A classificar, A fazer, Em andamento, Aguardando e Concluídas. As datas mais próximas aparecem primeiro. Use **Mover etapa** no cartão ou edite a situação no detalhe.
+3. **Foco:** escolha uma tarefa e comece um ciclo. O padrão é **25 minutos de foco / 5 de pausa**, ajustável. Uma única tarefa registra tempo de trabalho por vez. O descanso começa ao terminar o foco; o próximo ciclo de trabalho exige sua ação.
+4. **Áreas:** classifique e consulte Carga Horária, Folha Docente, Contratos PJ, CPA, Ouvidoria ou suas próprias áreas. As áreas não têm esteiras independentes.
+
+A urgência é calculada pela data: **atrasada, hoje, amanhã ou programada**. A data de execução e o horário opcionais continuam disponíveis no detalhe, separados do prazo e usados pela Agenda.
+
+O novo símbolo mostra caminhos de demandas convergindo para um único ponto de atenção. Está em `assets/flow-mark.png`, no menu e no favicon.
+
+## Dados e atualização
+
+Os dados ficam no `localStorage` do navegador, sem login ou sincronização entre dispositivos. Use o mesmo perfil e o domínio principal; URLs diferentes da Vercel têm bases diferentes. Exporte backups pelo botão de configurações.
+
+A atualização preserva os projetos/áreas, tarefas, subtarefas, anotações e sessões existentes na chave `flow.workspace.v1`. “Projetos” passa a se chamar “Áreas” na interface; a estrutura dos backups permanece compatível. Demandas antigas sem área válida ou prazo aparecem na Entrada. As áreas de exemplo adicionais só são criadas em uma base nova; para incluí-las em uma base existente, use **Áreas → Criar área**.
+
+Os ciclos usam timestamps persistidos. Reabrir a aba reconcilia o ciclo e encerra o tempo de trabalho no seu prazo, sem contar descanso ou horas de ausência. Um cronômetro da versão antiga mantém o histórico e recebe um ciclo a partir da atualização. O sistema usa a hora do dispositivo.
+
+## Gmail
+
+Abra **Gmail → Baixar extensão para Gmail** no Flow. Extraia o ZIP; em `chrome://extensions`, ative Modo do desenvolvedor e carregue a pasta `flow-gmail` sem compactação. Recarregue o Gmail.
+
+Ao abrir uma conversa, clique em **Incluir no Flow**, ajuste o título, escolha a **área e a data** e salve. A tarefa entra na esteira com assunto, remetente visível e link da conversa. O Flow usa uma aba de apoio no mesmo perfil do Chrome; não lê o corpo do e-mail nem envia mensagens.
+
+A extensão **1.2** precisa ser atualizada separadamente do site: baixe o ZIP novo, substitua os arquivos da pasta instalada, clique em Recarregar no cartão da extensão e recarregue o Gmail. Capturas de extensões antigas sem data continuam compatíveis e ficam a classificar. Leia `extensao-chrome/README.md`.
+
+## Desenvolvimento
+
+Node.js ≥20. HTML/CSS/JavaScript sem dependências; não é necessário instalar pacotes nem gerar build.
 
 ```bash
+npm run check
 npm run dev
 ```
 
-4. Abra **http://localhost:3000** no Chrome.
-
-Não há `npm install` obrigatório: o primeiro protótipo usa HTML, CSS e JavaScript sem dependências.
-
-## Funcionalidades operacionais
-
-- Cinco telas: tarefas, projetos (com Kanban), agenda semanal, Gmail e alertas.
-- Criar/editar/excluir tarefas e projetos, adicionar/concluir/excluir subtarefas.
-- Status, prioridade, data de execução (com horário opcional) e prazo final.
-- Cronômetro por tarefa, com início/pausa/retomada e histórico de sessões. A contagem leva em conta timestamps e não depende da aba estar aberta.
-- Uma tarefa ativa por vez (na mesma base local).
-- Vínculo manual com link do Gmail, abertura da conversa original em outra aba.
-- Botão **Incluir no Flow** dentro do Gmail: escolha uma lista (projeto) e salve a tarefa sem sair do e-mail, usando a extensão Chrome.
-- Exportação de evento `.ics` para importação manual no Google Agenda.
-- Exportação do backup JSON; alerta de vencimento configurável em preferências (envio por e-mail ainda não implementado).
-- Integração opcional Gemini na API do servidor para melhorar descrições, preparar respostas e sugerir subtarefas.
-
-## Estrutura
-
-```text
-flow-v1/
-├── index.html                 # Entrada do aplicativo
-├── styles.css                 # Identidade visual azul executivo
-├── app.js                     # Interface e lógica do MVP
-├── server.mjs                 # Servidor local Node.js
-├── api/gemini.mjs             # Função da Vercel / Gemini
-├── extensao-chrome/          # Extensão Manifest V3
-├── docs/ESPECIFICACAO.md     # Regras do sistema
-├── docs/schema-postgresql-futuro.sql
-├── .env.example
-└── package.json
-```
-
-## Gemini (opcional)
-
-O frontend NÃO recebe a chave Gemini. Configure no ambiente do servidor:
-
-- `GEMINI_API_KEY`: chave de acesso Google AI Studio.
-- `FLOW_AI_ACCESS_TOKEN`: senha longa e distinta para proteger a rota nesta versão pessoal.
-- `GEMINI_MODEL`: opcional (padrão `gemini-3.8-flash`).
-
-Localmente, variáveis podem ser informadas pelo shell antes do `npm run dev`; o servidor Node não carrega arquivos `.env` automaticamente.
-
-Na Vercel: **Project → Settings → Environment Variables**. O frontend solicitará a senha `FLOW_AI_ACCESS_TOKEN` na primeira chamada ao Gemini; essa senha permanece somente na memória da aba. O servidor chama a API Interactions com `store:false` e retorna a sugestão para revisão.
-
-**Segurança:** o token compartilhado da versão local não substitui login, autorização por usuário, proteção contra abuso e limites de requisições. Antes de abrir o site ao público ou processar dados institucionais, faça a etapa de autenticação e controles de acesso. Não coloque nenhuma chave no GitHub.
-
-## Extensão Chrome
-
-No Flow, abra **Gmail → Baixar extensão para Gmail**. Extraia o ZIP; em `chrome://extensions`, ative Modo do desenvolvedor e carregue a pasta `flow-gmail` sem compactação. Recarregue o Gmail e, em uma conversa aberta, clique em **Incluir no Flow**, escolha a lista e salve. O endereço publicado já está configurado. A extensão mantém o Flow em uma aba de apoio e usa as listas e os dados do mesmo perfil do Chrome. Leia `extensao-chrome/README.md` para atualização e outros endereços.
-
-Para desenvolver a extensão: `npm run check`, `npm run test:extension` (Python Playwright e Chromium) e `npm run package:extension` para regenerar o ZIP. O aplicativo continua sem dependências e sem build obrigatório.
-
-## GitHub
-
-Crie um repositório vazio no GitHub chamado, por exemplo, `flow-workspace`. No terminal desta pasta:
+O servidor local escuta em `127.0.0.1:3000` (`PORT` opcional). `workflow.js` contém as regras de classificação e ciclos; `app.js` contém a interface. A extensão está em `extensao-chrome/`.
 
 ```bash
-git init
-git add .
-git commit -m "Flow v1 - base funcional azul"
-git branch -M main
-git remote add origin https://github.com/SEU-USUARIO/flow-workspace.git
-git push -u origin main
+npm run test:workflow    # Node: regras e persistência dos ciclos
+npm run test:app         # Python Playwright + Chromium, servidor local ativo
+npm run test:extension   # Python Playwright + Chromium, Gmail e chrome.* simulados
+npm run package:extension
 ```
 
-Você precisa substituir `SEU-USUARIO` pelo usuário real do seu GitHub e criar o repositório antes de enviar. Não incluí endereços fictícios como se o repositório já existisse.
+Os testes de navegador usam perfis temporários. O Chromium gerenciado na nuvem bloqueia extensões sem compactação; o teste da extensão executa seu código real com transporte Chrome simulado. Ele não valida uma conta real do Gmail nem o carregamento nativo da extensão. O ZIP é determinístico, inclui somente os nove arquivos da extensão e deve ser regenerado após alterações.
 
-## Vercel
+## GitHub e Vercel
 
-1. Acesse https://vercel.com/new e importe seu repositório GitHub.
-2. Escolha **Other** como framework, se necessário. Não há comando de build obrigatório.
-3. Configure as variáveis `GEMINI_API_KEY` e `FLOW_AI_ACCESS_TOKEN` se quiser usar o Gemini.
-4. Faça o deploy. Arquivos estáticos são servidos pela raiz e a função `api/gemini.mjs` fica em `/api/gemini`.
-5. Atualize o endereço do Flow no popup da extensão.
+O repositório já está conectado à Vercel. Commits enviados para `main` acionam o deployment.
 
-Ao enviar novos commits ao repositório, a Vercel poderá fazer novos deploys automaticamente.
+`vercel.json` configura **Other**, raiz do repositório, Build Command e Install Command vazios e Output Directory `.`. Isso evita detectar `server.mjs` como backend genérico: a interface e os downloads são estáticos; `/api/gemini` é a função opcional.
 
-## Restrições desta primeira entrega
+## Integrações opcionais
 
-- **Não há banco de dados de produção nem login.** Os dados ficam no `localStorage` do navegador e não sincronizam entre computadores/celulares. Faça backup regularmente.
-- **O Gmail não envia respostas e não é lido por API.** A extensão captura somente metadados básicos visíveis e o link da conversa.
-- **A agenda ainda não sincroniza automaticamente.** O arquivo `.ics` é importado manualmente pelo usuário.
-- **Alertas por e-mail ainda não são enviados.** Apenas as preferências são gravadas.
-- **O Gemini precisa de credenciais e servidor configurados.** Sem isso, o aplicativo informará que a integração está indisponível.
-- A modelagem PostgreSQL está em `docs/schema-postgresql-futuro.sql` para a próxima fase, não está conectada ao MVP.
+- **Gemini:** configure `GEMINI_API_KEY` e `FLOW_AI_ACCESS_TOKEN` nas variáveis seguras do servidor/Vercel. A chave não vai para o frontend. O token protege a rota pessoal e fica na memória da aba. `GEMINI_MODEL` é opcional; confirme um modelo disponível na sua conta antes de ativar. O servidor não carrega `.env` automaticamente. Sem essas variáveis, a API retorna 503 e o restante funciona.
+- **Agenda:** exportação `.ics` para importação manual no Google Agenda; sem sincronização OAuth.
+- **Alertas:** salva preferências, mas ainda não envia e-mails automáticos.
+- **Banco/login:** não implementados. A modelagem PostgreSQL em `docs/` é uma proposta futura, sem conexão com esta versão.
 
-Leia `docs/ESPECIFICACAO.md` antes de implementar autenticação, banco de dados ou integrações em produção.
+Regras detalhadas em `docs/ESPECIFICACAO.md`.

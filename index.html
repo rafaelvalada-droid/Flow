@@ -4,19 +4,23 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#182a47" />
-  <meta name="description" content="Flow — gestão inteligente de projetos, tarefas, tempo de trabalho e demandas originadas no Gmail." />
+  <meta name="description" content="Flow — classifique por área e data, organize todas as demandas em uma esteira e trabalhe com foco." />
   <title>Flow — Workspace</title>
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="icon" type="image/png" href="./assets/flow-mark.png" />
+  <script defer src="./workflow.js"></script>
   <script defer src="./app.js"></script>
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" aria-label="Menu principal">
-      <a class="brand" href="#tarefas" aria-label="Flow, início"><span class="brand-icon">f</span><span class="brand-word">flow<span class="brand-dot">.</span><small>WORKSPACE</small></span></a>
+      <a class="brand" href="#esteira" aria-label="Flow, início"><img class="brand-mark" src="./assets/flow-mark.png" alt="" /><span class="brand-word">flow<span class="brand-dot">.</span><small>MENOS RUÍDO. MAIS FOCO.</small></span></a>
       <div class="sidebar-caption">PRINCIPAL</div>
       <nav id="sidebar-nav">
-        <button type="button" data-page="tarefas" class="active"><span class="nav-icon">☑</span><span>Tarefas</span></button>
-        <button type="button" data-page="projetos"><span class="nav-icon">▦</span><span>Projetos</span></button>
+        <button type="button" data-page="entrada"><span class="nav-icon">↘</span><span>Entrada</span><span id="inbox-count" class="nav-count" hidden></span></button>
+        <button type="button" data-page="esteira" class="active"><span class="nav-icon">▤</span><span>Esteira</span></button>
+        <button type="button" data-page="foco"><span class="nav-icon">◉</span><span>Foco</span></button>
+        <button type="button" data-page="projetos"><span class="nav-icon">▦</span><span>Áreas</span></button>
         <button type="button" data-page="agenda"><span class="nav-icon">▤</span><span>Agenda</span></button>
         <button type="button" data-page="gmail"><span class="nav-icon">✉</span><span>Gmail</span></button>
         <button type="button" data-page="alertas"><span class="nav-icon">♧</span><span>Alertas</span></button>
@@ -25,8 +29,8 @@
     </aside>
     <div class="workspace">
       <header class="topbar">
-        <div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Tarefas</strong></div>
-        <div class="top-actions"><button id="active-clock" type="button" class="active-clock" data-action="open-active">◷ Nenhum cronômetro ativo</button><button type="button" class="button primary" data-action="new-task">+ Nova tarefa</button></div>
+        <div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Esteira</strong></div>
+        <div class="top-actions"><button id="active-clock" type="button" class="active-clock" data-action="open-active">◉ Entrar em foco</button><button type="button" class="button primary" data-action="new-task">+ Nova demanda</button></div>
       </header>
       <div class="privacy-note">Versão de teste · dados salvos neste navegador. Evite informações institucionais confidenciais.</div>
       <main id="screen" class="screen" aria-live="polite"></main>

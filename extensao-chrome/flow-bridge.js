@@ -21,7 +21,7 @@
     const existing = db.tasks.find(task => task.gmailCaptureId === data.requestId);
     if (existing) return {taskId: existing.id};
     const project = db.projects.find(item => item.id === data.projectId);
-    if (!project) throw new Error('Essa lista foi removida. Feche a caixa e escolha uma lista atualizada.');
+    if (!project) throw new Error('Essa área foi removida. Feche a caixa e escolha uma área atualizada.');
     const title = typeof data.title === 'string' ? data.title.trim() : '';
     if (!title || title.length > 180) throw new Error('Informe um título de até 180 caracteres.');
     let gmail;
@@ -31,10 +31,17 @@
       throw new Error('Abra uma conversa válida no Gmail para incluir no Flow.');
     }
     const text = (value, limit) => typeof value === 'string' ? value.slice(0, limit) : '';
+    const dueDate = data.dueDate || '';
+    const date = typeof dueDate === 'string' ? new Date(dueDate + 'T12:00:00') : new Date(NaN);
+    const calendarDate = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    if (dueDate && (typeof dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) ||
+        calendarDate !== dueDate)) {
+      throw new Error('Informe uma data válida para a demanda.');
+    }
     const task = {
       id: crypto.randomUUID(), title, project: project.id, status: 'todo', priority: 'medium',
-      plannedDate: '', plannedTime: '', dueDate: '', description: '', subtasks: [], sessions: [],
-      startedAt: null, gmailUrl: gmail.href, gmailSubject: text(data.gmailSubject, 180),
+      plannedDate: '', plannedTime: '', dueDate, description: '', subtasks: [], sessions: [],
+      startedAt: null, focusCycles: 0, gmailUrl: gmail.href, gmailSubject: text(data.gmailSubject, 180),
       gmailSender: text(data.gmailSender, 150), gmailCaptureId: data.requestId,
       createdAt: Date.now(), completedAt: null
     };

@@ -168,22 +168,24 @@ async def main(profile):
         await button.click()
         select = gmail.locator('#flow-gmail-dialog select')
         await expect(select).to_be_enabled(timeout=25000)
-        assert await select.locator('option').count() == 5
+        assert await select.locator('option').count() == 7
         assert adapter.active_id == gmail_id and gmail.url == GMAIL
         passed('Button opens a Gmail dialog and loads actual Flow projects without leaving Gmail')
 
         await select.select_option('oferta')
-        await gmail.locator('#flow-gmail-dialog input').fill('Organizar planejamento')
+        await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-10')
+        await gmail.locator('#flow-gmail-dialog [name="title"]').fill('Organizar planejamento')
         await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
         await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no Flow')
         flow_id = next(i for i, page in adapter.pages.items() if page.url.startswith(FLOW))
         flow = adapter.pages[flow_id]
         db = await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1'))")
         task = next(t for t in db['tasks'] if t['title'] == 'Organizar planejamento')
+        assert task['dueDate'] == '2026-12-10'
         assert task['project'] == 'oferta' and task['gmailSubject'] == 'Planejamento da semana'
         assert task['gmailSender'] == 'coordenacao@example.test' and task['gmailUrl'] == GMAIL
         assert len(db['tasks']) == 5
-        await expect(flow.locator('.task-list-item').filter(has_text='Organizar planejamento')).to_be_visible()
+        await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         passed('Save writes the chosen project, title, sender and link; Flow updates immediately')
 
         replay = {'requestId': task['gmailCaptureId'], 'projectId': 'oferta', 'title': task['title'],
@@ -195,7 +197,7 @@ async def main(profile):
         passed('Retrying the same save does not duplicate the task')
 
         await flow.reload()
-        await expect(flow.locator('.task-list-item').filter(has_text='Organizar planejamento')).to_be_visible()
+        await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         await gmail.locator('#flow-close').click()
         await flow.locator('#sidebar-nav [data-page="projetos"]').click()
         await flow.locator('[data-action="new-project"]').click()
@@ -206,13 +208,14 @@ async def main(profile):
         passed('Tasks persist across reload and newly created projects are available on the next capture')
 
         await select.select_option('ouv')
+        await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-11')
         await flow.evaluate("""() => {
           const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));
           db.projects=db.projects.filter(p=>p.id!=='ouv');
           localStorage.setItem('flow.workspace.v1',JSON.stringify(db));
         }""")
         await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Essa lista foi removida')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Essa área foi removida')
         assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 5
         passed('A deleted list is rejected without saving into a wrong project')
         await gmail.locator('#flow-close').click()
@@ -233,14 +236,14 @@ async def main(profile):
         }""")
         await expect(button).to_have_count(1)
         await button.click()
-        await expect(gmail.locator('#flow-gmail-dialog input')).to_have_value('Outro assunto <script>literal</script>')
+        await expect(gmail.locator('#flow-gmail-dialog [name="title"]')).to_have_value('Outro assunto <script>literal</script>')
         await expect(select).to_be_enabled()
         passed('Gmail navigation removes/recreates one button and safely captures the current subject')
 
         await flow.evaluate("""() => {const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));db.projects=[];localStorage.setItem('flow.workspace.v1',JSON.stringify(db));}""")
         await gmail.locator('#flow-close').click()
         await button.click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Crie um projeto no Flow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Crie uma área no Flow')
         await expect(gmail.locator('#flow-gmail-dialog [type="submit"]')).to_be_disabled()
         passed('An empty list collection cannot create an orphan task')
 

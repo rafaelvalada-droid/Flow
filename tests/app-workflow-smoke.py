@@ -1,0 +1,149 @@
+"""Browser checks of classification, shared pipeline, focus and legacy storage."""
+import asyncio
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from playwright.async_api import async_playwright, expect
+
+ROOT=Path(__file__).resolve().parents[1]
+BASE=os.environ.get('FLOW_TEST_URL','http://127.0.0.1:3000')
+KEY='flow.workspace.v1'
+
+async def run(profile):
+    checks=0
+    def passed(message):
+        nonlocal checks
+        checks+=1
+        print('PASS '+message,flush=True)
+    async with async_playwright() as pw:
+        context=await pw.chromium.launch_persistent_context(profile,executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'],viewport={'width':1440,'height':1000},timezone_id='America/Sao_Paulo')
+        page=await context.new_page()
+        errors=[]
+        page.on('pageerror',lambda error:errors.append(str(error)))
+        await page.clock.install(time=datetime(2026,10,9,15,tzinfo=timezone.utc))
+        await page.goto(BASE)
+        await expect(page.locator('.pipeline-board')).to_be_visible()
+        assert await page.locator('.pipeline-lane').count()==5
+        assert await page.locator('.pipeline-task').count()==4
+        assert await page.locator('.brand-mark').evaluate('(img)=>img.complete&&img.naturalWidth>0')
+        passed('Default screen shows one shared pipeline and the new logo')
+
+        await page.locator('.top-actions [data-action="new-task"]').click()
+        form=page.locator('#active-modal-form')
+        assert await form.locator('[name="project"]').input_value()==''
+        assert await form.locator('[name="dueDate"]').input_value()==''
+        await form.locator('[name="title"]').fill('Conferir folha de outubro')
+        await form.locator('[type="submit"]').click()
+        await expect(page.locator('.inbox-item')).to_have_count(1)
+        await page.locator('.inbox-item [data-action="classify-task"]').click()
+        await form.locator('[name="project"]').select_option('folha')
+        await form.locator('[name="dueDate"]').fill('2026-10-09')
+        await form.locator('[type="submit"]').click()
+        card=page.locator('.pipeline-task').filter(has_text='Conferir folha de outubro')
+        await expect(card.locator('.area-label')).to_have_text('Folha Docente')
+        await expect(card.locator('.urgency')).to_contain_text('Hoje')
+        await expect(page.locator('.pipeline-lane[data-stage="inbox"] .pipeline-task')).to_have_count(0)
+        assert 'Conferir folha' in await page.locator('.pipeline-lane[data-stage="todo"] .pipeline-task').first.inner_text()
+        passed('Capture stays in Entrada until area and date are chosen; deadline orders the shared queue')
+
+        await page.locator('#sidebar-nav [data-page="projetos"]').click()
+        assert await page.locator('.projectcard').count()==6
+        assert await page.locator('.pipeline-board,.kanban').count()==0
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await page.locator('#board-filter').select_option('folha')
+        await expect(page.locator('.pipeline-task')).to_have_count(1)
+        await page.locator('#board-filter').select_option('all')
+        await expect(page.locator('.pipeline-task')).to_have_count(5)
+        await card.locator('[data-move-task]').select_option('waiting')
+        await expect(page.locator('.pipeline-lane[data-stage="waiting"] .pipeline-task').filter(has_text='Conferir folha de outubro')).to_be_visible()
+        await card.locator('[data-move-task]').select_option('todo')
+        passed('Areas are classification views; all areas share the same execution board')
+
+        await card.locator('[data-action="focus-task"]').click()
+        await expect(page.locator('.focus-task-title')).to_have_text('Conferir folha de outubro')
+        await expect(page.locator('[data-countdown]')).to_have_text('25:00')
+        await page.clock.fast_forward(10000)
+        await page.locator('[data-action="focus-pause"]').click()
+        paused=await page.locator('[data-countdown]').inner_text()
+        await page.reload()
+        await page.locator('#sidebar-nav [data-page="foco"]').click()
+        await expect(page.locator('[data-countdown]')).to_have_text(paused)
+        await page.clock.fast_forward(30000)
+        await expect(page.locator('[data-countdown]')).to_have_text(paused)
+        await page.locator('#focus-minutes').fill('1')
+        await page.locator('#focus-minutes').dispatch_event('change')
+        await expect(page.locator('[data-countdown]')).to_have_text(paused)
+        await page.locator('[data-action="focus-change"]').click()
+        await page.locator('#focus-task-select').select_option(label='Conferir folha de outubro · Folha Docente')
+        await page.locator('[data-action="focus-start"]').click()
+        await expect(page.locator('[data-countdown]')).to_have_text('01:00')
+        passed('Focus survives reload; pause freezes the cycle; rhythm edits preserve the current cycle')
+
+        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        deadline=state['focus']['endsAt']
+        await page.clock.fast_forward(61000)
+        await expect(page.locator('.focus-main .eyebrow')).to_have_text('PAUSA')
+        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        focused=next(t for t in state['tasks'] if t['title']=='Conferir folha de outubro')
+        assert focused['startedAt'] is None
+        assert focused['sessions'][-1]['end']==deadline
+        assert focused['focusCycles']==1
+        worked=sum((s['end']-s['start']) for s in focused['sessions'])
+        await page.clock.fast_forward(400000)
+        await expect(page.locator('.focus-main .eyebrow')).to_have_text('CICLO CONCLUÍDO')
+        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        focused=next(t for t in state['tasks'] if t['id']==focused['id'])
+        assert sum(s['end']-s['start'] for s in focused['sessions'])==worked
+        assert not any(t['startedAt'] for t in state['tasks'])
+        passed('Cycle ends exactly at its deadline; breaks and unattended time add no work')
+
+        await page.locator('[data-action="focus-start"]').click()
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await page.locator('.pipeline-task').filter(has_text='Conferir carga horária docente').locator('[data-action="focus-task"]').click()
+        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        assert len([t for t in state['tasks'] if t['startedAt']])==1
+        assert state['focus']['taskId']=='t1'
+        await page.locator('[data-focus-sub]').first.check()
+        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        assert next(t for t in state['tasks'] if t['id']=='t1')['subtasks'][0]['done']
+        await page.locator('[data-action="focus-complete"]').click()
+        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        assert state['focus'] is None and not any(t['startedAt'] for t in state['tasks'])
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await expect(page.locator('.pipeline-lane[data-stage="done"] .pipeline-task')).to_have_count(1)
+        passed('Switching focus stops the previous task; subtasks and completion persist')
+
+        Path('/tmp/flow-review').mkdir(exist_ok=True)
+        await page.screenshot(path='/tmp/flow-review/esteira-desktop.png',full_page=True)
+        await page.locator('#sidebar-nav [data-page="foco"]').click()
+        await page.screenshot(path='/tmp/flow-review/foco-desktop.png',full_page=True)
+        for width in [390,760,1024]:
+            await page.set_viewport_size({'width':width,'height':844})
+            await page.locator('#sidebar-nav [data-page="esteira"]').click()
+            assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            await page.locator('#sidebar-nav [data-page="foco"]').click()
+            assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+        await page.set_viewport_size({'width':390,'height':844})
+        await page.screenshot(path='/tmp/flow-review/foco-mobile.png',full_page=True)
+        passed('Pipeline and focus fit mobile, tablet and desktop without page overflow')
+
+        legacy=await context.new_page()
+        await legacy.goto(BASE)
+        old={'version':1,'projects':[{'id':'old','name':'Área antiga','color':'#3268dc'}],'tasks':[{'id':'legacy','title':'Meu trabalho existente','project':'old','status':'todo','priority':'high','dueDate':'2026-10-11','description':'Notas preservadas','subtasks':[{'id':'s','text':'Passo antigo','done':True}],'sessions':[{'start':10000,'end':15000}],'startedAt':None}],'preferences':{'reminderDays':7,'alerts':[False,True,False,True]}}
+        await legacy.evaluate('(data)=>localStorage.setItem("flow.workspace.v1",JSON.stringify(data))',old)
+        await legacy.reload()
+        migrated=await legacy.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        assert migrated['projects']==old['projects']
+        for k,v in old['tasks'][0].items(): assert migrated['tasks'][0][k]==v
+        assert migrated['preferences']['reminderDays']==7
+        assert migrated['preferences']['focusMinutes']==25
+        passed('Version-one storage upgrades without replacing user areas, tasks or history')
+        assert not errors,errors
+        passed('No uncaught JavaScript errors')
+        await context.close()
+    print(f'{checks} app browser checks passed.',flush=True)
+
+with TemporaryDirectory(prefix='flow-app-test-') as profile:
+    asyncio.run(run(profile))
