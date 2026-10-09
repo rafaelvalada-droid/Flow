@@ -17,20 +17,13 @@
   const validGmailUrl = value => {try {const url = new URL(value);return url.protocol==='https:' && url.hostname==='mail.google.com' ? url.href : ''} catch {return ''}};
 
   function seed(){
-    const ps=[
-      {id:'carga',name:'Carga Horária Docente',color:'#9270d4'},
-      {id:'oferta',name:'Oferta de Turmas',color:'#507ee9'},
-      {id:'cpa',name:'CPA / Avaliação',color:'#2ca79a'},
-      {id:'ouv',name:'Ouvidoria',color:'#dbab56'},
-      {id:'folha',name:'Folha Docente',color:'#418d9d'},
-      {id:'pj',name:'Contratos PJ',color:'#ca8265'}
-    ];
+    const ps=globalThis.FlowAreas.defaults();
     const task=(id,title,project,plannedAfter,dueAfter,description,subs=[])=>({id,title,project,status:'todo',priority:'medium',plannedDate:addDays(plannedAfter),plannedTime:'',dueDate:addDays(dueAfter),description,subtasks:subs.map(text=>({id:uuid(),text,done:false})),sessions:[],startedAt:null,gmailUrl:'',gmailSubject:'',gmailSender:'',createdAt:Date.now(),completedAt:null});
     const ts=[
       task('t1','Conferir carga horária docente', 'carga',1,4,'Conferir os lançamentos da competência, validar os ajustes e preparar retorno à coordenação.',['Conferir lançamentos','Validar divergências','Responder ao setor']),
       task('t2','Revisar turmas com baixa ocupação','oferta',2,5,'Revisar os dados de ocupação e encaminhar ajustes necessários.',['Conferir painel de ocupação','Identificar turmas prioritárias']),
       task('t3','Analisar resultados da Avaliação Institucional','cpa',5,8,'Revisar os indicadores e organizar uma síntese para os setores envolvidos.'),
-      task('t4','Acompanhar devolutivas pendentes','ouv',3,6,'Verificar manifestações aguardando retorno dos setores.')
+      task('t4','Acompanhar devolutivas pendentes','suporte',3,6,'Verificar demandas operacionais aguardando retorno dos setores.')
     ];
     ts[0].priority='high';ts[1].status='doing';ts[1].priority='high';ts[3].status='waiting';
     return {version:1,projects:ps,tasks:ts,preferences:{reminderDays:1,alerts:[true,true,true,false]}};
@@ -44,14 +37,14 @@
   const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}catch(e){notice('Não foi possível salvar os dados. Verifique o espaço disponível no navegador.')}};
   const findTask=id=>db.tasks.find(t=>t.id===id);
   const selectedTask=()=>findTask(view.selectedId)||db.tasks[0];
-  const findProject=id=>db.projects.find(p=>p.id===id);
+  const findProject=id=>[...db.projects,...(db.archivedProjects||[])].find(p=>p.id===id);
   const projectName=id=>findProject(id)?.name||'Sem área';
   const persistAndRender=()=>{persist();render()};
   const badge=(s)=>`<span class="pill ${s==='done'?'green':s==='doing'?'blue':s==='waiting'?'gold':''}">${html(nameOfStatus[s]||s)}</span>`;
   const button=(label,action,primary=false,extra='')=>`<button type="button" class="button ${primary?'primary':''}" data-action="${action}" ${extra}>${label}</button>`;
   const pageHead=(title,subtitle,right='')=>`<div class="page-head"><div><div class="eyebrow">FLOW / WORKSPACE</div><h1>${title}</h1><p>${subtitle}</p></div>${right}</div>`;
   const selectedFilterTasks=()=>db.tasks.filter(t=>(view.projectFilter==='all'||t.project===view.projectFilter)&&(view.statusFilter==='all'||(view.statusFilter==='open'?t.status!=='done':workflow.stage(db,t)===view.statusFilter)));
-  const projOption=(current='all',all=true)=>`${all?'<option value="all">Todas as áreas</option>':`<option value="" ${!current?'selected':''}>Escolha uma área</option>`}${db.projects.map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''}>${html(p.name)}</option>`).join('')}`;
+  const projOption=(current='all',all=true,legacy=false)=>`${all?'<option value="all">Todas as áreas</option>':`<option value="" ${!current?'selected':''}>Escolha uma área</option>`}${db.projects.map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''}>${html(p.name)}</option>`).join('')}${(all?(db.archivedProjects||[]):legacy?(db.archivedProjects||[]).filter(p=>p.id===current):[]).map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''} ${!all?'disabled':''}>${html(p.name)} (anterior)</option>`).join('')}`;
   const statusOption=(s,includeInbox=false)=>Object.entries(nameOfStatus).filter(([key])=>includeInbox||key!=='inbox').map(([key,name])=>`<option value="${key}" ${s===key?'selected':''}>${name}</option>`).join('');
   function notice(text){const box=$('#toast');box.textContent=text;box.classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>box.classList.remove('visible'),3400)}
   function titleRow(title, right=''){return `<div class="between"><h3 class="sectiontitle">${title}</h3>${right}</div>`}
@@ -102,7 +95,7 @@
     const detail=`<section class="card"><div class="between"><span class="pill blue">${html(projectName(t.project))}</span>${badge(workflow.stage(db,t))}</div><h2 class="detail-title">${html(t.title)}</h2>${!workflow.classified(db,t)&&t.status!=='done'?`<div class="classification-hint">Defina a área e a data para colocar esta demanda na esteira. ${button('Classificar','classify-task',true,`data-id="${html(t.id)}"`)}</div>`:''}
       <div class="detail-grid">
         <label class="field">Título<input id="edit-title" value="${html(t.title)}" maxlength="180" /></label>
-        <label class="field">Área<select id="edit-project">${projOption(t.project,false)}</select></label>
+        <label class="field">Área<select id="edit-project">${projOption(t.project,false,true)}</select></label>
         <label class="field">Situação<select id="edit-status">${statusOption(t.status)}</select></label>
         <div class="field">Urgência pela data<div class="urgency-line">${urgencyBadge(t)}</div></div>
         <label class="field">Data de execução<input id="edit-planned" type="date" value="${html(t.plannedDate||'')}" /></label>
@@ -190,7 +183,7 @@
     if(!t)return;
     promptModal({title:'Classificar demanda',subtitle:t.title,content:`<div class="classification-questions"><label class="field">1. Para onde vai?<select name="project" required>${projOption(t.project||'',false)}</select></label><label class="field">2. Para quando?<input type="date" name="dueDate" required value="${html(t.dueDate||'')}" /></label></div><p class="smalltext muted">A área identifica a demanda. A data determina sua urgência na esteira comum.</p>`,onSubmit:data=>{
       const project=String(data.get('project')||''),dueDate=String(data.get('dueDate')||'');
-      if(!findProject(project)||!workflow.validDate(dueDate))return false;
+      if(!db.projects.some(area=>area.id===project)||!workflow.validDate(dueDate))return false;
       t.project=project;t.dueDate=dueDate;if(t.status==='inbox')t.status='todo';persist();
       if(after)after();else openPage('esteira');notice('Demanda classificada.');return true;
     },ok:'Incluir na esteira'});

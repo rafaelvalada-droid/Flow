@@ -11,17 +11,35 @@ Repositório: https://github.com/rafaelvalada-droid/Flow
 1. **Entrada:** capture uma demanda. Responda “Para onde vai?” (área) e “Para quando?” (data). Se faltar uma dessas respostas, ela permanece a classificar.
 2. **Esteira:** todas as áreas compartilham as etapas A classificar, A fazer, Em andamento, Aguardando e Concluídas. As datas mais próximas aparecem primeiro. Use **Mover etapa** no cartão ou edite a situação no detalhe.
 3. **Foco:** escolha uma tarefa e comece um ciclo. O padrão é **25 minutos de foco / 5 de pausa**, ajustável. Uma única tarefa registra tempo de trabalho por vez. O descanso começa ao terminar o foco; o próximo ciclo de trabalho exige sua ação.
-4. **Áreas:** classifique e consulte Carga Horária, Folha Docente, Contratos PJ, CPA, Ouvidoria ou suas próprias áreas. As áreas não têm esteiras independentes.
+4. **Áreas:** escolha uma das 13 classificações definidas abaixo. As áreas não têm esteiras independentes. Áreas personalizadas já criadas são preservadas.
 
 A urgência é calculada pela data: **atrasada, hoje, amanhã ou programada**. A data de execução e o horário opcionais continuam disponíveis no detalhe, separados do prazo e usados pela Agenda.
 
 O novo símbolo mostra caminhos de demandas convergindo para um único ponto de atenção. Está em `assets/flow-mark.png`, no menu e no favicon.
 
+## Classificações da Entrada
+
+- Ubra IA
+- Oferta de turmas
+- Carga horária docente
+- Incidências em folha
+- Contratos docentes PJ
+- Folha docente
+- Plano docente
+- Operação lato sensu BreCIA
+- Pendências de pagamento PJ
+- Ubracis
+- Suporte operacional
+- CPA Ubrecia
+- Capacitação
+
+“Contrato docente PJ” e “contratos docentes PJ” foram reunidos em uma única classificação. As opções também aparecem na caixa do Gmail, lidas da mesma base do Flow.
+
 ## Dados e atualização
 
 Os dados ficam no `localStorage` do navegador, sem login ou sincronização entre dispositivos. Use o mesmo perfil e o domínio principal; URLs diferentes da Vercel têm bases diferentes. Exporte backups pelo botão de configurações.
 
-A atualização preserva os projetos/áreas, tarefas, subtarefas, anotações e sessões existentes na chave `flow.workspace.v1`. “Projetos” passa a se chamar “Áreas” na interface; a estrutura dos backups permanece compatível. Demandas antigas sem área válida ou prazo aparecem na Entrada. As áreas de exemplo adicionais só são criadas em uma base nova; para incluí-las em uma base existente, use **Áreas → Criar área**.
+A atualização preserva os projetos/áreas, tarefas, subtarefas, anotações e sessões existentes na chave `flow.workspace.v1`. “Projetos” passa a se chamar “Áreas” na interface; a estrutura dos backups permanece compatível. Demandas antigas sem área válida ou prazo aparecem na Entrada. As 13 classificações solicitadas são acrescentadas também às bases existentes quando o Flow é recarregado. Áreas equivalentes conservam seus IDs e vínculos; a Ouvidoria de exemplo permanece no histórico das tarefas antigas, fora das opções para novas demandas. Áreas personalizadas são preservadas.
 
 Os ciclos usam timestamps persistidos. Reabrir a aba reconcilia o ciclo e encerra o tempo de trabalho no seu prazo, sem contar descanso ou horas de ausência. Um cronômetro da versão antiga mantém o histórico e recebe um ciclo a partir da atualização. O sistema usa a hora do dispositivo.
 
@@ -42,7 +60,7 @@ npm run check
 npm run dev
 ```
 
-O servidor local escuta em `127.0.0.1:3000` (`PORT` opcional). `workflow.js` contém as regras de classificação e ciclos; `app.js` contém a interface. A extensão está em `extensao-chrome/`.
+O servidor local escuta em `127.0.0.1:3000` (`PORT` opcional). `areas.js` contém o catálogo e sua atualização; `workflow.js` contém as regras de classificação e ciclos; `app.js` contém a interface. A extensão está em `extensao-chrome/`.
 
 ```bash
 npm run test:workflow    # Node: regras e persistência dos ciclos

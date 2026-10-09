@@ -9,7 +9,7 @@
     return Number.isFinite(date.getTime()) && localDate(date) === value;
   }
   const minutes = (value, fallback, max) => Number.isFinite(Number(value)) && Number(value) >= 1 && Number(value) <= max ? Math.round(Number(value)) : fallback;
-  const classified = (db, task) => db.projects.some(area => area.id === task.project) && validDate(task.dueDate);
+  const classified = (db, task) => [...db.projects,...(db.archivedProjects||[])].some(area => area.id === task.project) && validDate(task.dueDate);
   const stage = (db, task) => task.status === 'done' ? 'done' : !classified(db, task) ? 'inbox' : ['todo','doing','waiting'].includes(task.status) ? task.status : 'todo';
   const byDue = (a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || (a.createdAt || 0) - (b.createdAt || 0);
   function urgency(task, today = localDate()) {
@@ -29,6 +29,7 @@
     task.startedAt = null;
   }
   function normalize(db, now = Date.now()) {
+    globalThis.FlowAreas.migrate(db);
     db.preferences ??= {};
     db.preferences.focusMinutes = minutes(db.preferences.focusMinutes, defaults.focusMinutes, 180);
     db.preferences.breakMinutes = minutes(db.preferences.breakMinutes, defaults.breakMinutes, 60);

@@ -6,7 +6,7 @@ Receber demandas de várias frentes, classificá-las por destino e urgência, or
 
 ## Classificação antes da execução
 
-As duas perguntas são **“Para onde vai?”** (área) e **“Para quando?”** (data/prazo). Carga Horária, Folha Docente, Contratos PJ, CPA e Ouvidoria são exemplos de áreas. É possível criar novas áreas.
+As duas perguntas são **“Para onde vai?”** (área) e **“Para quando?”** (data/prazo). O catálogo solicitado é: Ubra IA; Oferta de turmas; Carga horária docente; Incidências em folha; Contratos docentes PJ; Folha docente; Plano docente; Operação lato sensu BreCIA; Pendências de pagamento PJ; Ubracis; Suporte operacional; CPA Ubrecia; Capacitação. O singular/plural de contrato docente PJ representa uma única classificação.
 
 Uma demanda sem área existente ou data válida permanece na **Entrada / A classificar**, mesmo que já tenha uma das respostas. A captura não atribui automaticamente a primeira área ou um prazo arbitrário. A classificação é condição para entrar em foco.
 
@@ -37,7 +37,7 @@ Armazenamento local na chave `flow.workspace.v1`, com versão de backup 1 preser
 
 Tarefas mantêm título, descrição, situação, execução planejada, prazo, subtarefas, sessões e metadados Gmail. O campo adicional `focusCycles` guarda ciclos completos. `preferences.focusMinutes` e `preferences.breakMinutes` guardam o ritmo. `focus` guarda tarefa, fase (`work`, `break`, `ready`), término, tempo restante e duração.
 
-A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de foco quando ausentes. Um cronômetro antigo ativo mantém sua sessão e recebe um ciclo contado a partir da migração. As novas áreas de exemplo não são inseridas automaticamente em bases existentes.
+A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de foco quando ausentes. Um cronômetro antigo ativo mantém sua sessão e recebe um ciclo contado a partir da migração. O catálogo é aplicado uma vez também às bases existentes, com o marcador `classificationCatalogVersion`. Áreas equivalentes conservam IDs, cores e vínculos. A Ouvidoria de exemplo, retirada das novas classificações, permanece em `archivedProjects` para resolver nomes, filtros e execução de tarefas anteriores. Áreas personalizadas não são removidas. Recarregamentos posteriores não restauram áreas deliberadamente retiradas.
 
 ## Gmail
 

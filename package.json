@@ -7,10 +7,10 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
-    "check": "node --check workflow.js && node --check app.js && node --check server.mjs && node --check api/gemini.mjs && node --check extensao-chrome/shared.js && node --check extensao-chrome/background.js && node --check extensao-chrome/gmail.js && node --check extensao-chrome/flow-bridge.js && node --check extensao-chrome/popup.js",
+    "check": "node --check areas.js && node --check workflow.js && node --check app.js && node --check server.mjs && node --check api/gemini.mjs && node --check extensao-chrome/shared.js && node --check extensao-chrome/background.js && node --check extensao-chrome/gmail.js && node --check extensao-chrome/flow-bridge.js && node --check extensao-chrome/popup.js",
     "package:extension": "python3 scripts/package-extension.py",
     "test:extension": "python3 tests/gmail-extension-smoke.py",
-    "test:workflow": "node --test tests/workflow.test.mjs",
+    "test:workflow": "node --test tests/workflow.test.mjs tests/areas.test.mjs",
     "test:app": "python3 tests/app-workflow-smoke.py"
   },
   "engines": {

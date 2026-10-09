@@ -168,7 +168,7 @@ async def main(profile):
         await button.click()
         select = gmail.locator('#flow-gmail-dialog select')
         await expect(select).to_be_enabled(timeout=25000)
-        assert await select.locator('option').count() == 7
+        assert await select.locator('option').count() == 14
         assert adapter.active_id == gmail_id and gmail.url == GMAIL
         passed('Button opens a Gmail dialog and loads actual Flow projects without leaving Gmail')
 
@@ -207,11 +207,11 @@ async def main(profile):
         await expect(select.locator('option').filter(has_text='Minha nova lista')).to_have_count(1)
         passed('Tasks persist across reload and newly created projects are available on the next capture')
 
-        await select.select_option('ouv')
+        await select.select_option('suporte')
         await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-11')
         await flow.evaluate("""() => {
           const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));
-          db.projects=db.projects.filter(p=>p.id!=='ouv');
+          db.projects=db.projects.filter(p=>p.id!=='suporte');
           localStorage.setItem('flow.workspace.v1',JSON.stringify(db));
         }""")
         await gmail.locator('#flow-gmail-dialog [type="submit"]').click()

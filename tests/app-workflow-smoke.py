@@ -42,14 +42,14 @@ async def run(profile):
         await form.locator('[name="dueDate"]').fill('2026-10-09')
         await form.locator('[type="submit"]').click()
         card=page.locator('.pipeline-task').filter(has_text='Conferir folha de outubro')
-        await expect(card.locator('.area-label')).to_have_text('Folha Docente')
+        await expect(card.locator('.area-label')).to_have_text('Folha docente')
         await expect(card.locator('.urgency')).to_contain_text('Hoje')
         await expect(page.locator('.pipeline-lane[data-stage="inbox"] .pipeline-task')).to_have_count(0)
         assert 'Conferir folha' in await page.locator('.pipeline-lane[data-stage="todo"] .pipeline-task').first.inner_text()
         passed('Capture stays in Entrada until area and date are chosen; deadline orders the shared queue')
 
         await page.locator('#sidebar-nav [data-page="projetos"]').click()
-        assert await page.locator('.projectcard').count()==6
+        assert await page.locator('.projectcard').count()==13
         assert await page.locator('.pipeline-board,.kanban').count()==0
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await page.locator('#board-filter').select_option('folha')
@@ -76,7 +76,7 @@ async def run(profile):
         await page.locator('#focus-minutes').dispatch_event('change')
         await expect(page.locator('[data-countdown]')).to_have_text(paused)
         await page.locator('[data-action="focus-change"]').click()
-        await page.locator('#focus-task-select').select_option(label='Conferir folha de outubro · Folha Docente')
+        await page.locator('#focus-task-select').select_option(label='Conferir folha de outubro · Folha docente')
         await page.locator('[data-action="focus-start"]').click()
         await expect(page.locator('[data-countdown]')).to_have_text('01:00')
         passed('Focus survives reload; pause freezes the cycle; rhythm edits preserve the current cycle')
@@ -135,7 +135,8 @@ async def run(profile):
         await legacy.evaluate('(data)=>localStorage.setItem("flow.workspace.v1",JSON.stringify(data))',old)
         await legacy.reload()
         migrated=await legacy.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
-        assert migrated['projects']==old['projects']
+        assert old['projects'][0] in migrated['projects']
+        assert len(migrated['projects'])==14
         for k,v in old['tasks'][0].items(): assert migrated['tasks'][0][k]==v
         assert migrated['preferences']['reminderDays']==7
         assert migrated['preferences']['focusMinutes']==25
