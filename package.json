@@ -1,0 +1,13 @@
+{
+  "name": "flow-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Flow - prototipo funcional sem dependencias, pronto para GitHub/Vercel",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "check": "node --check app.js && node --check server.mjs && node --check api/gemini.mjs"
+  },
+  "engines": {"node": ">=20"}
+}

@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Flow - Capturar e-mail como tarefa",
+  "description": "Captura o assunto e o endereço de uma conversa do Gmail e abre o Flow para criar a tarefa.",
+  "version": "1.0.0",
+  "action": {
+    "default_title": "Enviar e-mail ao Flow",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab", "tabs", "scripting", "storage"],
+  "host_permissions": ["https://mail.google.com/*"]
+}

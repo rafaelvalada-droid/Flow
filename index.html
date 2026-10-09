@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#182a47" />
+  <meta name="description" content="Flow — gestão inteligente de projetos, tarefas, tempo de trabalho e demandas originadas no Gmail." />
+  <title>Flow — Workspace</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Menu principal">
+      <a class="brand" href="#tarefas" aria-label="Flow, início"><span class="brand-icon">f</span><span class="brand-word">flow<span class="brand-dot">.</span><small>WORKSPACE</small></span></a>
+      <div class="sidebar-caption">PRINCIPAL</div>
+      <nav id="sidebar-nav">
+        <button type="button" data-page="tarefas" class="active"><span class="nav-icon">☑</span><span>Tarefas</span></button>
+        <button type="button" data-page="projetos"><span class="nav-icon">▦</span><span>Projetos</span></button>
+        <button type="button" data-page="agenda"><span class="nav-icon">▤</span><span>Agenda</span></button>
+        <button type="button" data-page="gmail"><span class="nav-icon">✉</span><span>Gmail</span></button>
+        <button type="button" data-page="alertas"><span class="nav-icon">♧</span><span>Alertas</span></button>
+      </nav>
+      <div class="sidebar-foot"><div class="avatar">F</div><div><strong>Meu workspace</strong><small>Flow · versão local</small></div></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Tarefas</strong></div>
+        <div class="top-actions"><button id="active-clock" type="button" class="active-clock" data-action="open-active">◷ Nenhum cronômetro ativo</button><button type="button" class="button primary" data-action="new-task">+ Nova tarefa</button></div>
+      </header>
+      <div class="privacy-note">Versão de teste · dados salvos neste navegador. Evite informações institucionais confidenciais.</div>
+      <main id="screen" class="screen" aria-live="polite"></main>
+    </div>
+  </div>
+  <div id="modal-backdrop" class="modal-backdrop hidden" role="presentation"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
