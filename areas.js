@@ -1,7 +1,7 @@
 /* Destinos de classificação definidos pelo usuário. */
 (() => {
   'use strict';
-  const version = 1;
+  const version = 2;
   const catalog = [
     {id:'ubra-ia', name:'Ubra IA', color:'#507ee9'},
     {id:'oferta', name:'Oferta de turmas', color:'#507ee9'},
@@ -12,7 +12,7 @@
     {id:'plano', name:'Plano docente', color:'#9270d4'},
     {id:'lato-sensu', name:'Operação lato sensu BreCIA', color:'#2ca79a'},
     {id:'pagamentos-pj', name:'Pendências de pagamento PJ', color:'#dbab56'},
-    {id:'ubracis', name:'Ubracis', color:'#418d9d'},
+    {id:'ubracis', name:'Ubra S.A.', color:'#418d9d', aliases:['Ubracis']},
     {id:'suporte', name:'Suporte operacional', color:'#507ee9'},
     {id:'cpa', name:'CPA Ubrecia', color:'#2ca79a', aliases:['CPA / Avaliação']},
     {id:'capacitacao', name:'Capacitação', color:'#9270d4'}
@@ -21,7 +21,15 @@
   const defaults = () => catalog.map(({id,name,color})=>({id,name,color}));
 
   function migrate(db) {
-    if (db.classificationCatalogVersion === version) return db;
+    if (db.classificationCatalogVersion >= version) return db;
+    if (db.classificationCatalogVersion === 1) {
+      // Corrige a grafia sem recriar categorias removidas ou alterar vínculos.
+      for (const area of [...db.projects,...(db.archivedProjects||[])]) {
+        if (nameKey(area.name)==='ubracis') area.name='Ubra S.A.';
+      }
+      db.classificationCatalogVersion = version;
+      return db;
+    }
     const existing = [...db.projects];
     const used = new Set();
     const ids = new Set([...existing, ...(db.archivedProjects||[])].map(area=>area.id));

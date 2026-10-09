@@ -28,7 +28,7 @@ O novo símbolo mostra caminhos de demandas convergindo para um único ponto de 
 - Plano docente
 - Operação lato sensu BreCIA
 - Pendências de pagamento PJ
-- Ubracis
+- Ubra S.A.
 - Suporte operacional
 - CPA Ubrecia
 - Capacitação
