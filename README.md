@@ -24,7 +24,7 @@ Não há `npm install` obrigatório: o primeiro protótipo usa HTML, CSS e JavaS
 - Cronômetro por tarefa, com início/pausa/retomada e histórico de sessões. A contagem leva em conta timestamps e não depende da aba estar aberta.
 - Uma tarefa ativa por vez (na mesma base local).
 - Vínculo manual com link do Gmail, abertura da conversa original em outra aba.
-- Extensão Chrome para capturar assunto/remetente/link de e-mails abertos no Gmail.
+- Botão **Incluir no Flow** dentro do Gmail: escolha uma lista (projeto) e salve a tarefa sem sair do e-mail, usando a extensão Chrome.
 - Exportação de evento `.ics` para importação manual no Google Agenda.
 - Exportação do backup JSON; alerta de vencimento configurável em preferências (envio por e-mail ainda não implementado).
 - Integração opcional Gemini na API do servidor para melhorar descrições, preparar respostas e sugerir subtarefas.
@@ -61,7 +61,9 @@ Na Vercel: **Project → Settings → Environment Variables**. O frontend solici
 
 ## Extensão Chrome
 
-Leia `extensao-chrome/README.md`. Em `chrome://extensions`, ative Modo do desenvolvedor e carregue a pasta sem compactação. Em uma conversa aberta no Gmail, clique no ícone Flow e escolha o endereço do aplicativo.
+No Flow, abra **Gmail → Baixar extensão para Gmail**. Extraia o ZIP; em `chrome://extensions`, ative Modo do desenvolvedor e carregue a pasta `flow-gmail` sem compactação. Recarregue o Gmail e, em uma conversa aberta, clique em **Incluir no Flow**, escolha a lista e salve. O endereço publicado já está configurado. A extensão mantém o Flow em uma aba de apoio e usa as listas e os dados do mesmo perfil do Chrome. Leia `extensao-chrome/README.md` para atualização e outros endereços.
+
+Para desenvolver a extensão: `npm run check`, `npm run test:extension` (Python Playwright e Chromium) e `npm run package:extension` para regenerar o ZIP. O aplicativo continua sem dependências e sem build obrigatório.
 
 ## GitHub
 

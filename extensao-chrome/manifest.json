@@ -1,12 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Flow - Capturar e-mail como tarefa",
-  "description": "Captura o assunto e o endereço de uma conversa do Gmail e abre o Flow para criar a tarefa.",
-  "version": "1.0.0",
+  "description": "Inclua uma conversa na lista do Flow sem sair do Gmail.",
+  "version": "1.1.0",
   "action": {
-    "default_title": "Enviar e-mail ao Flow",
+    "default_title": "Configurar conexão com o Flow",
     "default_popup": "popup.html"
   },
-  "permissions": ["activeTab", "tabs", "scripting", "storage"],
-  "host_permissions": ["https://mail.google.com/*"]
+  "permissions": ["scripting", "storage"],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://flow-blue-theta.vercel.app/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [{
+    "matches": ["https://mail.google.com/*"],
+    "js": ["shared.js", "gmail.js"],
+    "run_at": "document_idle"
+  }]
 }

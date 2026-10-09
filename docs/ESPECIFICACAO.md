@@ -29,10 +29,10 @@ Organizar demandas de trabalho oriundas de e-mails, atividades manuais ou reuni�
 6. A implementação local usa hora do dispositivo; futuramente o servidor será a referência para integridade e sincronização.
 
 ## Fluxo de e-mail
-1. Usuário abre uma conversa no Gmail e aciona a extensão.
+1. Usuário abre uma conversa no Gmail e clica em **Incluir no Flow**, ao lado do assunto (extensão Chrome instalada).
 2. A extensão lê assunto/remetente quando disponíveis e a URL da conversa.
-3. O Flow abre a criação de tarefa com link capturado e projeto a escolher.
-4. Usuário agenda execução e prazo.
+3. Uma caixa no próprio Gmail permite ajustar o título, escolher uma lista (projeto) e salvar a tarefa com o link capturado.
+4. A extensão grava na base do Flow do mesmo perfil do Chrome por uma aba de apoio, sem tirar o usuário do Gmail. Execução e prazo podem ser definidos depois no Flow.
 5. Ao trabalhar na tarefa, pode iniciar o cronômetro e abrir a conversa Gmail em outra aba.
 6. A resposta continua manual no Gmail na versão 1; o Flow não envia mensagens sem autorização expressa.
 
