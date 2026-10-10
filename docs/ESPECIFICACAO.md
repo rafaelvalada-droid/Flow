@@ -65,4 +65,4 @@ Google Agenda pede consentimento separado. Cria/atualiza eventos privados no cal
 
 A extensão 1.3 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no Flow.
 
-Gemini permanece opcional, com chave no servidor, acionamento por clique e revisão. Alertas salvam preferências sem envio ativo. A paleta continua azul; uma proposta grafite será somente prévia externa ao código. O slogan foi retirado, e a marca Ulbra está no acesso e na barra superior.
+Gemini permanece opcional, com chave no servidor, acionamento por clique e revisão. Alertas salvam preferências sem envio ativo. A interface usa grafite, cinza e preto, com ações e destaques em branco, inclusive no acesso, na esteira, no foco, na agenda e na Gestão do Tempo. As cores cadastradas nas áreas permanecem nos dados; a apresentação usa indicadores neutros. A impressão/PDF usa fundo claro e texto escuro. O slogan foi retirado, e a marca Ulbra está no acesso e na barra superior.
