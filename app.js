@@ -378,7 +378,7 @@
   // Atualiza os rótulos; a contagem decorre dos timestamps, não da frequência do setInterval.
   setInterval(tick,1000);
   // Botão de backup facilmente acessível sem ocupar uma sexta tela.
-  const nav=document.querySelector('.sidebar-foot');const backup=document.createElement('button');backup.className='button small';backup.type='button';backup.dataset.action='settings';backup.title='Exportar ou importar os dados';backup.style.cssText='margin-left:auto;padding:5px 7px;background:#314b74;border-color:#48618a;color:#d5e3fd';backup.textContent='⚙';nav.appendChild(backup);
+  const nav=document.querySelector('.sidebar-foot');const backup=document.createElement('button');backup.className='button small workspace-settings';backup.type='button';backup.dataset.action='settings';backup.title='Exportar ou importar os dados';backup.textContent='⚙';nav.appendChild(backup);
   globalThis.FlowCalendar.initialize(()=>db,persist);
   persist();render();updateAccount();handleCapture();
   $('#login-screen').hidden=true;$('.app-shell').hidden=false;
