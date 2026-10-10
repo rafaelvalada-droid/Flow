@@ -42,11 +42,12 @@ input,textarea,select{accent-color:var(--accent)}
 #sidebar-nav button.active{background:var(--accent);color:var(--on-accent)}
 #sidebar-nav button.active:hover{background:var(--accent-hover)}
 #sidebar-nav button.active .nav-count{background:var(--on-accent);color:var(--accent)}
-.brand-mark,.login-screen>img{filter:grayscale(1);background:var(--surface)}
+.brand-mark,.login-screen>img{filter:url("./assets/flow-green-filter.svg#ulbra-green");background:transparent}
 .login-screen>img{padding:10px}
 .nav-icon,.workspace-settings{filter:grayscale(1)}
 .ulbra-mark{filter:none;opacity:1}
 .brand-icon{color:var(--on-accent)}
+.brand-word{color:var(--accent)}
 .button{transition:background-color .15s,border-color .15s}
 .button:hover{border-color:var(--border-strong);background:var(--surface-hover)}
 .button.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
