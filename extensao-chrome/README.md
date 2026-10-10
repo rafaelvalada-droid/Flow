@@ -1,4 +1,4 @@
-# Flow no Gmail — extensão Chrome 1.2
+# Flow no Gmail — extensão Chrome 1.3
 
 A extensão adiciona **Incluir no Flow** ao lado do assunto da conversa aberta no Gmail.
 Você escolhe a área e a data e salva a tarefa em uma caixa no próprio Gmail.
@@ -22,8 +22,8 @@ O Chrome pedirá acesso apenas ao domínio escolhido. HTTP é aceito somente em 
 - A extensão usa uma aba do Flow em segundo plano para ler as áreas e gravar a tarefa. Você permanece no Gmail.
 - Se o Flow já estiver aberto no endereço configurado, sua aba será reaproveitada; a interface recebe a tarefa imediatamente.
 - São capturados somente assunto, remetente visível e link da conversa. O corpo do e-mail não é lido e nenhuma mensagem é enviada.
-- Os dados continuam no armazenamento local do Flow. Use o mesmo perfil do Chrome e o mesmo endereço do Flow em que estão suas áreas.
-- Cada domínio/subdomínio tem uma base local diferente; mudar entre o domínio principal e URLs de deployment da Vercel não transfere tarefas.
+- Com o Google ativado, entre no Flow neste perfil do Chrome antes de capturar. A extensão usa a conta ativa e só confirma sucesso após o Supabase confirmar o salvamento. Sem configuração Google, permanece o armazenamento local. Use o mesmo endereço do Flow. Erros de rede preservam a captura pendente; repetir Salvar não duplica a tarefa.
+- Cada origem possui seu próprio cache e sessão. Com o Supabase configurado, a mesma conta recupera os dados da nuvem; a extensão continua apontando para o domínio configurado.
 - Se não houver áreas, crie uma área no Flow e reabra a caixa no Gmail.
 - O botão aparece em uma conversa aberta, não na lista da caixa de entrada. Os seletores do Gmail podem precisar de ajuste se sua interface mudar.
 - Não é necessário fornecer senha do Gmail, chave da API ou instalar um servidor adicional.
@@ -39,4 +39,4 @@ Depois de alterar a extensão, execute `npm run package:extension` para atualiza
 `npm run check` verifica a sintaxe do aplicativo e da extensão.
 `npm run test:extension` testa o fluxo com Chromium e Python Playwright em um perfil temporário, usando páginas de Gmail simuladas, os arquivos reais do Flow e um adaptador para a comunicação `chrome.*`. Nenhum e-mail real é acessado. O Chromium gerenciado do ambiente na nuvem bloqueia o carregamento nativo de extensões; a instalação real deve ser validada no Chrome do usuário.
 
-A extensão 1.2 pede área e data. Capturas antigas sem data ficam na Entrada do Flow para classificação.
+A extensão 1.3 pede área e data e respeita a conta Google ativa no Flow. Capturas antigas sem data ficam na Entrada do Flow para classificação.

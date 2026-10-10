@@ -1,7 +1,26 @@
-/* Flow v1: local-first. Um único arquivo para facilitar o entendimento e a edição no VS Code. */
-(() => {
+/* Interface Flow. Autenticação, sincronização e regras ficam em módulos separados. */
+(async () => {
   'use strict';
-  const STORAGE_KEY = 'flow.workspace.v1';
+  const cloud = globalThis.FlowCloud;
+  const loginMessage = document.querySelector('#login-message');
+  document.querySelector('#google-login').addEventListener('click', async () => {
+    try { await cloud.signIn(); } catch (error) { loginMessage.textContent = error.message; }
+  });
+  document.querySelector('#login-retry').addEventListener('click', () => location.reload());
+  let workspace;
+  try { workspace = await cloud.initialize(); }
+  catch (error) {
+    loginMessage.textContent = error.message;
+    document.querySelector('#google-login').hidden = false;
+    document.querySelector('#login-retry').hidden = false;
+    return;
+  }
+  if (workspace.mode === 'login') {
+    loginMessage.textContent = 'Entre com sua conta Google para abrir suas tarefas.';
+    document.querySelector('#google-login').hidden = false;
+    return;
+  }
+  const STORAGE_KEY = workspace.key;
   const workflow = globalThis.FlowWorkflow;
   const $ = (selector) => document.querySelector(selector);
   const html = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -29,19 +48,19 @@
     return {version:1,projects:ps,tasks:ts,preferences:{reminderDays:1,alerts:[true,true,true,false]}};
   }
   function load(){try{const raw=JSON.parse(localStorage.getItem(STORAGE_KEY));if(raw?.version===1 && Array.isArray(raw.projects)&&Array.isArray(raw.tasks))return raw}catch{}return seed()}
-  let db=workflow.normalize(load());
+  let db=workflow.normalize(workspace.mode === 'cloud' ? workspace.data || {version:1,projects:globalThis.FlowAreas.defaults(),tasks:[],preferences:{}} : load());
   workflow.reconcile(db);
-  let view={page:'esteira',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',mailSelected:null,weekOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
+  let view={page:'esteira',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
   let accessToken='';
   let toastTimeout;
-  const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db))}catch(e){notice('Não foi possível salvar os dados. Verifique o espaço disponível no navegador.')}};
+  const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));cloud.queue(db);globalThis.FlowCalendar.schedule()}catch(e){notice('Não foi possível salvar os dados. Verifique o espaço disponível no navegador.')}};
   const findTask=id=>db.tasks.find(t=>t.id===id);
   const selectedTask=()=>findTask(view.selectedId)||db.tasks[0];
   const findProject=id=>[...db.projects,...(db.archivedProjects||[])].find(p=>p.id===id);
   const projectName=id=>findProject(id)?.name||'Sem área';
   const persistAndRender=()=>{persist();render()};
   const badge=(s)=>`<span class="pill ${s==='done'?'green':s==='doing'?'blue':s==='waiting'?'gold':''}">${html(nameOfStatus[s]||s)}</span>`;
-  const button=(label,action,primary=false,extra='')=>`<button type="button" class="button ${primary?'primary':''}" data-action="${action}" ${extra}>${label}</button>`;
+  const button=(label,action,primary=false,extra='')=>`<button type="button" class="button ${primary?'primary':''} ${action==='advance-task'?'lane-advance':''}" data-action="${action}" ${extra}>${label}</button>`;
   const pageHead=(title,subtitle,right='')=>`<div class="page-head"><div><div class="eyebrow">FLOW / WORKSPACE</div><h1>${title}</h1><p>${subtitle}</p></div>${right}</div>`;
   const selectedFilterTasks=()=>db.tasks.filter(t=>(view.projectFilter==='all'||t.project===view.projectFilter)&&(view.statusFilter==='all'||(view.statusFilter==='open'?t.status!=='done':workflow.stage(db,t)===view.statusFilter)));
   const projOption=(current='all',all=true,legacy=false)=>`${all?'<option value="all">Todas as áreas</option>':`<option value="" ${!current?'selected':''}>Escolha uma área</option>`}${db.projects.map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''}>${html(p.name)}</option>`).join('')}${(all?(db.archivedProjects||[]):legacy?(db.archivedProjects||[]).filter(p=>p.id===current):[]).map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''} ${!all?'disabled':''}>${html(p.name)} (anterior)</option>`).join('')}`;
@@ -69,9 +88,10 @@
     const visible=db.tasks.filter(t=>view.projectBoard==='all'||t.project===view.projectBoard).sort(workflow.byDue);
     const lanes=[['inbox','A classificar','Definir área e data'],['todo','A fazer','Próximas demandas'],['doing','Em andamento','Trabalho iniciado'],['waiting','Aguardando','Depende de um retorno'],['done','Concluídas','Trabalho entregue']].map(([status,title,subtitle])=>{
       const tasks=visible.filter(t=>workflow.stage(db,t)===status);
-      return `<section class="pipeline-lane" data-stage="${status}"><div class="lanehead"><span>${title}</span><span class="lane-count">${tasks.length}</span></div><p class="lane-subtitle">${subtitle}</p>${tasks.map(t=>`<article class="pipeline-task ${active(t)?'in-focus':''}"><button class="text-button" data-task="${html(t.id)}">${html(t.title)}</button><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}</div>${active(t)?'<span class="focus-indicator">● Em foco agora</span>':''}${t.gmailUrl?'<span class="mail-indicator">✉ E-mail vinculado</span>':''}<div class="pipeline-actions">${status==='inbox'?button('Classificar','classify-task',false,`data-id="${html(t.id)}"`):status!=='done'?button(active(t)?'Abrir foco':'Focar','focus-task',false,`data-id="${html(t.id)}"`):'<span class="completed-label">✓ Entregue</span>'}${button('Detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div>${status!=='inbox'?`<select class="lane-move" data-move-task="${html(t.id)}" aria-label="Mover ${html(t.title)} para outra etapa"><option value="">Mover etapa…</option>${Object.entries(nameOfStatus).filter(([key])=>key!=='inbox'&&key!==status).map(([key,name])=>`<option value="${key}">${name}</option>`).join('')}</select>`:''}</article>`).join('')||'<div class="lane-empty">Nenhuma demanda aqui.</div>'}</section>`;
+      return `<section class="pipeline-lane" data-stage="${status}"><div class="lanehead"><span>${title}</span><span class="lane-count">${tasks.length}</span></div><p class="lane-subtitle">${subtitle}</p>${tasks.map(t=>`<article class="pipeline-task ${active(t)?'in-focus':''}"><button class="text-button" data-task="${html(t.id)}">${html(t.title)}</button><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}</div>${active(t)?'<span class="focus-indicator">● Em foco agora</span>':''}${t.gmailUrl?'<span class="mail-indicator">✉ E-mail vinculado</span>':''}<div class="pipeline-actions">${status==='inbox'?button('Classificar','classify-task',false,`data-id="${html(t.id)}"`):status!=='done'?button(active(t)?'Abrir foco':'Focar','focus-task',false,`data-id="${html(t.id)}"`):'<span class="completed-label">✓ Entregue</span>'}${button('Detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div>${status!=='done'?button(status==='inbox'?'Classificar →':status==='waiting'?'Concluir →':'Avançar →','advance-task',false,`data-id="${html(t.id)}"`):''}${status!=='inbox'?`<select class="lane-move" data-move-task="${html(t.id)}" aria-label="Mover ${html(t.title)} para outra etapa"><option value="">Mover etapa…</option>${Object.entries(nameOfStatus).filter(([key])=>key!=='inbox'&&key!==status).map(([key,name])=>`<option value="${key}">${name}</option>`).join('')}</select>`:''}</article>`).join('')||'<div class="lane-empty">Nenhuma demanda aqui.</div>'}</section>`;
     }).join('');
-    return pageHead('Uma esteira. Todas as demandas.','As áreas organizam a origem. Você escolhe uma tarefa de cada vez.',button('+ Nova demanda','new-task',true))+`<div class="pipeline-summary"><button data-page="entrada"><span>A classificar</span><strong>${inbox}</strong></button><div><span>Para hoje</span><strong>${dueToday}</strong></div><div class="${late?'has-late':''}"><span>Atrasadas</span><strong>${late}</strong></div><button data-page="foco"><span>${focus?'Seu foco':'Próximo foco'}</span><strong class="summary-task">${html(next?.title||'Escolha uma demanda')}</strong><small>${focus?'Abrir sessão →':'Entrar em foco →'}</small></button></div><div class="pipeline-toolbar"><div><h3 class="sectiontitle">Esteira comum</h3><p>Datas mais próximas aparecem primeiro em cada etapa.</p></div><label class="field">Área<select id="board-filter" class="filterselect">${projOption(view.projectBoard)}</select></label></div><div class="pipeline-board">${lanes}</div><p class="board-footnote">Use Mover etapa para encaminhar a demanda. A área acompanha a tarefa em toda a esteira.</p>`;
+    const direction='<ol class="pipeline-direction" aria-label="Fluxo da esquerda para a direita">'+['Classificar','Preparar','Executar','Aguardar','Entregar'].map((label,i)=>`<li><b>${String(i+1).padStart(2,'0')}</b><span>${label}</span>${i<4?'<i aria-hidden="true">→</i>':'<i aria-hidden="true">✓</i>'}</li>`).join('')+'</ol>';
+    return pageHead('Uma esteira. Todas as demandas.','Da entrada à entrega, um fluxo da esquerda para a direita.',button('+ Nova demanda','new-task',true))+`<div class="pipeline-summary"><button data-page="entrada"><span>A classificar</span><strong>${inbox}</strong></button><div><span>Para hoje</span><strong>${dueToday}</strong></div><div class="${late?'has-late':''}"><span>Atrasadas</span><strong>${late}</strong></div><button data-page="foco"><span>${focus?'Seu foco':'Próximo foco'}</span><strong class="summary-task">${html(next?.title||'Escolha uma demanda')}</strong><small>${focus?'Abrir sessão →':'Entrar em foco →'}</small></button></div><div class="pipeline-toolbar"><div><h3 class="sectiontitle">Esteira comum</h3><p>Avance a demanda pelas etapas. Datas mais próximas aparecem primeiro.</p></div><label class="field">Área<select id="board-filter" class="filterselect">${projOption(view.projectBoard)}</select></label></div><div class="pipeline-board">${direction}${lanes}</div><p class="board-footnote">Aguardando é usado quando há um retorno pendente. Você também pode concluir a tarefa diretamente em Detalhes ou Mover etapa.</p>`;
   }
   function renderFocus(){
     const t=focusTask(), f=db.focus, working=f?.phase==='work', paused=f&&!f.endsAt&&f.phase!=='ready';
@@ -115,7 +135,7 @@
     return pageHead('Detalhe da tarefa','Área e data classificam a demanda. A execução acontece na esteira comum.',button('← Esteira','show-pipeline'))+`<div class="layout-task">${list}${detail}</div>`;
   }
   function renderProjects(){
-    const cards=db.projects.map(p=>{const group=db.tasks.filter(t=>t.project===p.id),closed=group.filter(t=>t.status==='done').length,percent=group.length?Math.round(closed*100/group.length):0;return `<button class="projectcard" data-project="${html(p.id)}"><div class="between"><div class="projecticon" style="background:${p.color}18;color:${p.color}">▦</div><span class="pill">${group.length} tarefas</span></div><strong>${html(p.name)}</strong><p>${group.length-closed} abertas · ${closed} concluídas</p><div class="progressbar"><i style="width:${percent}%;background:${p.color}"></i></div></button>`}).join('');
+    const cards=db.projects.map(p=>{const color=/^#[a-f0-9]{6}$/i.test(p.color||'')?p.color:'#507ee9';const group=db.tasks.filter(t=>t.project===p.id),closed=group.filter(t=>t.status==='done').length,percent=group.length?Math.round(closed*100/group.length):0;return `<button class="projectcard" data-project="${html(p.id)}"><div class="between"><div class="projecticon" style="background:${color}18;color:${color}">▦</div><span class="pill">${group.length} tarefas</span></div><strong>${html(p.name)}</strong><p>${group.length-closed} abertas · ${closed} concluídas</p><div class="progressbar"><i style="width:${percent}%;background:${color}"></i></div></button>`}).join('');
     return pageHead('Áreas','De onde vêm as demandas. Todas seguem pela mesma esteira.',button('+ Criar área','new-project',true))+`<div class="projectgrid">${cards||'<div class="empty">Nenhuma área criada.</div>'}</div><div class="notice" style="margin-top:20px">Use as áreas para classificar e consultar. ${button('Abrir esteira comum','show-pipeline')}</div>`;
   }
   function renderCalendar(){
@@ -123,7 +143,55 @@
     const monday=new Date(today);monday.setDate(today.getDate()-dow+view.weekOffset*7);
     const days=Array.from({length:7},(_,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);return d});
     const range=`${days[0].toLocaleDateString('pt-BR',{day:'numeric',month:'short'})} – ${days[6].toLocaleDateString('pt-BR',{day:'numeric',month:'short',year:'numeric'})}`;
-    return pageHead('Agenda','Veja a execução planejada de cada tarefa no calendário.',button('+ Nova tarefa','new-task',true))+`<section class="card" style="margin-bottom:14px"><div class="calendar-toolbar"><strong>${range}</strong><div class="row">${button('←','week-previous')}${button('Semana atual','week-reset')}${button('→','week-next')}</div></div></section><div class="calendar-grid">${days.map((d,i)=>{const date=localDate(d);const matches=db.tasks.filter(t=>t.plannedDate===date).sort((a,b)=>(a.plannedTime||'').localeCompare(b.plannedTime||''));return `<div class="calendar-day"><small>${['SEG','TER','QUA','QUI','SEX','SÁB','DOM'][i]}</small><strong>${d.getDate()}</strong>${matches.map(t=>`<button data-task="${html(t.id)}" class="calendar-event"><time>${html(t.plannedTime||'Dia inteiro')}</time>${html(t.title)}</button>`).join('')}</div>`}).join('')}</div><section class="notice" style="margin-top:17px">A agenda do Flow usa a <b>data de execução</b>. O <b>prazo final</b> permanece separado. Você já pode exportar um evento em formato .ics e importá-lo no Google Agenda; a sincronização automática por OAuth entra na próxima etapa.</section>`;
+    const calendar=globalThis.FlowCalendar.info();
+    const connection=calendar.connected?`<b>Google Agenda conectado</b><p>As datas de execução são sincronizadas enquanto o Flow está aberto. ${calendar.status==='syncing'?'Sincronizando…':calendar.status==='synced'?'Eventos atualizados.':''}</p>${button('Sincronizar agora','calendar-sync')}${button('Desconectar','calendar-disconnect')}`:`<b>Leve seu planejamento ao Google Agenda</b><p>Conecte a mesma conta Google usada no Flow e autorize a criação dos eventos.</p>${button('Conectar Google Agenda','calendar-connect',true)}`;
+    return pageHead('Agenda','Veja a execução planejada de cada tarefa no calendário.',button('+ Nova tarefa','new-task',true))+`<section class="notice calendar-connection" style="margin-bottom:17px">${connection}${calendar.error?`<p class="sync-error">${html(calendar.error)}</p>`:''}</section><section class="card" style="margin-bottom:14px"><div class="calendar-toolbar"><strong>${range}</strong><div class="row">${button('←','week-previous')}${button('Semana atual','week-reset')}${button('→','week-next')}</div></div></section><div class="calendar-grid">${days.map((d,i)=>{const date=localDate(d);const matches=db.tasks.filter(t=>t.plannedDate===date).sort((a,b)=>(a.plannedTime||'').localeCompare(b.plannedTime||''));return `<div class="calendar-day"><small>${['SEG','TER','QUA','QUI','SEX','SÁB','DOM'][i]}</small><strong>${d.getDate()}</strong>${matches.map(t=>`<button data-task="${html(t.id)}" class="calendar-event"><time>${html(t.plannedTime||'Dia inteiro')}</time>${html(t.title)}</button>`).join('')}</div>`}).join('')}</div><p class="board-footnote">O evento usa a <b>data de execução</b>. O <b>prazo final</b> permanece separado, na descrição. Sem horário, o evento ocupa o dia inteiro; com horário, usa a duração do seu ciclo de foco. A exportação .ics continua disponível nos detalhes da tarefa.</p>`;
+  }
+  function timeReport(){return globalThis.FlowTime.summarize(db,view.timePeriod,view.timeOffset)}
+  function renderTime(){
+    const report=timeReport(), duration=globalThis.FlowTime.duration;
+    const last=new Date(report.end);last.setDate(last.getDate()-1);
+    const range=report.start.toLocaleDateString('pt-BR')+(view.timePeriod==='day'?'':` — ${last.toLocaleDateString('pt-BR')}`);
+    const peak=Math.max(...report.buckets.map(b=>b.ms),1);
+    const bars=report.buckets.map(b=>`<div class="time-bar" title="${html(b.label)}: ${duration(b.ms)}"><span class="time-bar-value">${b.ms?Math.round(b.ms/60000)+'m':''}</span><i style="height:${b.ms?Math.max(2,b.ms/peak*135):0}px"></i><small>${html(b.label)}</small></div>`).join('');
+    const areas=report.areas.map(a=>`<div class="time-area"><div class="between"><strong>${html(a.name)}</strong><span>${duration(a.ms)} · ${Math.round(a.ms/report.totalMs*100)}%</span></div><div class="progressbar"><i style="width:${a.ms/report.totalMs*100}%;background:${html(/^#[a-f0-9]{6}$/i.test(a.color)?a.color:'#8998ae')}"></i></div></div>`).join('');
+    const tasks=report.tasks.map(t=>`<tr><td><button class="text-button" data-task="${html(t.id)}">${html(t.title)}</button></td><td>${html(t.area)}</td><td>${duration(t.ms)}</td><td>${t.sessions}</td></tr>`).join('');
+    return pageHead('Gestão do Tempo','Entenda onde sua atenção foi investida.',button('Gerar relatório','time-report',true))+`<section class="card time-toolbar"><div class="time-periods" role="group" aria-label="Período da análise">${[['day','Dia'],['week','Semana'],['month','Mês']].map(([id,label])=>`<button type="button" class="button ${view.timePeriod===id?'primary':''}" data-time-period="${id}" aria-pressed="${view.timePeriod===id}">${label}</button>`).join('')}</div><strong class="time-range">${range}</strong><div class="row">${button('←','time-previous')}${button('Atual','time-current')}${button('→','time-next')}</div></section><div class="time-kpis"><section class="card"><span>Tempo trabalhado</span><strong id="time-total">${duration(report.totalMs)}</strong><small>Somente sessões de trabalho</small></section><section class="card"><span>Tarefas trabalhadas</span><strong>${report.tasks.length}</strong><small>Com tempo registrado no período</small></section><section class="card"><span>Maior dedicação</span><strong class="time-area-name">${html(report.areas[0]?.name||'Sem registros')}</strong><small>${report.areas[0]?duration(report.areas[0].ms):'Comece um ciclo de foco'}</small></section></div><div class="time-analysis"><section class="card"><h3 class="sectiontitle">${view.timePeriod==='day'?'Tempo por hora':'Tempo por dia'}</h3><div class="time-chart-scroll"><div class="time-chart" style="--bars:${report.buckets.length}" role="img" aria-label="${html(report.buckets.map(b=>b.label+': '+duration(b.ms)).join('; '))}">${bars}</div></div><p class="muted smalltext">${report.totalMs?'Cada barra representa o tempo efetivamente registrado.':'Nenhum tempo registrado neste período.'}</p></section><section class="card"><h3 class="sectiontitle">Distribuição por área</h3>${areas||'<div class="empty">As áreas aparecem conforme você trabalha nas tarefas.</div>'}</section></div><section class="card time-tasks"><div class="between"><h3 class="sectiontitle">Tempo por tarefa</h3><span class="pill">${report.sessionCount} sessões</span></div><div class="time-table-scroll"><table><thead><tr><th>Tarefa</th><th>Área</th><th>Tempo</th><th>Sessões</th></tr></thead><tbody>${tasks||'<tr><td colspan="4">Nenhuma sessão de trabalho no período.</td></tr>'}</tbody></table></div></section><p class="board-footnote report-note">Pausas ficam fora dos totais. Sessões que atravessam a meia-noite são divididas entre os dias. A análise usa o fuso horário deste dispositivo e a classificação atual de cada tarefa. Tempo de tarefas excluídas deixa de constar no relatório.</p>`;
+  }
+  function reportModal(){
+    promptModal({title:'Gerar relatório de tempo',subtitle:'O relatório usa o período selecionado em Gestão do Tempo.',content:`<p>Inclui o total trabalhado e a distribuição por área e por tarefa.</p><div class="actionbar">${button('Baixar CSV','time-csv',true)}${button('Imprimir / salvar PDF','time-print')}</div>`,onSubmit:()=>true,ok:'Fechar'});
+  }
+  function accountModal(){
+    const account=cloud.info();
+    if(account.mode==='cloud')promptModal({title:'Sua conta Google',subtitle:account.user.email||'Conta conectada',content:`<p>Seus dados ficam no Supabase, privados para esta conta. Uma cópia fica neste navegador.</p><p>${html(account.error||({saved:'Salvo na nuvem.',pending:'Alterações aguardando salvamento.',saving:'Salvando na nuvem.'}[account.status]||''))}</p><div class="actionbar">${button('Tentar salvar agora','cloud-retry')}${button('Carregar versão da nuvem','cloud-reload')}${button('Trazer tarefas deste navegador','import-local')}${button('Exportar backup','export-data')}${button('Sair','sign-out')}</div>`,onSubmit:()=>true,ok:'Fechar'});
+    else promptModal({title:'Entrar com Google',subtitle:'A conexão com sua conta ainda precisa ser ativada.',content:'<p>Configure o Supabase e o provedor Google na Vercel para ter login e armazenamento privado na nuvem.</p><a class="button primary" href="https://github.com/rafaelvalada-droid/Flow/blob/main/docs/ATIVACAO-GOOGLE.md" target="_blank" rel="noopener noreferrer">Ver instruções de ativação</a>',onSubmit:()=>true,ok:'Fechar'});
+  }
+  function importLocal(){
+    let legacy;try{legacy=JSON.parse(localStorage.getItem('flow.workspace.v1'))}catch{}
+    if(legacy?.version!==1||!Array.isArray(legacy.tasks)||!Array.isArray(legacy.projects)){notice('Nenhuma base anterior encontrada neste navegador. Você também pode importar um backup.');return}
+    if(!confirm('Acrescentar as tarefas deste navegador à conta Google atual? Os dados locais serão preservados.'))return;
+    const imported=workflow.normalize(structuredClone(legacy));workflow.reconcile(imported);
+    if(imported.focus)workflow.cancel(imported,imported.focus.taskId);
+    const areaIds=new Map();
+    for(const p of [...imported.projects,...(imported.archivedProjects||[])]){
+      const current=findProject(p.id);let id=p.id;
+      if(current&&current.name!==p.name)id=uuid();
+      if(!current||id!==p.id)db.projects.push({...p,id});
+      areaIds.set(p.id,id);
+    }
+    let count=0;
+    for(const task of imported.tasks){
+      if(db.tasks.some(t=>JSON.stringify(t)===JSON.stringify(task)||(task.gmailCaptureId&&t.gmailCaptureId===task.gmailCaptureId)))continue;
+      db.tasks.push({...task,id:findTask(task.id)?uuid():task.id,project:areaIds.get(task.project)||task.project});count++;
+    }
+    persistAndRender();closeModal();notice(`${count} tarefas acrescentadas. Cronômetros importados ficam pausados.`);
+  }
+  function updateAccount(){
+    const account=cloud.info(), labels={saved:'Salvo na nuvem',pending:'Salvamento pendente',saving:'Salvando…',error:'Falha ao salvar',conflict:'Conflito de alterações'};
+    $('#account-button').textContent=account.mode==='cloud'?(labels[account.status]||'Conta Google'):'Entrar com Google';
+    $('#account-button').title=account.error||account.user?.email||'Conectar sua conta Google';
+    $('.sidebar-foot strong').textContent=account.user?.email||'Meu workspace';
+    $('.sidebar-foot small').textContent=account.mode==='cloud'?'Google · Supabase':'Flow · neste navegador';
   }
   function renderGmail(){
     const linked=db.tasks.filter(t=>t.gmailUrl);
@@ -145,12 +213,12 @@
     if(view.page==='foco')document.title=`${focus?countdown(workflow.remaining(db))+' · ':''}Flow — Foco`;
   }
   function render(){
-    const names={entrada:'Entrada',esteira:'Esteira',foco:'Foco',tarefas:'Tarefa',projetos:'Áreas',agenda:'Agenda',gmail:'Gmail',alertas:'Alertas'};
+    const names={entrada:'Entrada',esteira:'Esteira',foco:'Foco',tarefas:'Tarefa',projetos:'Áreas',agenda:'Agenda',gmail:'Gmail',alertas:'Alertas',tempo:'Gestão do Tempo'};
     $('#location-label').textContent=names[view.page];document.title=`Flow — ${names[view.page]}`;
     document.querySelectorAll('#sidebar-nav [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===view.page));
     const inbox=db.tasks.filter(t=>workflow.stage(db,t)==='inbox').length;
     const count=$('#inbox-count');if(count){count.textContent=inbox;count.hidden=!inbox}
-    $('#screen').innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,agenda:renderCalendar,gmail:renderGmail,alertas:renderAlerts})[view.page]();tick();
+    $('#screen').innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,agenda:renderCalendar,gmail:renderGmail,alertas:renderAlerts,tempo:renderTime})[view.page]();tick();
   }
   function stop(t){if(!t)return;if(db.focus?.taskId===t.id)workflow.pause(db);else workflow.cancel(db,t.id)}
   function start(t){
@@ -160,7 +228,7 @@
     workflow.start(db,t.id);view.focusId=t.id;persist();openPage('foco');notice('Uma tarefa, um ciclo de foco.');
   }
   function complete(t){if(!t)return;workflow.cancel(db,t.id);t.status='done';t.completedAt=Date.now();persistAndRender();notice('Tarefa concluída. Tempo de trabalho preservado.')}
-  function openPage(page){if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0)}
+  function openPage(page){if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0)}
   function selectTask(id){view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
   function openGmail(t){const url=validGmailUrl(t?.gmailUrl);if(!url){notice('Não há um link válido do Gmail nesta tarefa.');return}window.open(url,'_blank','noopener,noreferrer')}
   function download(filename, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
@@ -190,8 +258,8 @@
   }
   function linkMail(){promptModal({title:'Vincular conversa do Gmail',subtitle:'Cole o link da conversa e associe a uma nova tarefa.',content:`<label class="field">Link da conversa<input name="url" type="url" required placeholder="https://mail.google.com/mail/u/0/#..." /></label><label class="field">Assunto<input name="subject" required maxlength="180" placeholder="Assunto do e-mail" /></label><label class="field">Remetente (opcional)<input name="sender" maxlength="150" placeholder="Setor responsável" /></label>`,onSubmit:data=>{const gmailUrl=validGmailUrl(String(data.get('url')));if(!gmailUrl){notice('Cole um endereço HTTPS válido de mail.google.com.');return false}const gmailSubject=String(data.get('subject')||'').trim();const gmailSender=String(data.get('sender')||'').trim();newTask({title:`Responder: ${gmailSubject}`,gmailUrl,gmailSubject,gmailSender});return false},ok:'Continuar'})}
   function exportData(){download(`flow-backup-${localDate()}.json`,JSON.stringify(db,null,2),'application/json');notice('Cópia de segurança exportada.')}
-  function importData(){promptModal({title:'Importar backup',subtitle:'Atenção: esta operação substitui todos os dados deste navegador.',content:`<label class="field">Arquivo JSON do Flow<input name="file" type="file" accept=".json,application/json" required /></label>`,onSubmit:()=>false,ok:'Importar'});const form=$('#active-modal-form');form.addEventListener('submit',async e=>{e.preventDefault();const file=form.elements.file.files?.[0];if(!file)return;try{const val=JSON.parse(await file.text());if(val?.version!==1||!Array.isArray(val.projects)||!Array.isArray(val.tasks))throw new Error();if(!confirm('Substituir todas as tarefas e áreas atuais pelo backup?'))return;db=workflow.normalize(val);workflow.reconcile(db);view.selectedId=db.tasks[0]?.id||null;persist();closeModal();render();notice('Backup importado com sucesso.')}catch{notice('Backup inválido ou incompatível.')}},{once:true})}
-  function settingsModal(){promptModal({title:'Dados do Flow',subtitle:'A versão inicial salva suas informações apenas neste navegador.',content:`<div class="notice">Faça uma cópia de segurança regularmente. Sem login e banco de dados, apagar os dados do navegador pode eliminar tarefas e históricos.</div><div class="row" style="margin-top:15px;flex-wrap:wrap"><button type="button" class="button" data-action="export-data">↓ Exportar backup</button><button type="button" class="button" data-action="import-data">↑ Importar backup</button></div>`,onSubmit:()=>true,ok:'Fechar'})}
+  function importData(){promptModal({title:'Importar backup',subtitle:'Atenção: esta operação substitui as tarefas e áreas do workspace atual.',content:`<label class="field">Arquivo JSON do Flow<input name="file" type="file" accept=".json,application/json" required /></label>`,onSubmit:()=>false,ok:'Importar'});const form=$('#active-modal-form');form.addEventListener('submit',async e=>{e.preventDefault();const file=form.elements.file.files?.[0];if(!file)return;try{const val=JSON.parse(await file.text());if(val?.version!==1||!Array.isArray(val.projects)||!Array.isArray(val.tasks))throw new Error();if(!confirm('Substituir todas as tarefas e áreas atuais pelo backup?'))return;db=workflow.normalize(val);workflow.reconcile(db);view.selectedId=db.tasks[0]?.id||null;persist();closeModal();render();notice('Backup importado com sucesso.')}catch{notice('Backup inválido ou incompatível.')}},{once:true})}
+  function settingsModal(){promptModal({title:'Dados do Flow',subtitle:workspace.mode==='cloud'?'Dados privados da sua conta Google, salvos no Supabase.':'Seus dados estão salvos neste navegador.',content:`<div class="notice">Exporte uma cópia das suas tarefas e dos históricos de tempo. ${workspace.mode==='cloud'?'Confira o estado do salvamento no botão da conta.':'O acesso Google permite ativar o armazenamento na nuvem.'}</div><div class="row" style="margin-top:15px;flex-wrap:wrap"><button type="button" class="button" data-action="export-data">↓ Exportar backup</button><button type="button" class="button" data-action="import-data">↑ Importar backup</button>${workspace.mode==='cloud'?button('Trazer tarefas deste navegador','import-local'):button('Entrar com Google','account')}</div>`,onSubmit:()=>true,ok:'Fechar'})}
 
   async function generateAI(){
     const t=selectedTask();if(!t)return;
@@ -219,12 +287,13 @@
     const element=e.target.closest('button');if(!element)return;
     const page=element.dataset.page;
     if(page){openPage(page);return}
+    if(element.dataset.timePeriod){view.timePeriod=element.dataset.timePeriod;view.timeOffset=0;render();return}
     const id=element.dataset.task;if(id){selectTask(id);return}
     const p=element.dataset.project;if(p){view.projectFilter=p;view.statusFilter='all';view.selectedId=db.tasks.find(t=>t.project===p)?.id||db.tasks[0]?.id;openPage('tarefas');return}
     const mailId=element.dataset.mailTask;if(mailId){view.mailSelected=mailId;render();return}
     const subid=element.dataset.deleteSub;if(subid){const t=selectedTask();t.subtasks=t.subtasks.filter(s=>s.id!==subid);persistAndRender();return}
     if(element.dataset.alert!==undefined){const i=Number(element.dataset.alert);db.preferences.alerts[i]=!db.preferences.alerts[i];persistAndRender();return}
-    const t=selectedTask();switch(element.dataset.action){
+    const t=selectedTask();try{switch(element.dataset.action){
       case 'new-task':newTask();break;
       case 'new-project':newProject();break;
       case 'close-modal':closeModal();break;
@@ -232,6 +301,7 @@
       case 'show-pipeline':openPage('esteira');break;
       case 'show-inbox':openPage('entrada');break;
       case 'classify-task':classifyTask(findTask(element.dataset.id)||t);break;
+      case 'advance-task':{const task=findTask(element.dataset.id);if(!task)break;const stage=workflow.stage(db,task);if(stage==='inbox'){classifyTask(task);break}if(stage==='waiting'){complete(task);break}if(stage==='todo'||stage==='doing'){task.status=stage==='todo'?'doing':'waiting';if(task.status!=='doing')workflow.cancel(db,task.id);persistAndRender()}break}
       case 'focus-task':start(findTask(element.dataset.id));break;
       case 'focus-start':start(focusTask());break;
       case 'focus-pause':workflow.pause(db);persistAndRender();break;
@@ -246,6 +316,20 @@
       case 'open-linked-email':openGmail(findTask(view.mailSelected));break;
       case 'open-mail-task':selectTask(view.mailSelected);break;
       case 'export-ics':exportIcs(t);break;
+      case 'calendar-connect':await globalThis.FlowCalendar.connect();break;
+      case 'calendar-sync':await globalThis.FlowCalendar.synchronize();break;
+      case 'calendar-disconnect':globalThis.FlowCalendar.disconnect();render();notice('Conexão encerrada. Os eventos já criados permanecem no Google Agenda.');break;
+      case 'account':accountModal();break;
+      case 'sign-out':await cloud.signOut();break;
+      case 'cloud-retry':await cloud.flush(db);closeModal();notice('Dados salvos na nuvem.');break;
+      case 'cloud-reload':if(confirm('Carregar os dados da nuvem? A cópia atual será preservada como backup neste navegador.'))await cloud.loadRemote();break;
+      case 'import-local':importLocal();break;
+      case 'time-previous':view.timeOffset--;render();break;
+      case 'time-next':view.timeOffset++;render();break;
+      case 'time-current':view.timeOffset=0;render();break;
+      case 'time-report':reportModal();break;
+      case 'time-csv':download(`flow-tempo-${view.timePeriod}-${localDate(timeReport().start)}.csv`,globalThis.FlowTime.csv(timeReport()),'text/csv;charset=utf-8');notice('Relatório CSV gerado.');break;
+      case 'time-print':closeModal();render();window.print();break;
       case 'week-previous':view.weekOffset--;render();break;
       case 'week-next':view.weekOffset++;render();break;
       case 'week-reset':view.weekOffset=0;render();break;
@@ -257,7 +341,7 @@
       case 'settings':settingsModal();break;
       case 'export-data':exportData();break;
       case 'import-data':importData();break;
-    }
+    }}catch(error){notice(error.message||'Não foi possível concluir a ação.')}
   });
   document.addEventListener('submit',e=>{
     if(e.target.id==='sub-form'){e.preventDefault();const txt=e.target.elements.title.value.trim();if(!txt)return;selectedTask().subtasks.push({id:uuid(),text:txt.slice(0,180),done:false});persistAndRender()}
@@ -281,10 +365,22 @@
   document.addEventListener('input',e=>{if(e.target.id==='edit-description'){const t=selectedTask();if(t){t.description=e.target.value;persist()}}});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
   window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){db=workflow.normalize(load());if(workflow.reconcile(db))persist();render()}});
+  window.addEventListener('flow:sync-status',updateAccount);
+  window.addEventListener('flow:calendar-status',()=>{if(view.page==='agenda')render()});
+  window.addEventListener('flow:cloud-save',async event=>{
+    if(event.detail?.key!==STORAGE_KEY||workspace.mode!=='cloud')return;
+    const requestId=event.detail.requestId;
+    try{await cloud.flush(db);window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:true}}))}
+    catch(error){window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:false,error:error.message}}))}
+  });
+  window.addEventListener('online',()=>{cloud.flush().catch(()=>{});globalThis.FlowCalendar.schedule()});
   $('.brand').addEventListener('click',e=>{e.preventDefault();openPage('esteira')});
   // Atualiza os rótulos; a contagem decorre dos timestamps, não da frequência do setInterval.
   setInterval(tick,1000);
   // Botão de backup facilmente acessível sem ocupar uma sexta tela.
   const nav=document.querySelector('.sidebar-foot');const backup=document.createElement('button');backup.className='button small';backup.type='button';backup.dataset.action='settings';backup.title='Exportar ou importar os dados';backup.style.cssText='margin-left:auto;padding:5px 7px;background:#314b74;border-color:#48618a;color:#d5e3fd';backup.textContent='⚙';nav.appendChild(backup);
-  persist();render();handleCapture();
+  globalThis.FlowCalendar.initialize(()=>db,persist);
+  persist();render();updateAccount();handleCapture();
+  $('#login-screen').hidden=true;$('.app-shell').hidden=false;
+  setInterval(()=>{if(view.page==='tempo'&&!document.hidden&&!db.focus?.endsAt)return;if(view.page==='tempo'&&!document.hidden)render()},60000);
 })();

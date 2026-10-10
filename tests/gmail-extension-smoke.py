@@ -88,10 +88,11 @@ class ChromeAdapter:
     async def bridge(self, tab_id, message):
         return await self.pages[tab_id].evaluate("""({message,id}) => new Promise(resolve => {
             let answered = false;
+            let pending = false;
             for (const listener of window.__bridgeListeners || []) {
-                listener(message,{id},value => {answered = true;resolve(value);});
+                if (listener(message,{id},value => {answered = true;resolve(value);}) === true) pending = true;
             }
-            if (!answered) resolve(null);
+            if (!answered && !pending) resolve(null);
         })""", {'message': message, 'id': ID})
 
     async def initialize(self):
@@ -140,6 +141,9 @@ async def main(profile):
 
         async def serve(route):
             url = urlsplit(route.request.url)
+            if url.hostname == 'flow-blue-theta.vercel.app' and url.path == '/api/auth-config':
+                await route.fulfill(content_type='application/json', body='{"configured":false}')
+                return
             if url.hostname == 'mail.google.com':
                 await route.fulfill(content_type='text/html', body='''<!doctype html><html><body>
                   <main><div class="ha"><h2 class="hP">Planejamento da semana</h2></div>

@@ -1,87 +1,61 @@
-# Flow — demandas em fluxo, uma tarefa em foco
+# Flow — Workspace
 
-Classifique as demandas por **área e data**, conduza todas pela **mesma esteira** e concentre-se em uma tarefa por vez com ciclos de trabalho e descanso.
+Classifique cada demanda por área e prazo, organize o trabalho em uma esteira comum e concentre-se em uma tarefa de cada vez.
 
-Aplicativo: https://flow-blue-theta.vercel.app/
+Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado à Vercel; pushes para `main` acionam deployment.
 
-Repositório: https://github.com/rafaelvalada-droid/Flow
+## Uso
 
-## Usar o Flow
+- **Entrada:** área e data respondem “para onde?” e “para quando?”.
+- **Esteira:** fluxo da esquerda para a direita, com setas e Avançar; todas as áreas usam a mesma fila. Aguardando é opcional.
+- **Foco:** ciclos de 25 minutos de trabalho e 5 de descanso, ajustáveis, com uma tarefa ativa. Pausas e ausência após o término do ciclo não contam como trabalho.
+- **Áreas:** catálogo de 13 classificações, incluindo Ubra S.A., e áreas personalizadas. IDs, vínculos e históricos anteriores são preservados.
+- **Agenda:** data de execução separada do prazo. Conexão direta com Google Agenda após ativação; exportação .ics continua disponível.
+- **Gmail:** extensão 1.3 com Incluir no Flow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
+- **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-1. **Entrada:** capture uma demanda. Responda “Para onde vai?” (área) e “Para quando?” (data). Se faltar uma dessas respostas, ela permanece a classificar.
-2. **Esteira:** todas as áreas compartilham as etapas A classificar, A fazer, Em andamento, Aguardando e Concluídas. As datas mais próximas aparecem primeiro. Use **Mover etapa** no cartão ou edite a situação no detalhe.
-3. **Foco:** escolha uma tarefa e comece um ciclo. O padrão é **25 minutos de foco / 5 de pausa**, ajustável. Uma única tarefa registra tempo de trabalho por vez. O descanso começa ao terminar o foco; o próximo ciclo de trabalho exige sua ação.
-4. **Áreas:** escolha uma das 13 classificações definidas abaixo. As áreas não têm esteiras independentes. Áreas personalizadas já criadas são preservadas.
+O slogan foi retirado. O logo Ulbra aparece na tela de acesso e na barra superior. A paleta atual permanece azul.
 
-A urgência é calculada pela data: **atrasada, hoje, amanhã ou programada**. A data de execução e o horário opcionais continuam disponíveis no detalhe, separados do prazo e usados pela Agenda.
+## Google e armazenamento
 
-O novo símbolo mostra caminhos de demandas convergindo para um único ponto de atenção. Está em `assets/flow-mark.png`, no menu e no favicon.
+**[Ativar Google, Supabase e Agenda](docs/ATIVACAO-GOOGLE.md)** contém as etapas de criação do projeto, SQL, provedor OAuth e variáveis da Vercel. Essa configuração externa ainda é necessária para ativar os serviços.
 
-## Classificações da Entrada
+Sem configuração Google, o Flow continua usando `flow.workspace.v1` neste navegador. Com a configuração válida, exige login Google e salva um workspace privado por usuário no Supabase, com cache local separado por ID. Dados antigos são importados por uma ação explícita na conta; não são atribuídos silenciosamente a quem fizer login.
 
-- Ubra IA
-- Oferta de turmas
-- Carga horária docente
-- Incidências em folha
-- Contratos docentes PJ
-- Folha docente
-- Plano docente
-- Operação lato sensu BreCIA
-- Pendências de pagamento PJ
-- Ubra S.A.
-- Suporte operacional
-- CPA Ubrecia
-- Capacitação
+O SQL em `supabase/flow.sql` implementa RLS e salvamento com revisões. `docs/schema-postgresql-futuro.sql` é uma proposta antiga, não o schema utilizado. Erros deixam alterações pendentes; conflitos exigem revisão/carregamento explícito da nuvem. Exporte backups em Dados do Flow.
 
-“Contrato docente PJ” e “contratos docentes PJ” foram reunidos em uma única classificação. As opções também aparecem na caixa do Gmail, lidas da mesma base do Flow.
-
-## Dados e atualização
-
-Os dados ficam no `localStorage` do navegador, sem login ou sincronização entre dispositivos. Use o mesmo perfil e o domínio principal; URLs diferentes da Vercel têm bases diferentes. Exporte backups pelo botão de configurações.
-
-A atualização preserva os projetos/áreas, tarefas, subtarefas, anotações e sessões existentes na chave `flow.workspace.v1`. “Projetos” passa a se chamar “Áreas” na interface; a estrutura dos backups permanece compatível. Demandas antigas sem área válida ou prazo aparecem na Entrada. As 13 classificações solicitadas são acrescentadas também às bases existentes quando o Flow é recarregado. Áreas equivalentes conservam seus IDs e vínculos; a Ouvidoria de exemplo permanece no histórico das tarefas antigas, fora das opções para novas demandas. Áreas personalizadas são preservadas.
-
-Os ciclos usam timestamps persistidos. Reabrir a aba reconcilia o ciclo e encerra o tempo de trabalho no seu prazo, sem contar descanso ou horas de ausência. Um cronômetro da versão antiga mantém o histórico e recebe um ciclo a partir da atualização. O sistema usa a hora do dispositivo.
-
-## Gmail
-
-Abra **Gmail → Baixar extensão para Gmail** no Flow. Extraia o ZIP; em `chrome://extensions`, ative Modo do desenvolvedor e carregue a pasta `flow-gmail` sem compactação. Recarregue o Gmail.
-
-Ao abrir uma conversa, clique em **Incluir no Flow**, ajuste o título, escolha a **área e a data** e salve. A tarefa entra na esteira com assunto, remetente visível e link da conversa. O Flow usa uma aba de apoio no mesmo perfil do Chrome; não lê o corpo do e-mail nem envia mensagens.
-
-A extensão **1.2** precisa ser atualizada separadamente do site: baixe o ZIP novo, substitua os arquivos da pasta instalada, clique em Recarregar no cartão da extensão e recarregue o Gmail. Capturas de extensões antigas sem data continuam compatíveis e ficam a classificar. Leia `extensao-chrome/README.md`.
+A Agenda sincroniza com o calendário principal enquanto o Flow está aberto. Tokens Google expirados exigem reconexão. O prazo final fica na descrição do evento, sem alterar a data de execução. A conexão é opcional e solicita consentimento separado.
 
 ## Desenvolvimento
 
-Node.js ≥20. HTML/CSS/JavaScript sem dependências; não é necessário instalar pacotes nem gerar build.
+Node.js ≥20, sem dependências npm nem build.
 
 ```bash
 npm run check
+npm run test:workflow
 npm run dev
 ```
 
-O servidor local escuta em `127.0.0.1:3000` (`PORT` opcional). `areas.js` contém o catálogo e sua atualização; `workflow.js` contém as regras de classificação e ciclos; `app.js` contém a interface. A extensão está em `extensao-chrome/`.
+Servidor em `127.0.0.1:3000`; `PORT` é opcional. Variáveis são injetadas no processo; o servidor não lê `.env` automaticamente.
+
+Com o servidor ativo:
 
 ```bash
-npm run test:workflow    # Node: regras e persistência dos ciclos
-npm run test:app         # Python Playwright + Chromium, servidor local ativo
-npm run test:extension   # Python Playwright + Chromium, Gmail e chrome.* simulados
+npm run test:app
+npm run test:cloud
+npm run test:time
+npm run test:extension
 npm run package:extension
 ```
 
-Os testes de navegador usam perfis temporários. O Chromium gerenciado na nuvem bloqueia extensões sem compactação; o teste da extensão executa seu código real com transporte Chrome simulado. Ele não valida uma conta real do Gmail nem o carregamento nativo da extensão. O ZIP é determinístico, inclui somente os nove arquivos da extensão e deve ser regenerado após alterações.
+Python Playwright e Chromium são necessários aos testes de navegador. `FLOW_TEST_URL` permite trocar o endereço local. Os perfis são temporários. Os testes cloud simulam HTTP Supabase/Google; os da extensão simulam Gmail e transporte `chrome.*`. O Chromium gerenciado bloqueia extensões sem compactação; o carregamento nativo precisa do Chrome do usuário. A validação SQL descartável está documentada no guia de ativação.
 
-## GitHub e Vercel
+Módulos: `areas.js` (catálogo), `workflow.js` (tarefas e foco), `cloud.js` (OAuth PKCE e dados), `calendar.js` (Google Agenda), `time-report.js` (análise/exportação), `app.js` (interface).
 
-O repositório já está conectado à Vercel. Commits enviados para `main` acionam o deployment.
+## Vercel e integrações opcionais
 
-`vercel.json` configura **Other**, raiz do repositório, Build Command e Install Command vazios e Output Directory `.`. Isso evita detectar `server.mjs` como backend genérico: a interface e os downloads são estáticos; `/api/gemini` é a função opcional.
+`vercel.json`: framework Other, Build/Install vazios, Output Directory `.`. A interface e downloads são estáticos; `/api/auth-config` entrega apenas a configuração pública do Supabase e `/api/gemini` é a função opcional de IA.
 
-## Integrações opcionais
+Gemini requer `GEMINI_API_KEY` e `FLOW_AI_ACCESS_TOKEN` no servidor; a chave não vai ao frontend. `GEMINI_MODEL` deve ser permitido na conta. Sem credenciais, a rota retorna 503. Alertas ainda gravam preferências sem enviar e-mails.
 
-- **Gemini:** configure `GEMINI_API_KEY` e `FLOW_AI_ACCESS_TOKEN` nas variáveis seguras do servidor/Vercel. A chave não vai para o frontend. O token protege a rota pessoal e fica na memória da aba. `GEMINI_MODEL` é opcional; confirme um modelo disponível na sua conta antes de ativar. O servidor não carrega `.env` automaticamente. Sem essas variáveis, a API retorna 503 e o restante funciona.
-- **Agenda:** exportação `.ics` para importação manual no Google Agenda; sem sincronização OAuth.
-- **Alertas:** salva preferências, mas ainda não envia e-mails automáticos.
-- **Banco/login:** não implementados. A modelagem PostgreSQL em `docs/` é uma proposta futura, sem conexão com esta versão.
-
-Regras detalhadas em `docs/ESPECIFICACAO.md`.
+Leia [a especificação funcional](docs/ESPECIFICACAO.md) e [a extensão](extensao-chrome/README.md).

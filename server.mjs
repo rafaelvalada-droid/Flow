@@ -4,13 +4,19 @@ import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { POST as geminiPost } from './api/gemini.mjs';
+import { GET as authConfigGet } from './api/auth-config.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
-const contentTypes = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml'};
+const contentTypes = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png'};
 
 const server = createServer(async (req, res) => {
   try {
+    if (req.url?.split('?')[0] === '/api/auth-config') {
+      if (req.method !== 'GET') {res.writeHead(405);res.end();return;}
+      const result=authConfigGet();
+      res.writeHead(result.status,Object.fromEntries(result.headers));res.end(await result.text());return;
+    }
     if (req.url?.split('?')[0] === '/api/gemini') {
       if (req.method !== 'POST') {res.writeHead(405, {'content-type':'application/json'});res.end(JSON.stringify({error:'Método não permitido.'}));return;}
       const parts=[];

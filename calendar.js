@@ -1,0 +1,99 @@
+(() => {
+  'use strict';
+  let getDatabase, persist, timer, running, status = 'disconnected', error = '';
+  const info = () => ({connected: !!FlowCloud.calendarToken(), status, error});
+  const emit = () => window.dispatchEvent(new CustomEvent('flow:calendar-status'));
+  const state = (next, message = '') => { status = next; error = message; emit(); };
+  async function api(path = '', method = 'GET', body) {
+    const token = FlowCloud.calendarToken();
+    if (!token) throw new Error('Conecte sua conta ao Google Agenda.');
+    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events' + path, {
+      method, headers: {Authorization: `Bearer ${token}`, ...(body ? {'content-type': 'application/json'} : {})},
+      ...(body ? {body: JSON.stringify(body)} : {}), signal: AbortSignal.timeout(12000)
+    });
+    if (response.status === 401 || response.status === 403) {
+      FlowCloud.disconnectCalendar();
+      throw new Error('Autorize o Google Agenda novamente. Confira também se a API Google Calendar está ativada.');
+    }
+    const data = response.status === 204 ? null : await response.json().catch(() => null);
+    if (!response.ok) {
+      const err = new Error('Não foi possível sincronizar com o Google Agenda. Tente novamente.');
+      err.status = response.status;
+      throw err;
+    }
+    return data;
+  }
+  async function eventId(owner, taskId) {
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`flow:${owner}:${taskId}`));
+    return 'f10' + Array.from(new Uint8Array(digest), n => n.toString(16).padStart(2, '0')).join('');
+  }
+  function eventBody(task, database, owner) {
+    if (!FlowWorkflow.validDate(task.plannedDate)) throw new Error('Informe uma data de execução válida.');
+    let start, end;
+    if (task.plannedTime) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(task.plannedTime)) throw new Error('Informe um horário de execução válido.');
+      const from = new Date(`${task.plannedDate}T${task.plannedTime}:00`);
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      start = {dateTime: from.toISOString(), timeZone: zone};
+      end = {dateTime: new Date(from.getTime() + (database.preferences.focusMinutes || 25)*60000).toISOString(), timeZone: zone};
+    } else {
+      const until = new Date(`${task.plannedDate}T12:00:00Z`);
+      until.setUTCDate(until.getUTCDate() + 1);
+      start = {date: task.plannedDate};
+      end = {date: until.toISOString().slice(0, 10)};
+    }
+    const area = [...database.projects, ...(database.archivedProjects || [])].find(p => p.id === task.project)?.name || 'Sem área';
+    return {summary: task.title, description: `Área: ${area}\nPrazo final: ${task.dueDate || 'Sem prazo'}\n${task.description || ''}`,
+      start, end, visibility: 'private', extendedProperties: {private: {flowUserId: owner, flowTaskId: task.id}}};
+  }
+  const owned = (event, owner, taskId) => event?.extendedProperties?.private?.flowUserId === owner && event?.extendedProperties?.private?.flowTaskId === taskId;
+  async function synchronize() {
+    clearTimeout(timer);
+    if (running) return running;
+    if (!FlowCloud.calendarToken()) return;
+    running = (async () => {
+      state('syncing');
+      const db = getDatabase(), owner = FlowCloud.info().user.id;
+      db.calendar ||= {events: {}};
+      db.calendar.events ||= {};
+      // Remove only Flow-owned events that no longer have an execution date.
+      for (const taskId of Object.keys(db.calendar.events)) {
+        if (db.tasks.some(t => t.id === taskId && t.plannedDate)) continue;
+        const id = await eventId(owner, taskId);
+        try {
+          const event = await api('/' + id);
+          if (owned(event, owner, taskId)) await api('/' + id, 'DELETE');
+        } catch (err) { if (![404, 410].includes(err.status)) throw err; }
+        delete db.calendar.events[taskId];
+        persist();
+      }
+      for (const task of [...db.tasks].filter(t => t.plannedDate)) {
+        const body = eventBody(task, db, owner), signature = JSON.stringify(body);
+        const prior = db.calendar.events[task.id];
+        if (prior?.owner === owner && prior.signature === signature) continue;
+        const id = await eventId(owner, task.id);
+        let event;
+        try { event = await api('', 'POST', {id, ...body}); }
+        catch (err) {
+          if (err.status !== 409) throw err;
+          const existing = await api('/' + id);
+          if (!owned(existing, owner, task.id)) throw new Error('O evento existente não pertence a esta tarefa do Flow.');
+          event = await api('/' + id, 'PATCH', body);
+        }
+        // Keep the signature of the snapshot sent, even if the task changed during the request.
+        db.calendar.events[task.id] = {owner, id, signature, url: event?.htmlLink || ''};
+        persist();
+      }
+      state('synced');
+    })().catch(err => { state('error', err.message); throw err; }).finally(() => { running = null; });
+    return running;
+  }
+  function schedule() {
+    if (!FlowCloud.calendarToken()) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => synchronize().catch(() => {}), 900);
+  }
+  globalThis.FlowCalendar = {info, synchronize, schedule,
+    initialize: (read, save) => { getDatabase = read; persist = save; if (FlowCloud.calendarToken()) {status = 'connected'; schedule();} },
+    connect: () => FlowCloud.signIn(true), disconnect: () => { clearTimeout(timer); FlowCloud.disconnectCalendar(); state('disconnected'); }};
+})();

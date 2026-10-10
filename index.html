@@ -10,12 +10,16 @@
   <link rel="icon" type="image/png" href="./assets/flow-mark.png" />
   <script defer src="./areas.js"></script>
   <script defer src="./workflow.js"></script>
+  <script defer src="./cloud.js"></script>
+  <script defer src="./calendar.js"></script>
+  <script defer src="./time-report.js"></script>
   <script defer src="./app.js"></script>
 </head>
 <body>
-  <div class="app-shell">
+  <section id="login-screen" class="login-screen" aria-live="polite"><header class="login-topbar"><img class="ulbra-mark" src="./assets/ulbra-logo.png" alt="Ulbra" /></header><img src="./assets/flow-mark.png" alt="Flow" /><h1>Seu espaço para entrar em fluxo.</h1><p id="login-message">Preparando seu workspace…</p><button id="google-login" type="button" class="button primary" hidden>Entrar com Google</button><button id="login-retry" type="button" class="button" hidden>Tentar novamente</button></section>
+  <div class="app-shell" hidden>
     <aside class="sidebar" aria-label="Menu principal">
-      <a class="brand" href="#esteira" aria-label="Flow, início"><img class="brand-mark" src="./assets/flow-mark.png" alt="" /><span class="brand-word">flow<span class="brand-dot">.</span><small>MENOS RUÍDO. MAIS FOCO.</small></span></a>
+      <a class="brand" href="#esteira" aria-label="Flow, início"><img class="brand-mark" src="./assets/flow-mark.png" alt="" /><span class="brand-word">flow<span class="brand-dot">.</span></span></a>
       <div class="sidebar-caption">PRINCIPAL</div>
       <nav id="sidebar-nav">
         <button type="button" data-page="entrada"><span class="nav-icon">↘</span><span>Entrada</span><span id="inbox-count" class="nav-count" hidden></span></button>
@@ -25,13 +29,14 @@
         <button type="button" data-page="agenda"><span class="nav-icon">▤</span><span>Agenda</span></button>
         <button type="button" data-page="gmail"><span class="nav-icon">✉</span><span>Gmail</span></button>
         <button type="button" data-page="alertas"><span class="nav-icon">♧</span><span>Alertas</span></button>
+        <button type="button" data-page="tempo" class="time-nav"><span class="nav-icon">◷</span><span>Gestão do Tempo</span></button>
       </nav>
       <div class="sidebar-foot"><div class="avatar">F</div><div><strong>Meu workspace</strong><small>Flow · versão local</small></div></div>
     </aside>
     <div class="workspace">
       <header class="topbar">
-        <div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Esteira</strong></div>
-        <div class="top-actions"><button id="active-clock" type="button" class="active-clock" data-action="open-active">◉ Entrar em foco</button><button type="button" class="button primary" data-action="new-task">+ Nova demanda</button></div>
+        <div class="topbar-identity"><img class="ulbra-mark" src="./assets/ulbra-logo.png" alt="Ulbra" /><div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Esteira</strong></div></div>
+        <div class="top-actions"><button id="account-button" type="button" class="button" data-action="account">Entrar com Google</button><button id="active-clock" type="button" class="active-clock" data-action="open-active">◉ Entrar em foco</button><button type="button" class="button primary" data-action="new-task">+ Nova demanda</button></div>
       </header>
       <main id="screen" class="screen" aria-live="polite"></main>
     </div>
