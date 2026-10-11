@@ -180,6 +180,18 @@ async def main(profile):
         assert adapter.active_id == gmail_id and gmail.url == GMAIL
         passed('Button opens a Gmail dialog and loads actual Flow projects without leaving Gmail')
 
+        await gmail.keyboard.press('Escape')
+        await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
+        await button.click()
+        await expect(select).to_be_enabled()
+        await gmail.locator('#flow-gmail-dialog [name="title"]').click()
+        await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(1)
+        await gmail.mouse.click(5, 5)
+        await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
+        await button.click()
+        await expect(select).to_be_enabled()
+        passed('Escape and outside click close the dialog; inside clicks keep it open and reopening works')
+
         await select.select_option('oferta')
         await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-10')
         await gmail.locator('#flow-gmail-dialog [name="title"]').fill('Organizar planejamento')

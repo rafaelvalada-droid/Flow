@@ -84,7 +84,20 @@
     cancel.addEventListener('click', closeDialog);
     dialog.addEventListener('cancel', event => {
       event.preventDefault();
-      if (!saving) closeDialog();
+      closeDialog();
+    });
+    dialog.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {event.preventDefault();event.stopPropagation();closeDialog();}
+    });
+    let outsidePress = false;
+    const outside = event => {
+      const box = dialog.getBoundingClientRect();
+      return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+    };
+    dialog.addEventListener('pointerdown', event => {outsidePress = event.target === dialog && outside(event);});
+    dialog.addEventListener('click', event => {
+      if (outsidePress && event.target === dialog && outside(event)) closeDialog();
+      outsidePress = false;
     });
     dialog.showModal();
     form.addEventListener('submit', async event => {

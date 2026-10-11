@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Flow - Capturar e-mail como tarefa",
   "description": "Classifique o e-mail por área e data e inclua na esteira do Flow sem sair do Gmail.",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "action": {
     "default_title": "Configurar conexão com o Flow",
     "default_popup": "popup.html"
