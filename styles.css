@@ -93,3 +93,7 @@ input,textarea,select{accent-color:var(--accent)}
 .projectcard:hover{background:linear-gradient(var(--area-tint),var(--area-tint)),var(--surface);border-color:var(--area-color)}
 .projectcard .projecticon{background:var(--area-tint)!important;color:var(--area-color)!important}
 .projectcard .progressbar i{background:var(--area-color)!important}
+
+.stage-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}.stage-actions .button{flex:1;min-width:0;white-space:normal;text-align:center;padding:8px 6px;font-size:10px}.pipeline-task .stage-actions .lane-advance{width:auto;margin-top:0}.stage-actions [data-action="return-task"]{color:var(--accent);background:var(--surface)}
+
+.calendar-connection{width:fit-content;max-width:100%;margin:0 0 14px auto;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.calendar-compact-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;font-size:11px}.calendar-compact-row summary{cursor:pointer;color:var(--accent);font-weight:700;padding:9px 0}.calendar-compact-row details p{max-width:290px;font-size:11px;line-height:1.6}.calendar-connection .sync-error{max-width:360px;font-size:11px}.calendar-compact-row .button{font-size:11px;padding:8px 10px}

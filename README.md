@@ -61,3 +61,7 @@ Gemini requer `GEMINI_API_KEY` e `FLOW_AI_ACCESS_TOKEN` no servidor; a chave nã
 Leia [a especificação funcional](docs/ESPECIFICACAO.md) e [a extensão](extensao-chrome/README.md).
 
 A Agenda mostra tarefas e compromissos da agenda principal do Google na semana visível. A leitura expande recorrências, respeita o fuso local, pagina resultados e omite cópias das próprias tarefas. Compromissos externos são somente leitura e ficam apenas em memória. Atualiza ao trocar de semana, sincronizar, voltar à aba e a cada minuto enquanto a aba está visível. Não funciona com o Flow fechado. Cards de áreas usam cores suaves derivadas da cor de cada área.
+
+Nova demanda inclui data e hora de execução separadas do prazo final. Pela Agenda, a data de execução é obrigatória e começa no dia atual ou na semana consultada; ao salvar, a Agenda permanece aberta na semana escolhida. Sem horário, a demanda aparece como dia inteiro.
+
+A esteira oferece Retornar de Em andamento para A fazer, de Aguardando para Em andamento e de Concluídas para Aguardando, preservando a classificação e o histórico de tempo. Conexão da Agenda e instruções do Gmail ficam em controles compactos com detalhes expansíveis.
