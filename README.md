@@ -14,7 +14,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Gmail:** extensão 1.3 com Incluir no Flow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-O slogan foi retirado. A marca Flow usa símbolo verde Ulbra S.A., nome grafite e ponto verde, preservando o desenho original. O logo verde Ulbra S.A. enviado aparece na tela de acesso e na barra superior. A interface usa tons de cinza claro com ações e destaques no verde Ulbra S.A. (#045A52), com letras brancas. O relatório para impressão/PDF usa fundo claro.
+O slogan foi retirado. A marca Flow usa o conceito Esteira: três etapas conectadas, duas grafite e a entrega verde Ulbra S.A., com nome grafite e ponto verde. A marca aparece no acesso, na barra lateral e no PDF. O logo verde Ulbra S.A. enviado aparece na tela de acesso e na barra superior. A interface usa tons de cinza claro com ações e destaques no verde Ulbra S.A. (#045A52), com letras brancas. O relatório para impressão/PDF usa fundo claro.
 
 ## Google e armazenamento
 
