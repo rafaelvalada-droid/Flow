@@ -42,7 +42,7 @@
     function header() {
       doc.setFillColor(...pale); doc.rect(0,0,210,30,'F');
       doc.setFillColor(...green); doc.rect(0,29,210,1,'F');
-      doc.addImage(flow,'PNG',16,6,17,17); text('flow.',36,18,22,green,true);
+      doc.addImage(flow,'PNG',16,6,17,17); text('flow',36,18,22,[53,59,67],true); const wordWidth=doc.getTextWidth('flow'); text('.',36+wordWidth,18,22,green,true);
       doc.addImage(ulbra,'PNG',145,9,49,14.1);
       text('GESTÃO DO TEMPO',16,39,9,green,true); text(range,130,39,9,muted);
     }

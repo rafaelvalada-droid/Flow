@@ -47,7 +47,7 @@ input,textarea,select{accent-color:var(--accent)}
 .nav-icon,.workspace-settings{filter:grayscale(1)}
 .ulbra-mark{filter:none;opacity:1}
 .brand-icon{color:var(--on-accent)}
-.brand-word{color:var(--accent)}
+.brand-word{color:var(--ink)}
 .button{transition:background-color .15s,border-color .15s}
 .button:hover{border-color:var(--border-strong);background:var(--surface-hover)}
 .button.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
