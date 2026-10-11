@@ -53,6 +53,7 @@
   function load(){try{const raw=JSON.parse(localStorage.getItem(STORAGE_KEY));if(raw?.version===1 && Array.isArray(raw.projects)&&Array.isArray(raw.tasks))return raw}catch{}return seed()}
   let db=workflow.normalize(workspace.mode === 'cloud' ? workspace.data || {version:1,projects:globalThis.FlowAreas.defaults(),tasks:[],preferences:{}} : load());
   workflow.reconcile(db);
+  db.initiatives=Array.isArray(db.initiatives)?db.initiatives:[];
   const expandedDemands=new Set();
   let view={page:'esteira',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
   let accessToken='';
@@ -137,6 +138,13 @@
     </section>`;
     return pageHead('Detalhe da tarefa','Área e data classificam a demanda. A execução acontece na esteira comum.',button('← Esteira','show-pipeline'))+`<div class="task-detail-only">${detail}</div>`;
   }
+  function renderArea(){
+    const area=findProject(view.areaId);if(!area)return pageHead('Área não encontrada','Volte às áreas.',button('← Áreas','show-areas'));
+    const tasks=db.tasks.filter(t=>t.project===area.id),projects=(db.initiatives||[]).filter(p=>p.areaId===area.id);
+    const taskRows=list=>list.map(t=>`<button class="task-list-item" data-task="${html(t.id)}"><strong>${html(t.title)}</strong><div class="status-line">${badge(workflow.stage(db,t))}${urgencyBadge(t)}</div></button>`).join('')||'<p class="smalltext muted">Nenhuma tarefa aqui ainda.</p>';
+    return pageHead(area.name,'Tarefas e projetos desta área. Todas as demandas seguem pela esteira.',`<div class="row">${button('← Áreas','show-areas')}${button('+ Criar projeto','new-initiative')}${button('+ Nova tarefa','area-new-task',true)}</div>`)+`<section class="card"><h3 class="sectiontitle">Tarefas da área</h3>${taskRows(tasks.filter(t=>!projects.some(p=>p.id===t.initiativeId)))}</section><div class="area-projects">${projects.map(p=>`<section class="card"><div class="between"><h3 class="sectiontitle">${html(p.name)}</h3>${button('+ Nova tarefa','initiative-new-task',false,`data-id="${html(p.id)}"`)}</div>${p.description?`<p class="smalltext muted">${html(p.description)}</p>`:''}${taskRows(tasks.filter(t=>t.initiativeId===p.id))}</section>`).join('')}</div>`;
+  }
+  function newInitiative(){const areaId=view.areaId;if(!findProject(areaId))return;promptModal({title:'Novo projeto',subtitle:'Agrupe as tarefas desta área em um projeto.',content:'<label class="field">Nome do projeto<input name="name" required maxlength="100" /></label><label class="field">Descrição<textarea name="description" maxlength="2000"></textarea></label>',onSubmit:data=>{const name=String(data.get('name')||'').trim();if(!name)return false;db.initiatives??=[];db.initiatives.push({id:uuid(),areaId,name,description:String(data.get('description')||''),createdAt:Date.now()});persistAndRender();return true},ok:'Criar projeto'})}
   function renderProjects(){
     const cards=db.projects.map((p,index)=>{const color=/^#[a-f0-9]{6}$/i.test(p.color||'')?p.color:'#507ee9';const group=db.tasks.filter(t=>t.project===p.id),closed=group.filter(t=>t.status==='done').length,percent=group.length?Math.round(closed*100/group.length):0;return `<div class="project-order-card"><button class="projectcard" style="--area-tint:${color}14;--area-color:${color}" data-project="${html(p.id)}"><div class="between"><div class="projecticon" style="background:${color}18;color:${color}">▦</div><span class="pill">${group.length} tarefas</span></div><strong>${html(p.name)}</strong><p>${group.length-closed} abertas · ${closed} concluídas</p><div class="progressbar"><i style="width:${percent}%;background:${color}"></i></div></button><div class="area-order-actions"><button type="button" class="button small" data-area-up="${html(p.id)}" aria-label="Mover ${html(p.name)} para cima" ${index===0?'disabled':''}>↑</button><button type="button" class="button small" data-area-down="${html(p.id)}" aria-label="Mover ${html(p.name)} para baixo" ${index===db.projects.length-1?'disabled':''}>↓</button></div></div>`}).join('');
     return pageHead('Áreas','De onde vêm as demandas. Todas seguem pela mesma esteira.',button('+ Criar área','new-project',true))+`<div class="projectgrid">${cards||'<div class="empty">Nenhuma área criada.</div>'}</div><div class="notice" style="margin-top:20px">Use as áreas para classificar e consultar. ${button('Abrir esteira comum','show-pipeline')}</div>`;
@@ -201,7 +209,7 @@
   function renderGmail(){
     const linked=db.tasks.filter(t=>t.gmailUrl);
     const mail=view.mailSelected?findTask(view.mailSelected):null;
-    return pageHead('Gmail + Flow','Cada e-mail vira uma tarefa, sem perder o acesso à conversa original.',button('+ Vincular e-mail','link-email',true))+`<div class="mailgrid ${mail?'':'mailgrid-single'}"><section class="card"><div class="between"><h3 class="sectiontitle">Conversas vinculadas</h3><span class="pill">${linked.length}</span></div><div style="margin-top:13px">${linked.map(t=>`<button class="mail-link" data-mail-task="${html(t.id)}"><b>${html(t.gmailSubject||t.title)}</b><small>${html(t.gmailSender||'Gmail')} · ${html(projectName(t.project))}</small></button>`).join('')||'<div class="empty">Nenhuma conversa vinculada. Use a extensão ou o botão de vinculação.</div>'}</div></section><section class="card" ${mail?'':'hidden'}>${mail?`<div class="eyebrow">E-MAIL DE ORIGEM</div><h2 class="mail-subject">${html(mail.gmailSubject||mail.title)}</h2><p class="smalltext muted">${html(mail.gmailSender||'Remetente não registrado')}</p><div class="divider"></div><p class="smalltext">Esta conversa está associada à tarefa <strong>${html(mail.title)}</strong>.</p><div class="actionbar">${button('↗ Abrir Gmail','open-linked-email',true)}${button('Abrir tarefa no Flow','open-mail-task')}</div>`:''}</section></div>`;
+    return pageHead('Gmail + Flow','Cada e-mail vira uma tarefa, sem perder o acesso à conversa original.',`<div class="row">${button('Conectar celular','gmail-mobile')}${button('Desconectar celular','gmail-mobile-revoke')}${button('+ Vincular e-mail','link-email',true)}</div>`)+`<div class="mailgrid ${mail?'':'mailgrid-single'}"><section class="card"><div class="between"><h3 class="sectiontitle">Conversas vinculadas</h3><span class="pill">${linked.length}</span></div><div style="margin-top:13px">${linked.map(t=>`<button class="mail-link" data-mail-task="${html(t.id)}"><b>${html(t.gmailSubject||t.title)}</b><small>${html(t.gmailSender||'Gmail')} · ${html(projectName(t.project))}</small></button>`).join('')||'<div class="empty">Nenhuma conversa vinculada. Use a extensão ou o botão de vinculação.</div>'}</div></section><section class="card" ${mail?'':'hidden'}>${mail?`<div class="eyebrow">E-MAIL DE ORIGEM</div><h2 class="mail-subject">${html(mail.gmailSubject||mail.title)}</h2><p class="smalltext muted">${html(mail.gmailSender||'Remetente não registrado')}</p><div class="divider"></div><p class="smalltext">Esta conversa está associada à tarefa <strong>${html(mail.title)}</strong>.</p><div class="actionbar">${button('↗ Abrir Gmail','open-linked-email',true)}${button('Abrir tarefa no Flow','open-mail-task')}</div>`:''}</section></div>`;
   }
   function renderAlerts(){
     const rows=[['Lembrar antes do vencimento','Planejado para a etapa de envio de e-mails.'],['Acompanhar tarefas atrasadas','Alerta para tarefas cujo prazo final já passou.'],['Resumo diário de tarefas','Consolidar as demandas previstas para cada dia.'],['Resumo semanal por área','Entregar um resumo de pendências por área.']];
@@ -217,12 +225,12 @@
     if(view.page==='foco')document.title=`${focus?countdown(workflow.remaining(db))+' · ':''}Flow — Foco`;
   }
   function render(){
-    const names={entrada:'Entrada',esteira:'Esteira',foco:'Foco',tarefas:'Tarefa',projetos:'Áreas',agenda:'Agenda',gmail:'Gmail',alertas:'Alertas',tempo:'Gestão do Tempo'};
+    const names={entrada:'Entrada',esteira:'Esteira',foco:'Foco',tarefas:'Tarefa',projetos:'Áreas',agenda:'Agenda',gmail:'Gmail',alertas:'Alertas',tempo:'Gestão do Tempo',area:'Área'};
     $('#location-label').textContent=names[view.page];document.title=`Flow — ${names[view.page]}`;
     document.querySelectorAll('#sidebar-nav [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===view.page));
     const inbox=db.tasks.filter(t=>workflow.stage(db,t)==='inbox').length;
     const count=$('#inbox-count');if(count){count.textContent=inbox;count.hidden=!inbox}
-    $('#screen').innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,agenda:renderCalendar,gmail:renderGmail,alertas:renderAlerts,tempo:renderTime})[view.page]();tick();
+    $('#screen').innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,area:renderArea,agenda:renderCalendar,gmail:renderGmail,alertas:renderAlerts,tempo:renderTime})[view.page]();tick();
   }
   function stop(t){if(!t)return;if(db.focus?.taskId===t.id)workflow.pause(db);else workflow.cancel(db,t.id)}
   function start(t){
@@ -232,7 +240,7 @@
     workflow.start(db,t.id);view.focusId=t.id;persist();openPage('foco');notice('Uma tarefa, um ciclo de foco.');
   }
   function complete(t){if(!t)return;workflow.cancel(db,t.id);t.status='done';t.completedAt=Date.now();persistAndRender();notice('Tarefa concluída. Tempo de trabalho preservado.')}
-  function openPage(page){if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0)}
+  function openPage(page){if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0)}
   function selectTask(id){if(view.page!=='tarefas')view.detailReturnPage=view.page;view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
   function openGmail(t){const url=validGmailUrl(t?.gmailUrl);if(!url){notice('Não há um link válido do Gmail nesta tarefa.');return}window.open(url,'_blank','noopener,noreferrer')}
   function download(filename, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
@@ -243,14 +251,15 @@
   const closeModal=()=>{$('#modal-backdrop').classList.add('hidden');$('#modal-backdrop').innerHTML=''};
   function newProject(){promptModal({title:'Nova área',subtitle:'Organize suas demandas em uma nova área.',content:`<label class="field">Nome da área<input name="name" required maxlength="70" placeholder="Ex.: Planejamento Acadêmico" /></label><label class="field">Cor<select name="color"><option value="#507ee9">Azul</option><option value="#9270d4">Violeta</option><option value="#2ca79a">Verde</option><option value="#dbab56">Dourado</option></select></label>`,onSubmit:data=>{const name=String(data.get('name')||'').trim();if(!name)return false;db.projects.push({id:uuid(),name,color:String(data.get('color'))});persistAndRender();notice('Área criada.');return true}})}
   function newTask(prefill={}){
-    const isMail=!!prefill.gmailUrl, fromAgenda=view.page==='agenda';
+    const isMail=!!prefill.gmailUrl, fromAgenda=view.page==='agenda',fromArea=view.page==='area';
     if(fromAgenda&&!prefill.plannedDate){const date=new Date();if(view.weekOffset){date.setDate(date.getDate()-(date.getDay()+6)%7+view.weekOffset*7)}prefill={...prefill,plannedDate:localDate(date)}}
     const content=`<label class="field">O que precisa ser feito?<input name="title" required maxlength="180" value="${html(prefill.title||'')}" placeholder="Ex.: Conferir folha docente" /></label><div class="classification-questions"><label class="field">1. Para onde vai?<select name="project">${projOption(prefill.project||'',false)}</select></label><label class="field">2. Qual o prazo final?<input type="date" name="dueDate" value="${html(prefill.dueDate||'')}" /></label></div><p class="smalltext muted">Se ainda não souber a área ou a data, salve na Entrada e classifique depois.</p><div class="classification-questions"><label class="field">Data de execução<input type="date" name="plannedDate" ${fromAgenda?'required':''} value="${html(prefill.plannedDate||'')}" /></label><label class="field">Hora de execução<input type="time" name="plannedTime" value="${html(prefill.plannedTime||'')}" /></label></div><p class="smalltext muted">A data de execução coloca a demanda na Agenda. Sem horário, aparece como dia inteiro. O prazo final permanece separado.</p><label class="field">Contexto (opcional)<textarea name="description" rows="3" maxlength="7500">${html(prefill.description||'')}</textarea></label>${isMail?`<div class="notice" style="margin-top:13px">✉ ${html(prefill.gmailSubject||prefill.gmailUrl)}</div>`:''}`;
     promptModal({title:isMail?'Incluir e-mail no Flow':'Nova demanda',subtitle:'Capture a demanda. Área e data colocam a tarefa na esteira.',content,onSubmit:data=>{
       const title=String(data.get('title')||'').trim();if(!title)return false;
-      const t={id:uuid(),title,project:String(data.get('project')||''),status:'todo',priority:'medium',plannedDate:String(data.get('plannedDate')||''),plannedTime:String(data.get('plannedTime')||''),dueDate:String(data.get('dueDate')||''),description:String(data.get('description')||''),subtasks:[],sessions:[],startedAt:null,focusCycles:0,gmailUrl:validGmailUrl(prefill.gmailUrl||''),gmailSubject:String(prefill.gmailSubject||''),gmailSender:String(prefill.gmailSender||''),createdAt:Date.now(),completedAt:null};
+      const t={id:uuid(),title,project:String(data.get('project')||''),status:'todo',priority:'medium',plannedDate:String(data.get('plannedDate')||''),plannedTime:String(data.get('plannedTime')||''),dueDate:String(data.get('dueDate')||''),description:String(data.get('description')||''),subtasks:[],sessions:[],startedAt:null,focusCycles:0,gmailUrl:validGmailUrl(prefill.gmailUrl||''),gmailSubject:String(prefill.gmailSubject||''),gmailSender:String(prefill.gmailSender||''),createdAt:Date.now(),completedAt:null,initiativeId:prefill.initiativeId||null};
+      if(fromArea&&t.project!==view.areaId){notice('Use a área deste projeto para criar a tarefa.');return false}
       if(t.plannedTime&&!t.plannedDate){notice('Informe a data de execução para usar um horário.');return false}
-      db.tasks.unshift(t);view.selectedId=t.id;persist();if(fromAgenda){const date=new Date(t.plannedDate+'T12:00:00');const monday=new Date();monday.setHours(12,0,0,0);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);view.weekOffset=Math.floor(Math.round((date-monday)/86400000)/7)}openPage(fromAgenda?'agenda':workflow.classified(db,t)?'esteira':'entrada');notice(workflow.classified(db,t)?'Demanda incluída na esteira.':'Demanda capturada. Falta classificar área e data.');return true;
+      db.tasks.unshift(t);view.selectedId=t.id;persist();if(fromAgenda){const date=new Date(t.plannedDate+'T12:00:00');const monday=new Date();monday.setHours(12,0,0,0);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);view.weekOffset=Math.floor(Math.round((date-monday)/86400000)/7)}openPage(fromArea?'area':fromAgenda?'agenda':workflow.classified(db,t)?'esteira':'entrada');notice(workflow.classified(db,t)?'Demanda incluída na esteira.':'Demanda capturada. Falta classificar área e data.');return true;
     },ok:'Salvar demanda'});
   }
   function classifyTask(t,after){
@@ -299,13 +308,20 @@
     if(element.dataset.timePeriod){view.timePeriod=element.dataset.timePeriod;view.timeOffset=0;render();return}
     if(element.dataset.openEmail){openGmail(findTask(element.dataset.openEmail));return}
     const id=element.dataset.task;if(id){selectTask(id);return}
-    const p=element.dataset.project;if(p){view.projectFilter=p;view.statusFilter='all';view.selectedId=db.tasks.find(t=>t.project===p)?.id||db.tasks[0]?.id;openPage('tarefas');return}
+    const p=element.dataset.project;if(p){view.areaId=p;openPage('area');return}
     const mailId=element.dataset.mailTask;if(mailId){view.mailSelected=mailId;render();return}
     const subid=element.dataset.deleteSub;if(subid){const t=selectedTask();t.subtasks=t.subtasks.filter(s=>s.id!==subid);persistAndRender();return}
     if(element.dataset.alert!==undefined){const i=Number(element.dataset.alert);db.preferences.alerts[i]=!db.preferences.alerts[i];persistAndRender();return}
     const t=selectedTask();try{switch(element.dataset.action){
       case 'toggle-done':view.hideDone=!view.hideDone;render();break;
+      case 'show-areas':openPage('projetos');break;
+      case 'new-initiative':newInitiative();break;
+      case 'area-new-task':newTask({project:view.areaId});break;
+      case 'initiative-new-task':{const initiative=(db.initiatives||[]).find(p=>p.id===element.dataset.id&&p.areaId===view.areaId);if(initiative)newTask({project:view.areaId,initiativeId:initiative.id});break}
       case 'new-task':newTask();break;
+      case 'gmail-mobile':
+        try{const token=await cloud.createGmailToken();promptModal({title:'Gmail no celular',subtitle:'Cole esta chave no complemento Incluir no Flow. Ela vale por 90 dias e substitui a conexão anterior.',content:`<label class="field">Chave de conexão<input readonly value="${html(token)}" autocomplete="off" spellcheck="false" aria-label="Chave de conexão Gmail" /></label><p class="smalltext">Guarde esta chave apenas no complemento. Ela permite consultar áreas e incluir demandas na sua conta.</p>`,onSubmit:()=>true,ok:'Fechar'})}catch(error){notice(error.message)}break;
+      case 'gmail-mobile-revoke':try{await cloud.revokeGmailToken();notice('Conexão do Gmail no celular revogada.')}catch(error){notice(error.message)}break;
       case 'new-project':newProject();break;
       case 'close-modal':closeModal();break;
       case 'open-active':openPage('foco');break;

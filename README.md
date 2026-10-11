@@ -73,3 +73,11 @@ Ocultar concluídas recolhe a coluna de entregues sem excluir dados; Mostrar con
 Concluídas aparecem como cartões compactos com título e área. Clicar abre os detalhes, incluindo Reabrir tarefa; a coluna acompanha a altura do conteúdo.
 
 A esteira diferencia as etapas por cores suaves: lilás na classificação, azul em A fazer, turquesa em andamento, areia em Aguardando e verde nas concluídas. Colunas, cards e marcadores compartilham a cor da etapa; a classificação por área fica preservada.
+
+## Gmail no Android
+
+Complemento Google Workspace preparado em `gmail-addon/`, com pacote `downloads/flow-gmail-addon.zip`. A ativação exige executar `supabase/gmail-addon.sql` e instalar/distribuir o complemento na conta Google. Veja `gmail-addon/README.md`. `npm run test:gmail-addon` valida o código Apps Script com serviços simulados.
+
+## Projetos dentro das áreas
+
+Clique numa área para criar tarefas com a área preenchida e projetos que agrupam tarefas. Os projetos ficam em `initiatives`; `projects` continua representando o catálogo de áreas legado. Cada tarefa pode ter `initiativeId`. Todas seguem na esteira comum.

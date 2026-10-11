@@ -175,6 +175,16 @@
     localStorage.removeItem(ACTIVE);
     location.reload();
   }
+  async function createGmailToken() {
+    if(!user)throw new Error('Entre com Google no Flow para conectar o Gmail do celular.');
+    await flush();
+    const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
+    const hash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+    await request('/rest/v1/rpc/flow_create_gmail_token',{method:'POST',body:JSON.stringify({token_hash:hash})});
+    return token;
+  }
+  async function revokeGmailToken(){if(!user)throw new Error('Entre com Google.');await request('/rest/v1/rpc/flow_revoke_gmail_token',{method:'POST',body:'{}'});}
   // A logout or account change in another tab must hide this workspace immediately.
   window.addEventListener('storage', event => {
     if (event.key !== SESSION || !user) return;
@@ -185,7 +195,7 @@
       location.reload();
     } else session = next;
   });
-  globalThis.FlowCloud = {initialize, signIn, signOut, queue, flush, loadRemote,
+  globalThis.FlowCloud = {createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
     info: () => ({mode: user ? 'cloud' : 'local', user, key, status, error, configured: !!config?.configured}),
     calendarToken: () => session?.calendarConnected ? session.provider_token : null,
     disconnectCalendar: () => { if (session) { remember({...session, provider_token: null, calendarConnected: false}); } }};
