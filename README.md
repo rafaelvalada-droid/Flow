@@ -65,3 +65,7 @@ A Agenda mostra tarefas e compromissos da agenda principal do Google na semana v
 Nova demanda inclui data e hora de execução separadas do prazo final. Pela Agenda, a data de execução é obrigatória e começa no dia atual ou na semana consultada; ao salvar, a Agenda permanece aberta na semana escolhida. Sem horário, a demanda aparece como dia inteiro.
 
 A esteira oferece Retornar de Em andamento para A fazer, de Aguardando para Em andamento e de Concluídas para Aguardando, preservando a classificação e o histórico de tempo. Conexão da Agenda e instruções do Gmail ficam em controles compactos com detalhes expansíveis.
+
+O relatório de Gestão do Tempo baixa um PDF direto no navegador, sem diálogo de impressão. Cabeçalho com Flow e Ulbra S.A., fontes incorporadas, indicadores, gráficos e tarefas paginadas. jsPDF 3.0.3 e fontes DejaVu estão incluídos localmente com licenças em vendor/ e assets/fonts/. Dados permanecem no navegador; não são enviados para gerar o PDF.
+
+Ocultar concluídas recolhe a coluna de entregues sem excluir dados; Mostrar concluídas restaura a esteira completa. Os indicadores superiores são compactos. A Agenda mantém conexão e navegação da semana junto do cabeçalho.

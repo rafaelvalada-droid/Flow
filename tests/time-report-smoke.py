@@ -1,6 +1,7 @@
 """Browser checks for the time BI, CSV export, PDF layout and directional board."""
 import asyncio
 import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -57,14 +58,24 @@ async def main(folder):
         assert '"Carga horária docente";"00:25:00";"1500"' in text
         assert 'Conferir carga horária docente' in text
         passed('Generated CSV contains period totals and detailed time by area and task')
-        await page.locator('[data-action="close-modal"]').click()
-        await page.emulate_media(media='print')
-        await expect(page.locator('.sidebar,.topbar').first).to_be_hidden()
-        await expect(page.locator('.time-tasks')).to_be_visible()
-        pdf = await page.pdf(path=str(Path(folder) / 'flow-tempo.pdf'), format='A4', print_background=True)
-        assert pdf.startswith(b'%PDF') and len(pdf) > 15000
-        passed('Print layout produces a PDF with the time analysis and task table')
-        await page.emulate_media(media='screen')
+        async with page.expect_download() as result:
+            await page.locator('[data-action="time-pdf"]').click()
+        download=await result.value
+        await download.save_as('/tmp/flow-time-report-designed.pdf')
+        pdf=Path('/tmp/flow-time-report-designed.pdf').read_bytes()
+        assert pdf.startswith(b'%PDF') and len(pdf)>15000
+        extracted=subprocess.check_output(['pdftotext','/tmp/flow-time-report-designed.pdf','-'],text=True)
+        assert '01:15:00' in extracted and 'Conferir carga horária docente' in extracted
+        async with page.expect_download() as large:
+            await page.evaluate("""async () => {
+              const report=FlowTime.summarize(JSON.parse(localStorage.getItem('flow.workspace.v1')),'month',0);
+              report.tasks=Array.from({length:75},(_,i)=>({title:'Tarefa de relatório '+i+' com descrição longa para verificar a quebra de linhas sem perder conteúdo',area:'Área de teste',ms:60000,sessions:1}));
+              await FlowPDF.download(report,'month');
+            }""")
+        await (await large.value).save_as(str(Path(folder)/'large.pdf'))
+        large_text=subprocess.check_output(['pdftotext',str(Path(folder)/'large.pdf'),'-'],text=True)
+        assert 'Tarefa de relatório 0' in large_text and 'Tarefa de relatório 74' in large_text
+        passed('Designed PDF downloads directly, without the browser print dialog')
         await page.screenshot(path='/tmp/flow-time-preview.png', full_page=True)
         for width in [390, 768, 1440]:
             await page.set_viewport_size({'width':width,'height':1000})
