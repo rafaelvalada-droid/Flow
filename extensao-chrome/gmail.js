@@ -89,7 +89,8 @@
     dialog.showModal();
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if (saving || finished || !select.value) return;
+      if(finished){try{await send('FLOW_OPEN_EMAIL',{requestId});closeDialog()}catch(error){update(error.message,'error')}return;}
+      if (saving || !select.value) return;
       saving = true;
       save.disabled = true;
       cancel.disabled = true;
@@ -105,7 +106,8 @@
         if (dialogHost !== host) return;
         finished = true;
         update('Salvo no Flow! Você pode continuar no Gmail.', 'success');
-        save.textContent = 'Salvo ✓';
+        save.textContent = 'Ver no Flow';
+        save.disabled = false;
         cancel.textContent = 'Fechar';
       } catch (error) {
         if (dialogHost !== host) return;

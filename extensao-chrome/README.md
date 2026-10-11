@@ -1,8 +1,8 @@
-# Flow no Gmail — extensão Chrome 1.3
+# Flow no Gmail — extensão Chrome 1.3.1
 
 A extensão adiciona **Incluir no Flow** ao lado do assunto da conversa aberta no Gmail.
 Você escolhe a área e a data e salva a tarefa em uma caixa no próprio Gmail.
-A demanda entra na esteira comum de todas as áreas.
+A demanda entra na esteira comum de todas as áreas. Após salvar, clique em **Ver no Flow** para abrir a demanda na aba de destino, ou em **Fechar** para continuar no Gmail.
 
 ## Instalação (Chrome no computador)
 

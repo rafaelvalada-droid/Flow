@@ -80,11 +80,12 @@
   }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (sender.id !== chrome.runtime.id || !['FLOW_BRIDGE_LISTS', 'FLOW_BRIDGE_SAVE'].includes(message?.type)) return;
+    if (sender.id !== chrome.runtime.id || !['FLOW_BRIDGE_LISTS', 'FLOW_BRIDGE_SAVE', 'FLOW_BRIDGE_OPEN'].includes(message?.type)) return;
     (async()=>{try {
       // A freshly opened Flow tab may still be checking OAuth and loading its data.
       const started=Date.now();
       while(document.querySelector('.app-shell')?.hidden && document.querySelector('#google-login')?.hidden && Date.now()-started<12000)await new Promise(resolve=>setTimeout(resolve,50));
+      if(message.type==='FLOW_BRIDGE_OPEN'){const task=read().db.tasks.find(t=>t.gmailCaptureId===message.data?.requestId);if(!task)throw new Error('A demanda não está neste Flow. Confira o endereço configurado na extensão.');window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{requestId:message.data.requestId}}));sendResponse({ok:true});return;}
       const result = message.type === 'FLOW_BRIDGE_SAVE' ? await save(message.data) : {
         projects: read().db.projects.filter(p => typeof p.id === 'string' && typeof p.name === 'string')
           .map(p => ({id: p.id, name: p.name}))

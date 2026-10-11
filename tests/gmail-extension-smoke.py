@@ -57,6 +57,9 @@ class ChromeAdapter:
             tab_id = self.register(page, active=data.get('active', True))
             await page.goto(data['url'])
             return self.tab(tab_id)
+        if kind == 'tabs.update':
+            self.active_id = data['tabId']
+            return self.tab(self.active_id)
         if kind == 'tabs.get':
             return self.tab(data)
         if kind == 'scripting.executeScript':
@@ -109,6 +112,7 @@ class ChromeAdapter:
                     query: value => call('tabs.query',value),
                     create: value => call('tabs.create',value),
                     get: value => call('tabs.get',value),
+                    update: (tabId,options) => call('tabs.update',{tabId,options}),
                     sendMessage: (tabId,message) => call('tabs.sendMessage',{tabId,message})
                 },
                 scripting: {executeScript: value => call('scripting.executeScript',value)}
@@ -172,7 +176,7 @@ async def main(profile):
         await button.click()
         select = gmail.locator('#flow-gmail-dialog select')
         await expect(select).to_be_enabled(timeout=25000)
-        assert await select.locator('option').count() == 14
+        assert await select.locator('option').count() == 13
         assert adapter.active_id == gmail_id and gmail.url == GMAIL
         passed('Button opens a Gmail dialog and loads actual Flow projects without leaving Gmail')
 
@@ -192,6 +196,11 @@ async def main(profile):
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         passed('Save writes the chosen project, title, sender and link; Flow updates immediately')
 
+        await gmail.get_by_role('button', name='Ver no Flow').click()
+        await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
+        assert adapter.active_id == flow_id
+        passed('Ver no Flow activates the destination tab and closes the Gmail dialog')
+
         replay = {'requestId': task['gmailCaptureId'], 'projectId': 'oferta', 'title': task['title'],
                   'gmailUrl': GMAIL, 'gmailSubject': task['gmailSubject'], 'gmailSender': task['gmailSender']}
         for _ in range(2):
@@ -202,7 +211,6 @@ async def main(profile):
 
         await flow.reload()
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
-        await gmail.locator('#flow-close').click()
         await flow.locator('#sidebar-nav [data-page="projetos"]').click()
         await flow.locator('[data-action="new-project"]').click()
         await flow.locator('#active-modal-form [name="name"]').fill('Minha nova lista')

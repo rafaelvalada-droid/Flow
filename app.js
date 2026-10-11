@@ -371,12 +371,13 @@
   document.addEventListener('input',e=>{if(e.target.id==='edit-description'){const t=selectedTask();if(t){t.description=e.target.value;persist()}}});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
   window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){db=workflow.normalize(load());if(workflow.reconcile(db))persist();render()}});
+  window.addEventListener('flow:open-capture',event=>{db=workflow.normalize(load());const task=db.tasks.find(t=>t.gmailCaptureId===event.detail?.requestId);if(task){view.projectBoard='all';openPage('esteira');selectTask(task.id)}});
   window.addEventListener('flow:sync-status',updateAccount);
   window.addEventListener('flow:calendar-status',()=>{if(view.page==='agenda')render()});
   window.addEventListener('flow:cloud-save',async event=>{
     if(event.detail?.key!==STORAGE_KEY||workspace.mode!=='cloud')return;
     const requestId=event.detail.requestId;
-    try{await cloud.flush(db);window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:true}}))}
+    try{db=workflow.normalize(load());if(!db.tasks.some(t=>t.gmailCaptureId===requestId))throw new Error('A demanda não foi recebida pelo Flow. Recarregue o app e tente novamente.');render();await cloud.flush(db);window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:true}}))}
     catch(error){window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:false,error:error.message}}))}
   });
   window.addEventListener('online',()=>{cloud.flush().catch(()=>{});globalThis.FlowCalendar.schedule()});

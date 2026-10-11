@@ -52,16 +52,17 @@ async function flowTab() {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!['FLOW_LISTS', 'FLOW_SAVE_EMAIL'].includes(message?.type)) return;
+  if (!['FLOW_LISTS', 'FLOW_SAVE_EMAIL', 'FLOW_OPEN_EMAIL'].includes(message?.type)) return;
   if (!isGmailSender(sender)) {
     sendResponse({ok: false, error: 'A captura precisa ser feita na conversa aberta no Gmail.'});
     return;
   }
   (async () => {
     const tabId = await flowTab();
-    const type = message.type === 'FLOW_LISTS' ? 'FLOW_BRIDGE_LISTS' : 'FLOW_BRIDGE_SAVE';
+    const type = message.type === 'FLOW_LISTS' ? 'FLOW_BRIDGE_LISTS' : message.type==='FLOW_OPEN_EMAIL'?'FLOW_BRIDGE_OPEN':'FLOW_BRIDGE_SAVE';
     const result = await chrome.tabs.sendMessage(tabId, {type, data: message.data});
     if (!result) throw new Error('Não foi possível conectar ao Flow. Atualize a aba do Flow e tente novamente.');
+    if(result.ok&&message.type==='FLOW_OPEN_EMAIL')await chrome.tabs.update(tabId,{active:true});
     return result;
   })().then(sendResponse).catch(error => sendResponse({ok: false, error: error.message || 'Não foi possível acessar o Flow.'}));
   return true;
