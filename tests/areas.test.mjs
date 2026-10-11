@@ -24,7 +24,7 @@ test('existing work receives the requested classification choices without losing
   assert.equal(db.projects.find(p=>p.id==='pj').name,'Contratos docentes PJ');
   assert.equal(db.projects.find(p=>p.id==='cpa').name,'CPA Ubrecia');
   assert(db.projects.some(p=>p.name==='Ubra IA'));
-  assert(db.projects.some(p=>p.name==='Operação lato sensu BreCIA'));
+  assert(db.projects.some(p=>p.name==='Operação Lato Sensu Ulbra S.A.'));
   assert.equal(db.projects.some(p=>p.id==='ouv'),false);
   assert.deepEqual(db.archivedProjects,[before.projects.find(p=>p.id==='ouv')]);
   assert.equal(globalThis.FlowWorkflow.classified(db,db.tasks[1]),true);
@@ -53,4 +53,10 @@ test('a conflicting custom ID is preserved instead of being assigned to a differ
   assert.equal(db.projects.find(p=>p.id==='ubra-ia').name,'Meu setor');
   assert.notEqual(db.projects.find(p=>p.name==='Ubra IA').id,'ubra-ia');
   assert.equal(db.tasks[0].project,'ubra-ia');
+});
+
+ test('correcting the Lato Sensu name preserves existing IDs, tasks and removed categories',()=>{
+ const db={classificationCatalogVersion:2,projects:[{id:'custom-lato',name:'Operação lato sensu BreCIA',color:'#123456'},{id:'lato-sensu',name:'Nome personalizado'}],archivedProjects:[{id:'old-lato',name:'Operação lato sensu BreCIA'}],tasks:[{project:'custom-lato',sessions:[{start:1,end:2}]}]};
+ const tasks=structuredClone(db.tasks);areas.migrate(db);
+ assert.equal(db.projects[0].name,'Operação Lato Sensu Ulbra S.A.');assert.equal(db.projects[0].id,'custom-lato');assert.equal(db.projects[1].name,'Nome personalizado');assert.equal(db.archivedProjects[0].name,'Operação Lato Sensu Ulbra S.A.');assert.deepEqual(db.tasks,tasks);assert.equal(db.projects.length,2);
 });
