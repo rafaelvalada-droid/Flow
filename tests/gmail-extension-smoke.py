@@ -207,9 +207,14 @@ async def main(profile):
         assert len(db['tasks']) == 5
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         passed('Save writes the chosen project, title, sender and link; Flow updates immediately')
-        demand_title = flow.locator('.pipeline-task .text-button').filter(has_text='Organizar planejamento')
-        assert await demand_title.get_attribute('data-task') == task['id']
-        assert await demand_title.get_attribute('data-open-email') is None
+        demand = flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')
+        await expect(demand.get_by_role('button', name='Abrir Gmail')).to_be_hidden()
+        await demand.locator('summary').click()
+        await expect(demand.get_by_role('button', name='Abrir Gmail')).to_be_visible()
+        await demand.locator('summary').click()
+        await expect(demand.get_by_role('button', name='Abrir Gmail')).to_be_hidden()
+        await demand.locator('summary').click()
+        passed('Demand accordion starts compact, expands its actions and collapses on another click')
         async with flow.expect_popup() as popup_info:
             await flow.locator('.pipeline-task').filter(has_text='Organizar planejamento').get_by_role('button', name='Abrir Gmail').click()
         email_page = await popup_info.value
