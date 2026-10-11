@@ -59,3 +59,5 @@ Módulos: `areas.js` (catálogo), `workflow.js` (tarefas e foco), `cloud.js` (OA
 Gemini requer `GEMINI_API_KEY` e `FLOW_AI_ACCESS_TOKEN` no servidor; a chave não vai ao frontend. `GEMINI_MODEL` deve ser permitido na conta. Sem credenciais, a rota retorna 503. Alertas ainda gravam preferências sem enviar e-mails.
 
 Leia [a especificação funcional](docs/ESPECIFICACAO.md) e [a extensão](extensao-chrome/README.md).
+
+A Agenda mostra tarefas e compromissos da agenda principal do Google na semana visível. A leitura expande recorrências, respeita o fuso local, pagina resultados e omite cópias das próprias tarefas. Compromissos externos são somente leitura e ficam apenas em memória. Atualiza ao trocar de semana, sincronizar, voltar à aba e a cada minuto enquanto a aba está visível. Não funciona com o Flow fechado. Cards de áreas usam cores suaves derivadas da cor de cada área.

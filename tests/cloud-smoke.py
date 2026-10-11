@@ -96,7 +96,13 @@ class Services:
             assert url.path.startswith(prefix)
             event_id = url.path[len(prefix):].strip('/')
             self.calendar_calls.append((req.method, event_id))
-            if req.method == 'POST':
+            if req.method == 'GET' and not event_id:
+                query = parse_qs(url.query)
+                start = query['timeMin'][0][:10]
+                await respond({'items': list(self.events.values()) + [
+                    {'id':'external','summary':'Reunião do Google <teste>','start':{'date':start},'end':{'date':query['timeMax'][0][:10]}},
+                    {'id':'cancelled','status':'cancelled','summary':'Cancelado','start':{'date':start},'end':{'date':query['timeMax'][0][:10]}}]})
+            elif req.method == 'POST':
                 body = req.post_data_json
                 event_id = body['id']
                 assert all(c in '0123456789abcdefghijklmnopqrstuv' for c in event_id)
@@ -220,6 +226,17 @@ async def main():
         assert event['end']['dateTime'] == '2026-10-13T12:25:00.000Z'
         assert '2026-10-15' in event['description'] and event['visibility'] == 'private'
         passed('Rightward advance works; Google Agenda uses execution time and keeps the deadline separate')
+        await page.locator('#sidebar-nav [data-page="agenda"]').click()
+        await page.wait_for_function('!FlowCalendar.info().reading && FlowCalendar.info().events.length===1')
+        await expect(page.locator('.google-calendar-event')).to_have_count(7)
+        await expect(page.locator('.google-calendar-event').first).to_contain_text('Reunião do Google <teste>')
+        assert await page.locator('.google-calendar-event teste').count() == 0
+        await page.locator('[data-action="week-next"]').click()
+        await page.wait_for_function('!FlowCalendar.info().reading && FlowCalendar.info().events.length===1')
+        await expect(page.locator('.google-calendar-event')).to_have_count(7)
+        passed('Google appointments load for the visible week, span days, escape titles and exclude cancelled/duplicate Flow events')
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+
 
         await page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador').locator('[data-task]').first.click()
         await page.locator('#edit-planned').fill('2026-10-14')

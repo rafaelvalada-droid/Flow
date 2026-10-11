@@ -86,3 +86,10 @@ input,textarea,select{accent-color:var(--accent)}
 @media(max-width:760px){.topbar-identity{max-width:100%;gap:10px}.topbar .ulbra-mark{width:112px;height:34px}.breadcrumb{min-width:0;overflow-wrap:anywhere}.breadcrumb span{padding:0 4px}}
 @media(prefers-reduced-motion:reduce){.button{transition:none}}
 @media print{:root{color-scheme:light;--bg:#fff;--sidebar:#fff;--surface:#fff;--surface-raised:#f0f0f0;--surface-hover:#e5e5e5;--surface-inset:#fafafa;--ink:#161616;--muted:#555;--faint:#666;--border:#ddd;--border-strong:#999;--accent:#222;--accent-hover:#444;--accent-soft:#f0f0f0;--accent-soft-hover:#e5e5e5;--on-accent:#fff}body{background:var(--surface);color:var(--ink);height:auto;overflow:visible}.app-shell,.workspace{display:block;height:auto;overflow:visible}.sidebar,.topbar,.modal-backdrop,.toast,.page-head>.button,.time-toolbar .button,.time-toolbar .row{display:none!important}.screen{padding:0;overflow:visible;height:auto}.page-head h1{font-size:25px}.page-head .eyebrow{font-size:9px}.card{box-shadow:none;break-inside:avoid}.time-tasks{break-inside:auto}.time-table-scroll,.time-chart-scroll{overflow:visible}.time-chart{min-width:0;gap:3px}.time-bar-value{font-size:7px}.time-area,.time-tasks tr{break-inside:avoid}.time-kpis,.time-analysis{gap:12px}.time-analysis{grid-template-columns:1.3fr 1fr}.time-kpis strong{font-size:25px}.time-kpis strong.time-area-name{font-size:16px}.time-bar i,.progressbar i{-webkit-print-color-adjust:exact;print-color-adjust:exact}.report-note{font-size:9px}.time-tasks button{color:inherit;padding:0}table thead{display:table-header-group}}
+
+.google-calendar-event{font-size:11px;line-height:1.5;overflow-wrap:anywhere;background:var(--accent-soft);border-left:3px solid var(--accent)}
+
+.projectcard{background:linear-gradient(var(--area-tint),var(--area-tint)),var(--surface)}
+.projectcard:hover{background:linear-gradient(var(--area-tint),var(--area-tint)),var(--surface);border-color:var(--area-color)}
+.projectcard .projecticon{background:var(--area-tint)!important;color:var(--area-color)!important}
+.projectcard .progressbar i{background:var(--area-color)!important}

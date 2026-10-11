@@ -1,7 +1,8 @@
 (() => {
   'use strict';
   let getDatabase, persist, timer, running, status = 'disconnected', error = '';
-  const info = () => ({connected: !!FlowCloud.calendarToken(), status, error});
+  let visibleRange = null, imported = [], reading = false, readError = '', generation = 0;
+  const info = () => ({connected: !!FlowCloud.calendarToken(), status, error, reading, readError, events: FlowCloud.calendarToken() ? imported : []});
   const emit = () => window.dispatchEvent(new CustomEvent('flow:calendar-status'));
   const state = (next, message = '') => { status = next; error = message; emit(); };
   async function api(path = '', method = 'GET', body) {
@@ -22,6 +23,40 @@
       throw err;
     }
     return data;
+  }
+  async function refresh() {
+    if (!visibleRange || !FlowCloud.calendarToken()) return;
+    const request = ++generation, range = {...visibleRange};
+    const owner = FlowCloud.info().user?.id;
+    reading = true; readError = ''; emit();
+    try {
+      const events = [], pages = new Set();
+      let next;
+      do {
+        const query = new URLSearchParams({timeMin: range.start, timeMax: range.end,
+          singleEvents: 'true', orderBy: 'startTime', maxResults: '250'});
+        if (next) query.set('pageToken', next);
+        const response = await api('?' + query);
+        events.push(...(response?.items || []));
+        next = response?.nextPageToken;
+        if (next && pages.has(next)) throw new Error('Não foi possível carregar todos os compromissos. Tente novamente.');
+        if (next) pages.add(next);
+      } while (next);
+      if (request !== generation || owner !== FlowCloud.info().user?.id || !FlowCloud.calendarToken()) return;
+      const tasks = getDatabase().tasks;
+      imported = events.filter(event => event.status !== 'cancelled' && event.start && event.end &&
+        !(event.extendedProperties?.private?.flowUserId === owner &&
+          tasks.some(task => task.id === event.extendedProperties.private.flowTaskId && task.plannedDate)));
+    } catch (err) {
+      if (request === generation) { imported = []; readError = err.message; }
+    } finally {
+      if (request === generation) { reading = false; emit(); }
+    }
+  }
+  function showRange(start, end) {
+    if (visibleRange?.start === start && visibleRange?.end === end) return;
+    visibleRange = {start, end}; imported = []; generation++;
+    queueMicrotask(refresh);
   }
   async function eventId(owner, taskId) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`flow:${owner}:${taskId}`));
@@ -85,6 +120,7 @@
         persist();
       }
       state('synced');
+      await refresh();
     })().catch(err => { state('error', err.message); throw err; }).finally(() => { running = null; });
     return running;
   }
@@ -93,7 +129,9 @@
     clearTimeout(timer);
     timer = setTimeout(() => synchronize().catch(() => {}), 900);
   }
-  globalThis.FlowCalendar = {info, synchronize, schedule,
+  setInterval(() => { if (document.visibilityState === 'visible' && visibleRange && !reading && FlowCloud.calendarToken()) refresh(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && visibleRange && !reading && FlowCloud.calendarToken()) refresh(); });
+  globalThis.FlowCalendar = {info, synchronize, schedule, showRange, refresh,
     initialize: (read, save) => { getDatabase = read; persist = save; if (FlowCloud.calendarToken()) {status = 'connected'; schedule();} },
-    connect: () => FlowCloud.signIn(true), disconnect: () => { clearTimeout(timer); FlowCloud.disconnectCalendar(); state('disconnected'); }};
+    connect: () => FlowCloud.signIn(true), disconnect: () => { clearTimeout(timer); generation++; imported = []; reading = false; readError = ''; visibleRange = null; FlowCloud.disconnectCalendar(); state('disconnected'); }};
 })();
