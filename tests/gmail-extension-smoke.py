@@ -202,6 +202,12 @@ async def main(profile):
         assert email_page.url == GMAIL
         await email_page.close()
         passed('Clicking the captured demand title opens its exact original Gmail conversation')
+        async with flow.expect_popup() as popup_info:
+            await flow.locator('.pipeline-task').filter(has_text='Organizar planejamento').get_by_role('button', name='Abrir Gmail').click()
+        email_page = await popup_info.value
+        await email_page.wait_for_url(GMAIL)
+        await email_page.close()
+        passed('The explicit Abrir Gmail button on the pipeline card opens the original conversation')
 
         await gmail.get_by_role('button', name='Ver no Flow').click()
         await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)

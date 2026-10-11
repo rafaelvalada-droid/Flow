@@ -127,3 +127,7 @@ input,textarea,select{accent-color:var(--accent)}
 .pipeline-lane .completed-open:hover{background:var(--stage-bg)}
 }
 @media screen{.pipeline-direction li:last-child b{background:var(--stage-ink);color:#fff}}
+
+.pipeline-task .pipeline-gmail{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 9px;font-size:10px;background:var(--surface);border-color:var(--border);color:var(--ink)}
+.pipeline-task .pipeline-gmail:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+.completed-compact .pipeline-gmail{margin:0 12px 10px}
