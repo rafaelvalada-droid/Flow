@@ -19,10 +19,10 @@ test('existing work receives the requested classification choices without losing
   ]};
   const before=structuredClone(db);
   areas.migrate(db);
-  assert.equal(db.projects.length,13);
+  assert.equal(db.projects.length,12);
   assert.deepEqual(db.tasks,before.tasks);
   assert.equal(db.projects.find(p=>p.id==='pj').name,'Contratos docentes PJ');
-  assert.equal(db.projects.find(p=>p.id==='cpa').name,'CPA Ubrecia');
+  assert.equal(db.projects.find(p=>p.id==='cpa').name,'CPA Ulbra S.A.');
   assert(db.projects.some(p=>p.name==='Ubra IA'));
   assert(db.projects.some(p=>p.name==='Operação Lato Sensu Ulbra S.A.'));
   assert.equal(db.projects.some(p=>p.id==='ouv'),false);
@@ -59,4 +59,13 @@ test('a conflicting custom ID is preserved instead of being assigned to a differ
  const db={classificationCatalogVersion:2,projects:[{id:'custom-lato',name:'Operação lato sensu BreCIA',color:'#123456'},{id:'lato-sensu',name:'Nome personalizado'}],archivedProjects:[{id:'old-lato',name:'Operação lato sensu BreCIA'}],tasks:[{project:'custom-lato',sessions:[{start:1,end:2}]}]};
  const tasks=structuredClone(db.tasks);areas.migrate(db);
  assert.equal(db.projects[0].name,'Operação Lato Sensu Ulbra S.A.');assert.equal(db.projects[0].id,'custom-lato');assert.equal(db.projects[1].name,'Nome personalizado');assert.equal(db.archivedProjects[0].name,'Operação Lato Sensu Ulbra S.A.');assert.deepEqual(db.tasks,tasks);assert.equal(db.projects.length,2);
+});
+
+test('removed Ubra S.A. area is archived without losing task history',()=>{
+ const db={classificationCatalogVersion:3,projects:[{id:'ubracis',name:'Ubra S.A.'},{id:'lato-sensu',name:'Operação Lato Sensu Ulbra S.A.'}],tasks:[{id:'old',project:'ubracis',sessions:[{start:1,end:2}]}]};
+ const tasks=structuredClone(db.tasks);areas.migrate(db);assert.equal(db.projects.length,1);assert.equal(db.archivedProjects[0].id,'ubracis');assert.deepEqual(db.tasks,tasks);assert.equal(db.projects[0].name,'Operação Lato Sensu Ulbra S.A.');
+});
+
+test('CPA spelling changes without modifying the area ID or tasks',()=>{
+ const db={classificationCatalogVersion:4,projects:[{id:'custom-cpa',name:'CPA Ubrecia'}],tasks:[{project:'custom-cpa'}]};areas.migrate(db);assert.equal(db.projects[0].name,'CPA Ulbra S.A.');assert.equal(db.tasks[0].project,'custom-cpa');assert.equal(db.projects.length,1);
 });

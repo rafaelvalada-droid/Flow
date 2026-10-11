@@ -1,7 +1,7 @@
 /* Destinos de classificação definidos pelo usuário. */
 (() => {
   'use strict';
-  const version = 3;
+  const version = 5;
   const catalog = [
     {id:'ubra-ia', name:'Ubra IA', color:'#507ee9'},
     {id:'oferta', name:'Oferta de turmas', color:'#507ee9'},
@@ -12,9 +12,8 @@
     {id:'plano', name:'Plano docente', color:'#9270d4'},
     {id:'lato-sensu', name:'Operação Lato Sensu Ulbra S.A.', color:'#2ca79a', aliases:['Operação lato sensu BreCIA']},
     {id:'pagamentos-pj', name:'Pendências de pagamento PJ', color:'#dbab56'},
-    {id:'ubracis', name:'Ubra S.A.', color:'#418d9d', aliases:['Ubracis']},
     {id:'suporte', name:'Suporte operacional', color:'#507ee9'},
-    {id:'cpa', name:'CPA Ubrecia', color:'#2ca79a', aliases:['CPA / Avaliação']},
+    {id:'cpa', name:'CPA Ulbra S.A.', color:'#2ca79a', aliases:['CPA / Avaliação','CPA Ubrecia']},
     {id:'capacitacao', name:'Capacitação', color:'#9270d4'}
   ].map(area => Object.freeze({...area, aliases:Object.freeze(area.aliases||[])}));
   const nameKey = name => String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
@@ -22,10 +21,17 @@
 
   function migrate(db) {
     if (db.classificationCatalogVersion >= version) return db;
+    const retired = db.projects.filter(area=>['ubra s.a.','ubracis'].includes(nameKey(area.name)));
+    if(retired.length){
+      db.archivedProjects ||= [];
+      for(const area of retired)if(!db.archivedProjects.some(item=>item.id===area.id))db.archivedProjects.push({...area});
+      const ids=new Set(retired.map(area=>area.id));db.projects=db.projects.filter(area=>!ids.has(area.id));
+    }
     if (db.classificationCatalogVersion >= 1) {
       // Corrige a grafia sem recriar categorias removidas ou alterar vínculos.
       for (const area of [...db.projects,...(db.archivedProjects||[])]) {
         if (db.classificationCatalogVersion===1 && nameKey(area.name)==='ubracis') area.name='Ubra S.A.';
+        if (nameKey(area.name)===nameKey('CPA Ubrecia')) area.name='CPA Ulbra S.A.';
         if (nameKey(area.name)===nameKey('Operação lato sensu BreCIA')) area.name='Operação Lato Sensu Ulbra S.A.';
       }
       db.classificationCatalogVersion = version;

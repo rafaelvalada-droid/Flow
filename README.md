@@ -9,7 +9,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Entrada:** área e data respondem “para onde?” e “para quando?”.
 - **Esteira:** fluxo da esquerda para a direita, com setas e Avançar; todas as áreas usam a mesma fila. Aguardando é opcional.
 - **Foco:** ciclos de 25 minutos de trabalho e 5 de descanso, ajustáveis, com uma tarefa ativa. Pausas e ausência após o término do ciclo não contam como trabalho.
-- **Áreas:** catálogo de 13 classificações, incluindo Ubra S.A., e áreas personalizadas. IDs, vínculos e históricos anteriores são preservados.
+- **Áreas:** catálogo de 12 classificações e áreas personalizadas. IDs, vínculos e históricos anteriores são preservados.
 - **Agenda:** data de execução separada do prazo. Conexão direta com Google Agenda após ativação; exportação .ics continua disponível.
 - **Gmail:** extensão 1.3 com Incluir no Flow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.

@@ -6,7 +6,7 @@ Receber demandas de várias frentes, classificá-las por destino e urgência, or
 
 ## Classificação antes da execução
 
-As duas perguntas são **“Para onde vai?”** (área) e **“Para quando?”** (data/prazo). O catálogo solicitado é: Ubra IA; Oferta de turmas; Carga horária docente; Incidências em folha; Contratos docentes PJ; Folha docente; Plano docente; Operação lato sensu BreCIA; Pendências de pagamento PJ; Ubra S.A.; Suporte operacional; CPA Ubrecia; Capacitação. O singular/plural de contrato docente PJ representa uma única classificação.
+As duas perguntas são **“Para onde vai?”** (área) e **“Para quando?”** (data/prazo). O catálogo solicitado é: Ubra IA; Oferta de turmas; Carga horária docente; Incidências em folha; Contratos docentes PJ; Folha docente; Plano docente; Operação Lato Sensu Ulbra S.A.; Pendências de pagamento PJ; Suporte operacional; CPA Ulbra S.A.; Capacitação. O singular/plural de contrato docente PJ representa uma única classificação.
 
 Uma demanda sem área existente ou data válida permanece na **Entrada / A classificar**, mesmo que já tenha uma das respostas. A captura não atribui automaticamente a primeira área ou um prazo arbitrário. A classificação é condição para entrar em foco.
 

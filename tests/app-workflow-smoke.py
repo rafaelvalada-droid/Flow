@@ -49,7 +49,7 @@ async def run(profile):
         passed('Capture stays in Entrada until area and date are chosen; deadline orders the shared queue')
 
         await page.locator('#sidebar-nav [data-page="projetos"]').click()
-        assert await page.locator('.projectcard').count()==13
+        assert await page.locator('.projectcard').count()==12
         assert await page.locator('.pipeline-board,.kanban').count()==0
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await page.locator('#board-filter').select_option('folha')
@@ -136,7 +136,7 @@ async def run(profile):
         await legacy.reload()
         migrated=await legacy.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
         assert old['projects'][0] in migrated['projects']
-        assert len(migrated['projects'])==14
+        assert len(migrated['projects'])==13
         for k,v in old['tasks'][0].items(): assert migrated['tasks'][0][k]==v
         assert migrated['preferences']['reminderDays']==7
         assert migrated['preferences']['focusMinutes']==25
