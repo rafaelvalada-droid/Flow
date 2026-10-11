@@ -108,7 +108,7 @@ input,textarea,select{accent-color:var(--accent)}
 .brand-mark{width:58px;height:32px;padding:0;border-radius:0}.login-screen>img{width:170px;height:65px;padding:0;border-radius:0}@media(max-width:1100px){.brand-mark{width:48px;height:28px}}@media(max-width:760px){.brand-mark{width:48px;height:28px}}
 
 .pipeline-task.completed-compact{padding:0}.completed-open{display:flex;flex-direction:column;gap:8px;width:100%;border:0;background:transparent;color:var(--ink);text-align:left;padding:13px;cursor:pointer;border-radius:10px}.completed-open strong{font-size:12px;line-height:1.5;overflow-wrap:anywhere}.completed-open .area-label{font-size:10px}.completed-open:hover{background:var(--accent-soft)}
-.pipeline-lane[data-stage="done"]{min-height:0}.pipeline-lane[data-stage="done"] .completed-compact{margin-bottom:8px}
+.pipeline-lane[data-stage="done"] .completed-compact{margin-bottom:8px}
 /* Cores de etapa: tons suaves nas caixas e marcadores com contraste. */
 @media screen{
 .pipeline-lane[data-stage="inbox"],.pipeline-direction li:nth-child(1){--stage-ink:#71558b;--stage-bg:#e9e3ef;--stage-card:#f5f1f8;--stage-border:#cbbdd8}
