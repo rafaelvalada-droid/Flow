@@ -195,6 +195,13 @@ async def main(profile):
         assert len(db['tasks']) == 5
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         passed('Save writes the chosen project, title, sender and link; Flow updates immediately')
+        async with flow.expect_popup() as popup_info:
+            await flow.locator('.pipeline-task [data-open-email]').filter(has_text='Organizar planejamento').click()
+        email_page = await popup_info.value
+        await email_page.wait_for_url(GMAIL)
+        assert email_page.url == GMAIL
+        await email_page.close()
+        passed('Clicking the captured demand title opens its exact original Gmail conversation')
 
         await gmail.get_by_role('button', name='Ver no Flow').click()
         await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
