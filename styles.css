@@ -140,3 +140,5 @@ input,textarea,select{accent-color:var(--accent)}
 @media(prefers-reduced-motion:reduce){.login-screen>img,.login-screen>h1,.login-screen>p,.login-screen>button,.login-loader span{animation:none}}
 
 .mailgrid.mailgrid-single{grid-template-columns:1fr}
+
+.project-order-card{min-width:0}.project-order-card>.projectcard{width:100%}.area-order-actions{display:flex;justify-content:flex-end;gap:5px;margin:6px 0 10px}.area-order-actions .button{padding:5px 12px}.area-order-actions .button:disabled{opacity:.35;cursor:default}

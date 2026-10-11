@@ -138,7 +138,7 @@
     return pageHead('Detalhe da tarefa','Área e data classificam a demanda. A execução acontece na esteira comum.',button('← Esteira','show-pipeline'))+`<div class="task-detail-only">${detail}</div>`;
   }
   function renderProjects(){
-    const cards=db.projects.map(p=>{const color=/^#[a-f0-9]{6}$/i.test(p.color||'')?p.color:'#507ee9';const group=db.tasks.filter(t=>t.project===p.id),closed=group.filter(t=>t.status==='done').length,percent=group.length?Math.round(closed*100/group.length):0;return `<button class="projectcard" style="--area-tint:${color}14;--area-color:${color}" data-project="${html(p.id)}"><div class="between"><div class="projecticon" style="background:${color}18;color:${color}">▦</div><span class="pill">${group.length} tarefas</span></div><strong>${html(p.name)}</strong><p>${group.length-closed} abertas · ${closed} concluídas</p><div class="progressbar"><i style="width:${percent}%;background:${color}"></i></div></button>`}).join('');
+    const cards=db.projects.map((p,index)=>{const color=/^#[a-f0-9]{6}$/i.test(p.color||'')?p.color:'#507ee9';const group=db.tasks.filter(t=>t.project===p.id),closed=group.filter(t=>t.status==='done').length,percent=group.length?Math.round(closed*100/group.length):0;return `<div class="project-order-card"><button class="projectcard" style="--area-tint:${color}14;--area-color:${color}" data-project="${html(p.id)}"><div class="between"><div class="projecticon" style="background:${color}18;color:${color}">▦</div><span class="pill">${group.length} tarefas</span></div><strong>${html(p.name)}</strong><p>${group.length-closed} abertas · ${closed} concluídas</p><div class="progressbar"><i style="width:${percent}%;background:${color}"></i></div></button><div class="area-order-actions"><button type="button" class="button small" data-area-up="${html(p.id)}" aria-label="Mover ${html(p.name)} para cima" ${index===0?'disabled':''}>↑</button><button type="button" class="button small" data-area-down="${html(p.id)}" aria-label="Mover ${html(p.name)} para baixo" ${index===db.projects.length-1?'disabled':''}>↓</button></div></div>`}).join('');
     return pageHead('Áreas','De onde vêm as demandas. Todas seguem pela mesma esteira.',button('+ Criar área','new-project',true))+`<div class="projectgrid">${cards||'<div class="empty">Nenhuma área criada.</div>'}</div><div class="notice" style="margin-top:20px">Use as áreas para classificar e consultar. ${button('Abrir esteira comum','show-pipeline')}</div>`;
   }
   function renderCalendar(){
@@ -292,6 +292,8 @@
   document.addEventListener('toggle',e=>{const details=e.target;if(details.matches?.('.demand-accordion')){if(details.open)expandedDemands.add(details.dataset.demand);else expandedDemands.delete(details.dataset.demand)}},true);
   document.addEventListener('click',async e=>{
     const element=e.target.closest('button');if(!element)return;
+    const areaId=element.dataset.areaUp||element.dataset.areaDown;
+    if(areaId){const index=db.projects.findIndex(p=>p.id===areaId),target=index+(element.dataset.areaUp?-1:1);if(index>=0&&target>=0&&target<db.projects.length){[db.projects[index],db.projects[target]]=[db.projects[target],db.projects[index]];persistAndRender();document.querySelector(`[data-area-${element.dataset.areaUp?'up':'down'}="${CSS.escape(areaId)}"]`)?.focus()}return}
     const page=element.dataset.page;
     if(page){openPage(page);return}
     if(element.dataset.timePeriod){view.timePeriod=element.dataset.timePeriod;view.timeOffset=0;render();return}
