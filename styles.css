@@ -109,3 +109,21 @@ input,textarea,select{accent-color:var(--accent)}
 
 .pipeline-task.completed-compact{padding:0}.completed-open{display:flex;flex-direction:column;gap:8px;width:100%;border:0;background:transparent;color:var(--ink);text-align:left;padding:13px;cursor:pointer;border-radius:10px}.completed-open strong{font-size:12px;line-height:1.5;overflow-wrap:anywhere}.completed-open .area-label{font-size:10px}.completed-open:hover{background:var(--accent-soft)}
 .pipeline-lane[data-stage="done"]{min-height:0}.pipeline-lane[data-stage="done"] .completed-compact{margin-bottom:8px}
+/* Cores de etapa: tons suaves nas caixas e marcadores com contraste. */
+@media screen{
+.pipeline-lane[data-stage="inbox"],.pipeline-direction li:nth-child(1){--stage-ink:#71558b;--stage-bg:#e9e3ef;--stage-card:#f5f1f8;--stage-border:#cbbdd8}
+.pipeline-lane[data-stage="todo"],.pipeline-direction li:nth-child(2){--stage-ink:#426588;--stage-bg:#e0e9f2;--stage-card:#eff4f9;--stage-border:#b6c9dc}
+.pipeline-lane[data-stage="doing"],.pipeline-direction li:nth-child(3){--stage-ink:#246c70;--stage-bg:#dcecea;--stage-card:#eef7f5;--stage-border:#accdca}
+.pipeline-lane[data-stage="waiting"],.pipeline-direction li:nth-child(4){--stage-ink:#806032;--stage-bg:#eee6d8;--stage-card:#f8f3e9;--stage-border:#d6c5a8}
+.pipeline-lane[data-stage="done"],.pipeline-direction li:nth-child(5){--stage-ink:#386b4b;--stage-bg:#dfebdf;--stage-card:#eff6ee;--stage-border:#b6ceb6}
+.pipeline-board .pipeline-lane{background:var(--stage-bg);border-color:var(--stage-border)}
+.pipeline-lane .lanehead>span:first-child{color:var(--stage-ink)}
+.pipeline-lane .lane-count{background:var(--stage-card);color:var(--stage-ink)}
+.pipeline-lane .pipeline-task{background:var(--stage-card);border-color:var(--stage-border);border-left:3px solid var(--stage-ink)}
+.pipeline-direction li b{background:var(--stage-ink);color:#fff}
+.pipeline-direction li i{color:var(--stage-ink)}
+.pipeline-direction:before{background:linear-gradient(90deg,#71558b 0%,#426588 25%,#246c70 50%,#806032 75%,#386b4b 100%)}
+.hide-done .pipeline-direction:before{background:linear-gradient(90deg,#71558b,#426588,#246c70,#806032)}
+.pipeline-lane .completed-open:hover{background:var(--stage-bg)}
+}
+@media screen{.pipeline-direction li:last-child b{background:var(--stage-ink);color:#fff}}
