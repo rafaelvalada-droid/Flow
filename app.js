@@ -106,8 +106,7 @@
   function renderTasks(){
     const filtered=selectedFilterTasks();
     const t=filtered.find(x=>x.id===view.selectedId)||filtered[0];
-    const list=`<section class="card"><div class="between"><h3 class="sectiontitle">Minhas demandas</h3><span class="pill">${filtered.length}</span></div><div class="filters"><select class="filterselect" id="filter-project" aria-label="Filtrar por área">${projOption(view.projectFilter)}</select><select class="filterselect" id="filter-status" aria-label="Filtrar por situação"><option value="open" ${view.statusFilter==='open'?'selected':''}>Em aberto</option><option value="all" ${view.statusFilter==='all'?'selected':''}>Todas</option>${statusOption(view.statusFilter,true)}</select></div>${filtered.map(x=>`<button type="button" class="task-list-item ${x.id===t?.id?'selected':''}" data-task="${html(x.id)}"><strong>${html(x.title)}</strong><small>${html(projectName(x.project))} · ${dateLabel(x.dueDate)}</small><div class="status-line">${badge(workflow.stage(db,x))}${x.gmailUrl?'<span class="pill">✉ Gmail</span>':''}${active(x)?'<span class="pill blue">● Cronometrando</span>':''}</div></button>`).join('')||'<div class="empty">Nenhuma tarefa neste filtro.</div>'}</section>`;
-    if(!t)return pageHead('Tarefas','Organize e execute suas demandas.')+list;
+    if(!t)return pageHead('Detalhe da tarefa','Selecione uma demanda na esteira.',button('← Esteira','show-pipeline'));
     view.selectedId=t.id;
     const len=t.sessions.length, last=t.sessions.filter(s=>s.end).slice(-3).reverse();
     const history=last.length?last.map(s=>`<div class="time-record">${new Date(s.start).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · ${secondsLabel(Math.floor((s.end-s.start)/1000))}</div>`).join(''):'<p class="muted smalltext">Nenhuma sessão encerrada ainda.</p>';
@@ -133,7 +132,7 @@
       <div class="smalltext muted" style="margin-top:9px">A descrição é enviada à API Gemini somente quando você clicar no botão. Revise o texto antes de aplicar ou enviar.</div>${result}
       <div class="divider"></div>${titleRow('Histórico do cronômetro')}<div style="margin-top:10px">${history}</div><div class="actionbar" style="justify-content:flex-end">${button('Excluir tarefa','delete-task',false,'') }</div>
     </section>`;
-    return pageHead('Detalhe da tarefa','Área e data classificam a demanda. A execução acontece na esteira comum.',button('← Esteira','show-pipeline'))+`<div class="layout-task">${list}${detail}</div>`;
+    return pageHead('Detalhe da tarefa','Área e data classificam a demanda. A execução acontece na esteira comum.',button('← Esteira','show-pipeline'))+`<div class="task-detail-only">${detail}</div>`;
   }
   function renderProjects(){
     const cards=db.projects.map(p=>{const color=/^#[a-f0-9]{6}$/i.test(p.color||'')?p.color:'#507ee9';const group=db.tasks.filter(t=>t.project===p.id),closed=group.filter(t=>t.status==='done').length,percent=group.length?Math.round(closed*100/group.length):0;return `<button class="projectcard" style="--area-tint:${color}14;--area-color:${color}" data-project="${html(p.id)}"><div class="between"><div class="projecticon" style="background:${color}18;color:${color}">▦</div><span class="pill">${group.length} tarefas</span></div><strong>${html(p.name)}</strong><p>${group.length-closed} abertas · ${closed} concluídas</p><div class="progressbar"><i style="width:${percent}%;background:${color}"></i></div></button>`}).join('');
