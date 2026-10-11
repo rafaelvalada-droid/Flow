@@ -207,6 +207,7 @@ async def main():
         passed('Gmail waits for the cloud response and retries the same capture without duplicates')
 
         card = page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador')
+        await card.locator('summary').click()
         await card.locator('[data-action="advance-task"]').click()
         await expect(page.locator('.pipeline-lane[data-stage="doing"] .pipeline-task').filter(has_text='Tarefa antiga do navegador')).to_be_visible()
         await card.locator('[data-task]').first.click()
@@ -238,6 +239,7 @@ async def main():
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
 
 
+        await page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador').locator('summary').click()
         await page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador').locator('[data-task]').first.click()
         await page.locator('#edit-planned').fill('2026-10-14')
         await page.locator('#edit-planned').dispatch_event('change')

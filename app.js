@@ -7,14 +7,17 @@
     try { await cloud.signIn(); } catch (error) { loginMessage.textContent = error.message; }
   });
   document.querySelector('#login-retry').addEventListener('click', () => location.reload());
+  const stopLoading=()=>document.querySelector('.login-loader')?.setAttribute('hidden','');
   let workspace;
   try { workspace = await cloud.initialize(); }
   catch (error) {
+    stopLoading();
     loginMessage.textContent = error.message;
     document.querySelector('#google-login').hidden = false;
     document.querySelector('#login-retry').hidden = false;
     return;
   }
+  stopLoading();
   if (workspace.mode === 'login') {
     loginMessage.textContent = 'Entre com sua conta Google para abrir suas tarefas.';
     document.querySelector('#google-login').hidden = false;
@@ -198,7 +201,7 @@
   function renderGmail(){
     const linked=db.tasks.filter(t=>t.gmailUrl);
     const mail=view.mailSelected?findTask(view.mailSelected):null;
-    return pageHead('Gmail + Flow','Cada e-mail vira uma tarefa, sem perder o acesso à conversa original.',button('+ Vincular e-mail','link-email',true))+`<div class="mailgrid"><section class="card"><div class="between"><h3 class="sectiontitle">Conversas vinculadas</h3><span class="pill">${linked.length}</span></div><div style="margin-top:13px">${linked.map(t=>`<button class="mail-link" data-mail-task="${html(t.id)}"><b>${html(t.gmailSubject||t.title)}</b><small>${html(t.gmailSender||'Gmail')} · ${html(projectName(t.project))}</small></button>`).join('')||'<div class="empty">Nenhuma conversa vinculada. Use a extensão ou o botão de vinculação.</div>'}</div></section><section class="card">${mail?`<div class="eyebrow">E-MAIL DE ORIGEM</div><h2 class="mail-subject">${html(mail.gmailSubject||mail.title)}</h2><p class="smalltext muted">${html(mail.gmailSender||'Remetente não registrado')}</p><div class="divider"></div><p class="smalltext">Esta conversa está associada à tarefa <strong>${html(mail.title)}</strong>.</p><div class="actionbar">${button('↗ Abrir Gmail','open-linked-email',true)}${button('Abrir tarefa no Flow','open-mail-task')}</div>`:`<div class="eyebrow">EXTENSÃO CHROME</div><h2 class="mail-subject">Capture e retorne ao e-mail</h2><p class="smalltext muted">A extensão adiciona o botão Incluir no Flow ao lado do assunto da conversa no Gmail. Escolha a área e a data na caixa e salve sem sair do e-mail.</p><div class="notice" style="margin-top:16px">A tarefa recebe o assunto, o remetente e o link da conversa. Você pode abrir o e-mail original a partir do Flow.</div>`}</section></div>`;
+    return pageHead('Gmail + Flow','Cada e-mail vira uma tarefa, sem perder o acesso à conversa original.',button('+ Vincular e-mail','link-email',true))+`<div class="mailgrid ${mail?'':'mailgrid-single'}"><section class="card"><div class="between"><h3 class="sectiontitle">Conversas vinculadas</h3><span class="pill">${linked.length}</span></div><div style="margin-top:13px">${linked.map(t=>`<button class="mail-link" data-mail-task="${html(t.id)}"><b>${html(t.gmailSubject||t.title)}</b><small>${html(t.gmailSender||'Gmail')} · ${html(projectName(t.project))}</small></button>`).join('')||'<div class="empty">Nenhuma conversa vinculada. Use a extensão ou o botão de vinculação.</div>'}</div></section><section class="card" ${mail?'':'hidden'}>${mail?`<div class="eyebrow">E-MAIL DE ORIGEM</div><h2 class="mail-subject">${html(mail.gmailSubject||mail.title)}</h2><p class="smalltext muted">${html(mail.gmailSender||'Remetente não registrado')}</p><div class="divider"></div><p class="smalltext">Esta conversa está associada à tarefa <strong>${html(mail.title)}</strong>.</p><div class="actionbar">${button('↗ Abrir Gmail','open-linked-email',true)}${button('Abrir tarefa no Flow','open-mail-task')}</div>`:''}</section></div>`;
   }
   function renderAlerts(){
     const rows=[['Lembrar antes do vencimento','Planejado para a etapa de envio de e-mails.'],['Acompanhar tarefas atrasadas','Alerta para tarefas cujo prazo final já passou.'],['Resumo diário de tarefas','Consolidar as demandas previstas para cada dia.'],['Resumo semanal por área','Entregar um resumo de pendências por área.']];
@@ -230,7 +233,7 @@
   }
   function complete(t){if(!t)return;workflow.cancel(db,t.id);t.status='done';t.completedAt=Date.now();persistAndRender();notice('Tarefa concluída. Tempo de trabalho preservado.')}
   function openPage(page){if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0)}
-  function selectTask(id){view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
+  function selectTask(id){if(view.page!=='tarefas')view.detailReturnPage=view.page;view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
   function openGmail(t){const url=validGmailUrl(t?.gmailUrl);if(!url){notice('Não há um link válido do Gmail nesta tarefa.');return}window.open(url,'_blank','noopener,noreferrer')}
   function download(filename, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
   function exportIcs(t){if(!t?.plannedDate){notice('Informe a data de execução antes de exportar o evento.');return}const d=t.plannedDate.replaceAll('-','');let start='',end='';if(t.plannedTime){const dt=new Date(`${t.plannedDate}T${t.plannedTime}:00`);start=`DTSTART:${dt.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`;end=`DTEND:${new Date(dt.getTime()+30*60000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`}else{const next=new Date(`${t.plannedDate}T12:00:00`);next.setDate(next.getDate()+1);start=`DTSTART;VALUE=DATE:${d}`;end=`DTEND;VALUE=DATE:${localDate(next).replaceAll('-','')}`}const text=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Flow Workspace//PT-BR//EN','BEGIN:VEVENT',`UID:${t.id}@flow.local`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`,start,end,`SUMMARY:${escapeIcs(t.title)}`,`DESCRIPTION:${escapeIcs(t.description+(t.gmailUrl?'\nGmail: '+t.gmailUrl:''))}`,'END:VEVENT','END:VCALENDAR'].join('\r\n');download(`flow-${t.id}.ics`,text,'text/calendar;charset=utf-8');notice('Evento .ics exportado. Importe o arquivo no Google Agenda.')}
@@ -318,7 +321,7 @@
       case 'start':start(t);break;
       case 'pause':stop(t);persistAndRender();notice('Cronômetro pausado.');break;
       case 'complete':complete(t);break;
-      case 'delete-task':if(confirm('Excluir a tarefa e todo seu histórico de tempo?')){workflow.cancel(db,t.id);db.tasks=db.tasks.filter(x=>x.id!==t.id);view.selectedId=db.tasks[0]?.id||null;persistAndRender();notice('Tarefa excluída.')}break;
+      case 'delete-task':if(confirm('Excluir a tarefa e todo seu histórico de tempo?')){workflow.cancel(db,t.id);db.tasks=db.tasks.filter(x=>x.id!==t.id);view.selectedId=null;persist();openPage(view.detailReturnPage||'esteira');notice('Tarefa excluída.')}break;
       case 'open-email':openGmail(t);break;
       case 'open-linked-email':openGmail(findTask(view.mailSelected));break;
       case 'open-mail-task':selectTask(view.mailSelected);break;
