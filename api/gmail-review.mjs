@@ -1,5 +1,5 @@
 import {publicConfig} from './auth-config.mjs';
-const json=(status,data)=>Response.json(data,{status,headers:{'cache-control':'no-store','x-flow-review-version':'4'}});
+const json=(status,data)=>Response.json(data,{status,headers:{'cache-control':'no-store','x-flow-review-version':'5'}});
 export function validateReview(value,areas){
  if(!value||typeof value.summary!=='string'||typeof value.title!=='string'||!value.summary.trim()||!value.title.trim())throw new Error('Resposta incompleta do Gemini.');
  return {summary:value.summary.slice(0,1200),title:value.title.slice(0,180),areaId:areas.some(a=>a.id===value.areaId)?value.areaId:'',dueDate:/^\d{4}-\d{2}-\d{2}$/.test(value.dueDate||'')?value.dueDate:'',dateEvidence:String(value.dateEvidence||'').slice(0,300),needsReview:value.needsReview!==false||!areas.some(a=>a.id===value.areaId),alert:String(value.alert||'').slice(0,300)};
@@ -53,21 +53,25 @@ export async function POST(request){
   const configured=(process.env.GEMINI_REVIEW_MODEL||'gemini-2.5-flash').trim().replace(/^models\//,'');
   const key=process.env.GEMINI_API_KEY.trim();
   const cached=modelCache?.key===key&&modelCache.configured===configured&&modelCache.expires>Date.now()?modelCache:null;
-  let model=cached?.model||configured,minimal=!!cached?.minimal;
+  let model=cached?.model||configured,minimal=!!cached?.minimal,interactions=!!cached?.interactions;
   const input={systemInstruction:{parts:[{text:instruction}]},contents:[{role:'user',parts:[{text:JSON.stringify({subject:body.subject,email:body.text,areas:body.areas})}]}],generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0.1,maxOutputTokens:2000}};
-  const generate=name=>fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(name)+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:AbortSignal.timeout(35000),body:JSON.stringify(minimal?{contents:[{role:'user',parts:[{text:instruction+'\n\n'+JSON.stringify({subject:body.subject,email:body.text,areas:body.areas})}]}],generationConfig:{maxOutputTokens:2000}}:input)});
+  const generate=name=>interactions?fetch('https://generativelanguage.googleapis.com/v1beta/interactions',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:AbortSignal.timeout(35000),body:JSON.stringify({model:name,input:instruction+'\n\n'+JSON.stringify({subject:body.subject,email:body.text,areas:body.areas}),store:false})}):fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(name)+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:AbortSignal.timeout(35000),body:JSON.stringify(minimal?{contents:[{role:'user',parts:[{text:instruction+'\n\n'+JSON.stringify({subject:body.subject,email:body.text,areas:body.areas})}]}],generationConfig:{maxOutputTokens:2000}}:input)});
   let result=await generate(model);
   if(result.status===404){
    try{model=await availableReviewModel(key);}catch(error){return json(502,{error:error.message});}
    result=await generate(model);
   }
-  if(result.status===400&&!minimal){
+  if(result.status===400&&!interactions){
    const failure=await result.clone().json().catch(()=>({}));
-   if(/response[_ ]?schema|responseSchema|response[_ ]?mime[_ ]?type|JSON mode|system[_ ]?instruction|systemInstruction|developer instruction|unsupported.*generation/i.test(failure.error?.message||'')){minimal=true;result=await generate(model);}
+   if(/only supports Interactions API/i.test(failure.error?.message||'')){interactions=true;result=await generate(model);}
+   else if(!minimal&&/response[_ ]?schema|responseSchema|response[_ ]?mime[_ ]?type|JSON mode|system[_ ]?instruction|systemInstruction|developer instruction|unsupported.*generation/i.test(failure.error?.message||'')){minimal=true;result=await generate(model);}
   }
   if(!result.ok){const failure=await result.json().catch(()=>({}));return json(502,{error:geminiFailure(result.status,failure),upstreamStatus:result.status});}
-  modelCache={key,configured,model,minimal,expires:Date.now()+300000};
-  const response=await result.json(),content=response.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';
+  modelCache={key,configured,model,minimal,interactions,expires:Date.now()+300000};
+  const response=await result.json();
+  const outputs=(response.outputs||[]).filter(p=>p.type==='text').map(p=>p.text||'').join('\n');
+  const steps=(response.steps||[]).filter(p=>p.type==='model_output').flatMap(p=>p.content||[]).filter(p=>p.type==='text').map(p=>p.text||'').join('\n');
+  const content=interactions?(outputs||steps):(response.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||'').join('')||'');
   let parsed;try{parsed=validateReview(JSON.parse(content.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'')),body.areas);}catch{return json(502,{error:'A análise não veio no formato esperado. Tente novamente.'});}
   // An invented evidence quote must never become a suggested deadline.
   if(!parsed.dateEvidence||!body.text.includes(parsed.dateEvidence)){parsed.dueDate='';parsed.dateEvidence='';}
