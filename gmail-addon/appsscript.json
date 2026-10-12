@@ -13,7 +13,7 @@
   ],
   "addOns": {
     "common": {
-      "name": "Incluir no Uflow",
+      "name": "Incluir no Ulbraflow",
       "logoUrl": "https://flow-blue-theta.vercel.app/assets/uflow-logo.png",
       "homepageTrigger": {
         "runFunction": "flowHome"

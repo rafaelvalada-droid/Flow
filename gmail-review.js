@@ -21,7 +21,7 @@
    if(reasons.some(r=>['SERVICE_DISABLED','accessNotConfigured','API_DISABLED'].includes(r))||/has not been used|is disabled|not enabled/i.test(result.error?.message||''))throw new Error('O acesso foi autorizado, mas a Gmail API está desativada. No Google Cloud do projeto Flow, abra APIs e serviços → Biblioteca → Gmail API → Ativar. Depois clique em Atualizar e-mails.');
    if(reasons.includes('insufficientPermissions')||reasons.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT')){FlowCloud.disconnectGmail();throw new Error('O Google não liberou a leitura da caixa de entrada. Conecte o Gmail novamente e autorize as permissões solicitadas.');}
    const reason=reasons.filter(r=>typeof r==='string'&&/^[a-zA-Z0-9_.-]{1,80}$/.test(r)).join(', ')||String(result.error?.status||'PERMISSION_DENIED').replace(/[^a-zA-Z0-9_]/g,'').slice(0,80);
-   if(reasons.some(r=>['domainPolicy','DOMAIN_POLICY_VIOLATION','ORG_RESTRICTION_VIOLATION'].includes(r))||/administrator|admin policy|domain policy|organization policy/i.test(result.error?.message||''))throw new Error('A política da conta Google bloqueou o Gmail no Uflow (HTTP 403; '+reason+'). Peça ao administrador da conta @ulbra.br para verificar o acesso OAuth do Uflow ao Gmail.');
+   if(reasons.some(r=>['domainPolicy','DOMAIN_POLICY_VIOLATION','ORG_RESTRICTION_VIOLATION'].includes(r))||/administrator|admin policy|domain policy|organization policy/i.test(result.error?.message||''))throw new Error('A política da conta Google bloqueou o Gmail no Ulbraflow (HTTP 403; '+reason+'). Peça ao administrador da conta @ulbra.br para verificar o acesso OAuth do Ulbraflow ao Gmail.');
    throw new Error('O Google bloqueou a leitura do Gmail (HTTP 403; '+reason+'). Conecte novamente e confira se todas as permissões solicitadas foram autorizadas.');
   }
   if(response.status===429)throw new Error('O Gmail atingiu o limite de consultas. Aguarde um momento e tente novamente.');
@@ -46,7 +46,7 @@
   owner=currentOwner;loading=true;error='';emit();
   const valid=()=>id===generation&&currentOwner===FlowCloud.info().user?.id&&token===FlowCloud.gmailToken();
   try{
-   const profile=await api('profile');if(profile.emailAddress?.toLowerCase()!==FlowCloud.info().user?.email?.toLowerCase())throw new Error('Conecte o Gmail da mesma conta usada no Uflow.');
+   const profile=await api('profile');if(profile.emailAddress?.toLowerCase()!==FlowCloud.info().user?.email?.toLowerCase())throw new Error('Conecte o Gmail da mesma conta usada no Ulbraflow.');
    if(!valid())return;
    if(!more&&verifiedHistory&&profile.historyId===verifiedHistory&&verifiedToken===token)return;
    let changed=null;

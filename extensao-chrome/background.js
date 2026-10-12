@@ -18,7 +18,7 @@ async function waitForTab(id) {
     if (tab.status === 'complete') return tab;
     await new Promise(resolve => setTimeout(resolve, 150));
   }
-  throw new Error('O Uflow demorou para abrir. Confira sua conexão e tente novamente.');
+  throw new Error('O Ulbraflow demorou para abrir. Confira sua conexão e tente novamente.');
 }
 
 async function connect(url) {
@@ -32,7 +32,7 @@ async function connect(url) {
   if (!tab) tab = await chrome.tabs.create({url: url.href, active: false});
   const loaded = await waitForTab(tab.id);
   const actual = FlowExtension.parseUrl(loaded.url);
-  if (actual.href !== url.href) throw new Error('O endereço do Uflow redirecionou. Atualize a conexão no ícone da extensão.');
+  if (actual.href !== url.href) throw new Error('O endereço do Ulbraflow redirecionou. Atualize a conexão no ícone da extensão.');
   await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ['flow-bridge.js']});
   return tab.id;
 }
@@ -41,7 +41,7 @@ async function flowTab() {
   const saved = await chrome.storage.local.get('flowUrl');
   const url = FlowExtension.parseUrl(saved.flowUrl || FlowExtension.defaultUrl);
   const allowed = await chrome.permissions.contains({origins: [FlowExtension.permissionPattern(url)]});
-  if (!allowed) throw new Error('Autorize o endereço do Uflow pelo ícone da extensão e tente novamente.');
+  if (!allowed) throw new Error('Autorize o endereço do Ulbraflow pelo ícone da extensão e tente novamente.');
   if (!connecting || connectingUrl !== url.href) {
     connectingUrl = url.href;
     const pending = connect(url);
@@ -61,9 +61,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = await flowTab();
     const type = message.type === 'FLOW_LISTS' ? 'FLOW_BRIDGE_LISTS' : message.type==='FLOW_OPEN_EMAIL'?'FLOW_BRIDGE_OPEN':'FLOW_BRIDGE_SAVE';
     const result = await chrome.tabs.sendMessage(tabId, {type, data: message.data});
-    if (!result) throw new Error('Não foi possível conectar ao Uflow. Atualize a aba do Uflow e tente novamente.');
+    if (!result) throw new Error('Não foi possível conectar ao Ulbraflow. Atualize a aba do Ulbraflow e tente novamente.');
     if(result.ok&&message.type==='FLOW_OPEN_EMAIL')await chrome.tabs.update(tabId,{active:true});
     return result;
-  })().then(sendResponse).catch(error => sendResponse({ok: false, error: error.message || 'Não foi possível acessar o Uflow.'}));
+  })().then(sendResponse).catch(error => sendResponse({ok: false, error: error.message || 'Não foi possível acessar o Ulbraflow.'}));
   return true;
 });

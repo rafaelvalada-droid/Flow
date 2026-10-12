@@ -1,4 +1,4 @@
-/* Interface Uflow. Autenticação, sincronização e regras ficam em módulos separados. */
+/* Interface Ulbraflow. Autenticação, sincronização e regras ficam em módulos separados. */
 (async () => {
   'use strict';
   const cloud = globalThis.FlowCloud;
@@ -56,6 +56,7 @@
   workflow.reconcile(db);
   db.initiatives=Array.isArray(db.initiatives)?db.initiatives:[];
   const expandedDemands=new Set();
+  let pipelineDrag=null,dragFrame=0,suppressDragClickUntil=0;
   let view={page:'entrada',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
   let activeDictation=null;
   let accessToken='';
@@ -68,7 +69,7 @@
   const persistAndRender=()=>{persist();render()};
   const badge=(s)=>`<span class="pill ${s==='done'?'green':s==='doing'?'blue':s==='waiting'?'gold':''}">${html(nameOfStatus[s]||s)}</span>`;
   const button=(label,action,primary=false,extra='')=>`<button type="button" class="button ${primary?'primary':''} ${action==='advance-task'?'lane-advance':''}" data-action="${action}" ${extra}>${label}</button>`;
-  const pageHead=(title,subtitle,right='')=>`<div class="page-head"><div><div class="eyebrow">UFLOW / WORKSPACE</div><h1>${title}</h1><p>${subtitle}</p></div>${right}</div>`;
+  const pageHead=(title,subtitle,right='')=>`<div class="page-head"><div><div class="eyebrow">ULBRAFLOW / WORKSPACE</div><h1>${title}</h1><p>${subtitle}</p></div>${right}</div>`;
   const selectedFilterTasks=()=>db.tasks.filter(t=>(view.projectFilter==='all'||t.project===view.projectFilter)&&(view.statusFilter==='all'||(view.statusFilter==='open'?t.status!=='done':workflow.stage(db,t)===view.statusFilter)));
   const projOption=(current='all',all=true,legacy=false)=>`${all?'<option value="all">Todas as áreas</option>':`<option value="" ${!current?'selected':''}>Escolha uma área</option>`}${db.projects.map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''}>${html(p.name)}</option>`).join('')}${(all?(db.archivedProjects||[]):legacy?(db.archivedProjects||[]).filter(p=>p.id===current):[]).map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''} ${!all?'disabled':''}>${html(p.name)} (anterior)</option>`).join('')}`;
   const statusOption=(s,includeInbox=false)=>Object.entries(nameOfStatus).filter(([key])=>includeInbox||key!=='inbox').map(([key,name])=>`<option value="${key}" ${s===key?'selected':''}>${name}</option>`).join('');
@@ -104,7 +105,7 @@
     const byStage={inbox:[],todo:[],doing:[],waiting:[],done:[]};for(const task of visible)byStage[workflow.stage(db,task)].push(task);
     const lanes=[['inbox','A classificar','Definir área e data'],['todo','A fazer','Próximas demandas'],['doing','Em andamento','Trabalho iniciado'],['waiting','Aguardando','Depende de um retorno'],['done','Concluídas','Trabalho entregue']].filter(([status])=>!view.hideDone||status!=='done').map(([status,title,subtitle])=>{
       const tasks=byStage[status];
-      return `<section class="pipeline-lane" data-stage="${status}"><div class="lanehead"><span>${title}</span><span class="lane-count">${tasks.length}</span></div><p class="lane-subtitle">${subtitle}</p>${tasks.map(t=>`<article class="pipeline-task ${active(t)?'in-focus':''}"><details class="demand-accordion" data-demand="${html(t.id)}" ${expandedDemands.has(t.id)?'open':''}><summary><strong>${html(t.title)}</strong>${areaBadge(t)}</summary>${expandedDemands.has(t.id)?renderPipelineBody(t,status):''}</details></article>`).join('')||'<div class="lane-empty">Nenhuma demanda aqui.</div>'}</section>`;
+      return `<section class="pipeline-lane" data-stage="${status}"><div class="lanehead"><span>${title}</span><span class="lane-count">${tasks.length}</span></div><p class="lane-subtitle">${subtitle}</p>${tasks.map(t=>`<article class="pipeline-task ${active(t)?'in-focus':''}" data-pipeline-task="${html(t.id)}" draggable="true"><button type="button" class="task-drag-handle" data-drag-task="${html(t.id)}" draggable="true" aria-label="Mover ${html(t.title)} para outra etapa" title="Arraste para outra etapa ou clique para escolher"><svg aria-hidden="true" width="12" height="16" viewBox="0 0 12 16" fill="currentColor"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="8" r="1.5"/><circle cx="9" cy="8" r="1.5"/><circle cx="3" cy="13" r="1.5"/><circle cx="9" cy="13" r="1.5"/></svg></button><details class="demand-accordion" data-demand="${html(t.id)}" ${expandedDemands.has(t.id)?'open':''}><summary><strong>${html(t.title)}</strong>${areaBadge(t)}</summary>${expandedDemands.has(t.id)?renderPipelineBody(t,status):''}</details></article>`).join('')||'<div class="lane-empty">Nenhuma demanda aqui.</div>'}</section>`;
     }).join('');
     const direction='<ol class="pipeline-direction" aria-label="Fluxo da esquerda para a direita">'+['Classificar','Preparar','Executar','Aguardar','Entregar'].filter((_,i)=>!view.hideDone||i<4).map((label,i)=>`<li><b>${String(i+1).padStart(2,'0')}</b><span>${label}</span>${i<4?'<i aria-hidden="true">→</i>':'<i aria-hidden="true">✓</i>'}</li>`).join('')+'</ol>';
     return pageHead('Uma esteira. Todas as demandas.','Da entrada à entrega, um fluxo da esquerda para a direita.')+`<div class="pipeline-summary"><button data-page="entrada"><span>A classificar</span><strong>${inbox}</strong></button><div><span>Para hoje</span><strong>${dueToday}</strong></div><div class="${late?'has-late':''}"><span>Atrasadas</span><strong>${late}</strong></div><button data-page="foco"><span>${focus?'Seu foco':'Próximo foco'}</span><strong class="summary-task">${html(next?.title||'Escolha uma demanda')}</strong><small>${focus?'Abrir sessão →':'Entrar em foco →'}</small></button></div><div class="pipeline-toolbar"><div><h3 class="sectiontitle">Esteira comum</h3><p>Avance a demanda pelas etapas. Datas mais próximas aparecem primeiro.</p></div><div class="pipeline-filter-actions">${button(view.hideDone?'Mostrar concluídas':'Ocultar concluídas','toggle-done',false,`aria-pressed="${view.hideDone}"`)}<label class="field">Área<select id="board-filter" class="filterselect">${projOption(view.projectBoard)}</select></label></div></div><div class="pipeline-board ${view.hideDone?'hide-done':''}">${direction}${lanes}</div><p class="board-footnote">Aguardando é usado quando há um retorno pendente. Você também pode concluir a tarefa diretamente em Detalhes ou Mover etapa.</p>`;
@@ -168,7 +169,7 @@
     const from=new Date(days[0]);from.setHours(0,0,0,0);const until=new Date(from);until.setDate(until.getDate()+7);
     globalThis.FlowCalendar.showRange(from.toISOString(),until.toISOString());
     const calendar=globalThis.FlowCalendar.info();
-    const connection=calendar.connected?`<div class="calendar-compact-row"><details><summary>● Google Agenda conectado</summary><p>Compromissos da agenda principal e tarefas do Uflow. Atualiza enquanto o Uflow está aberto.</p>${button('Desconectar','calendar-disconnect')}</details>${button(calendar.reading||calendar.status==='syncing'?'Sincronizando…':'Sincronizar','calendar-sync')}</div>`:`<div class="calendar-compact-row"><span>Google Agenda</span>${button('Conectar','calendar-connect',true)}</div>`;
+    const connection=calendar.connected?`<div class="calendar-compact-row"><details><summary>● Google Agenda conectado</summary><p>Compromissos da agenda principal e tarefas do Ulbraflow. Atualiza enquanto o Ulbraflow está aberto.</p>${button('Desconectar','calendar-disconnect')}</details>${button(calendar.reading||calendar.status==='syncing'?'Sincronizando…':'Sincronizar','calendar-sync')}</div>`:`<div class="calendar-compact-row"><span>Google Agenda</span>${button('Conectar','calendar-connect',true)}</div>`;
     return pageHead('Agenda','Suas tarefas e os compromissos do Google no mesmo calendário.',`<div class="agenda-head-actions"><section class="calendar-connection">${connection}${calendar.error?`<p class="sync-error">${html(calendar.error)}</p>`:''}${calendar.readError?`<p class="sync-error">${html(calendar.readError)}</p>`:''}</section></div>`)+`<section class="agenda-week-nav"><div class="calendar-toolbar"><strong>${range}</strong><div class="row">${button('←','week-previous')}${button('Semana atual','week-reset')}${button('→','week-next')}</div></div></section><div class="calendar-grid">${days.map((d,i)=>{const date=localDate(d);const matches=db.tasks.filter(t=>t.plannedDate===date).sort((a,b)=>(a.plannedTime||'').localeCompare(b.plannedTime||''));return `<div class="calendar-day"><small>${['SEG','TER','QUA','QUI','SEX','SÁB','DOM'][i]}</small><strong>${d.getDate()}</strong>${matches.map(t=>`<button data-task="${html(t.id)}" class="calendar-event"><time>${html(t.plannedTime||'Dia inteiro')}</time>${html(t.title)}</button>`).join('')}${calendar.events.filter(e=>{const start=new Date(d);start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);return e.start.date?e.start.date<localDate(end)&&e.end.date>date:new Date(e.start.dateTime)<end&&new Date(e.end.dateTime)>start}).map(e=>`<div class="calendar-event google-calendar-event"><time>${html(e.start.date?'Dia inteiro':new Date(e.start.dateTime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))} · Google</time>${html(e.summary||'Sem título')}</div>`).join('')}</div>`}).join('')}</div><p class="board-footnote">O evento usa a <b>data de execução</b>. O <b>prazo final</b> permanece separado, na descrição. Sem horário, o evento ocupa o dia inteiro; com horário, usa a duração do seu ciclo de foco. A exportação .ics continua disponível nos detalhes da tarefa.</p>`;
   }
   function timeReport(){return globalThis.FlowTime.summarize(db,view.timePeriod,view.timeOffset)}
@@ -215,7 +216,7 @@
     $('#account-button').textContent=account.mode==='cloud'?(labels[account.status]||'Conta Google'):'Entrar com Google';
     $('#account-button').title=account.error||account.user?.email||'Conectar sua conta Google';
     $('.sidebar-foot strong').textContent=account.user?.email||'Meu workspace';
-    $('.sidebar-foot small').textContent=account.mode==='cloud'?'Google · Supabase':'Uflow · neste navegador';
+    $('.sidebar-foot small').textContent=account.mode==='cloud'?'Google · Supabase':'Ulbraflow · neste navegador';
   }
   async function composeReply(threadId){
     try{const email=await FlowGmailReview.replyContext(threadId),me=cloud.info().user?.email?.toLowerCase(),sender=FlowGmailReview.address(email.sender),recipient=sender.toLowerCase()===me?FlowGmailReview.address(email.recipient):sender;
@@ -250,7 +251,7 @@
     document.querySelectorAll('[data-time]').forEach(x=>{const t=findTask(x.dataset.time);if(t)x.textContent=secondsLabel(sessionSeconds(t))});
     document.querySelectorAll('[data-countdown]').forEach(x=>x.textContent=countdown(workflow.remaining(db)));
     const ring=$('.focus-ring');if(ring)ring.style.setProperty('--progress',`${focus?Math.min(100,100*(1-workflow.remaining(db)/(focus.durationMs||1))):0}%`);
-    if(view.page==='foco')document.title=`${focus?countdown(workflow.remaining(db))+' · ':''}Uflow — Foco`;
+    if(view.page==='foco')document.title=`${focus?countdown(workflow.remaining(db))+' · ':''}Ulbraflow — Foco`;
   }
   // Retain unaffected cards and their input nodes during background Gmail updates.
   function patchGmailReview(){
@@ -280,10 +281,11 @@
     return true;
   }
   function render(gmailOnly=false){
+    cancelPipelineDrag();
     const screen=$('#screen'),scroll=$('.screen'),focused=document.activeElement,focusForm=focused?.closest?.('form[data-email-review]'),focusData=focusForm?{id:focusForm.dataset.emailReview,name:focused.name,start:focused.selectionStart,end:focused.selectionEnd,top:focused.getBoundingClientRect().top}:null;
     const anchor=view.page==='entrada'?[...screen.querySelectorAll('[data-email-card]')].find(card=>card.getBoundingClientRect().bottom>scroll.getBoundingClientRect().top):null,anchorData=anchor?{id:anchor.dataset.emailCard,top:anchor.getBoundingClientRect().top}:null,previousScroll=scroll.scrollTop;
     const names={entrada:'Entrada',esteira:'Esteira',foco:'Foco',tarefas:'Tarefa',projetos:'Áreas',agenda:'Agenda',gmail:'Gmail',alertas:'Alertas',tempo:'Gestão do Tempo',area:'Área'};
-    $('#location-label').textContent=names[view.page];document.title=`Uflow — ${names[view.page]}`;
+    $('#location-label').textContent=names[view.page];document.title=`Ulbraflow — ${names[view.page]}`;
     document.querySelectorAll('#sidebar-nav [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===view.page));
     const inbox=db.tasks.filter(t=>workflow.stage(db,t)==='inbox').length;
     const count=$('#inbox-count');if(count){count.textContent=inbox;count.hidden=!inbox}
@@ -297,11 +299,105 @@
     workflow.start(db,t.id);view.focusId=t.id;persist();openPage('foco');notice('Uma tarefa, um ciclo de foco.');
   }
   function complete(t){if(!t)return;workflow.cancel(db,t.id);t.status='done';t.completedAt=Date.now();persistAndRender();notice('Tarefa concluída. Tempo de trabalho preservado.')}
+  function moveTask(t,target,options={}){
+    if(!t||!Object.hasOwn(nameOfStatus,target)||workflow.stage(db,t)===target)return false;
+    if(target==='inbox'){notice('A classificar é para demandas sem área ou prazo. Sua classificação foi preservada.');return false;}
+    if(!workflow.classified(db,t)){
+      classifyTask(t,()=>{if(!moveTask(findTask(t.id),target,options))render();});
+      return false;
+    }
+    if(target==='done'){complete(t);return true;}
+    if(target!=='doing'||options.stopFocus)workflow.cancel(db,t.id);
+    t.status=target;t.completedAt=null;persistAndRender();
+    notice(options.message||`Demanda movida para ${nameOfStatus[target]}.`);
+    return true;
+  }
+  function chooseTaskStage(id){
+    const t=findTask(id);if(!t)return;
+    const current=workflow.stage(db,t);
+    promptModal({title:'Mover demanda',subtitle:t.title,content:`<label class="field">Para qual etapa?<select name="stage" required><option value="">Escolha uma etapa</option>${Object.entries(nameOfStatus).filter(([key])=>key!=='inbox'&&key!==current).map(([key,label])=>`<option value="${key}">${label}</option>`).join('')}</select></label>`,onSubmit:data=>{
+      const target=String(data.get('stage')||'');if(!['todo','doing','waiting','done'].includes(target))return false;
+      // Close this chooser first: an unclassified demand needs its own area/date form.
+      closeModal();moveTask(findTask(id),target);return false;
+    },ok:'Mover'});
+  }
+  function pipelineStageAt(x,y){
+    const board=$('.pipeline-board');if(!board)return null;
+    const rect=board.getBoundingClientRect();
+    if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;
+    const direct=document.elementFromPoint(x,y)?.closest('.pipeline-lane');
+    if(direct&&board.contains(direct))return direct;
+    // Empty lanes are shorter than a long queue; their column still accepts drops.
+    return [...board.querySelectorAll('.pipeline-lane')].find(lane=>{const r=lane.getBoundingClientRect();return x>=r.left&&x<=r.right;})||null;
+  }
+  function highlightPipelineDrop(lane){
+    document.querySelectorAll('.pipeline-lane.drag-over,.pipeline-lane.drag-invalid').forEach(node=>{if(node!==lane)node.classList.remove('drag-over','drag-invalid');});
+    if(lane){const invalid=lane.dataset.stage==='inbox'&&workflow.classified(db,findTask(pipelineDrag.id));lane.classList.toggle('drag-over',!invalid);lane.classList.toggle('drag-invalid',invalid);}
+  }
+  function cancelPipelineDrag(){
+    const drag=pipelineDrag;pipelineDrag=null;cancelAnimationFrame(dragFrame);dragFrame=0;
+    if(drag){drag.preview?.remove();drag.card?.classList.remove('is-dragging');if(drag.handle?.hasPointerCapture?.(drag.pointerId))drag.handle.releasePointerCapture(drag.pointerId);}
+    document.body.classList.remove('pipeline-dragging');$('.pipeline-board')?.classList.remove('is-dragging');
+    document.querySelectorAll('.pipeline-lane.drag-over,.pipeline-lane.drag-invalid').forEach(node=>node.classList.remove('drag-over','drag-invalid'));
+  }
+  function pipelineDragFrame(){
+    const drag=pipelineDrag;if(!drag?.active)return;
+    const board=$('.pipeline-board'),screen=$('.screen');if(!board||!drag.card.isConnected){cancelPipelineDrag();return;}
+    const rect=board.getBoundingClientRect(),screenRect=screen.getBoundingClientRect();
+    const speed=(point,start,end,size)=>point<start+size?-Math.ceil(14*(1-Math.max(0,point-start)/size)):point>end-size?Math.ceil(14*(1-Math.max(0,end-point)/size)):0;
+    if(drag.x>=rect.left&&drag.x<=rect.right&&drag.y>=rect.top&&drag.y<=rect.bottom)board.scrollLeft+=speed(drag.x,rect.left,rect.right,48);
+    if(drag.x>=screenRect.left&&drag.x<=screenRect.right&&drag.y>=screenRect.top&&drag.y<=screenRect.bottom)screen.scrollTop+=speed(drag.y,screenRect.top,screenRect.bottom,48);
+    if(drag.preview)drag.preview.style.transform=`translate(${drag.x-drag.offsetX}px,${drag.y-drag.offsetY}px)`;
+    highlightPipelineDrop(pipelineStageAt(drag.x,drag.y));dragFrame=requestAnimationFrame(pipelineDragFrame);
+  }
+  function beginPipelineDrag(drag){
+    drag.active=true;drag.card.classList.add('is-dragging');document.body.classList.add('pipeline-dragging');$('.pipeline-board')?.classList.add('is-dragging');
+    if(drag.mode==='pointer'){
+      const rect=drag.card.getBoundingClientRect(),preview=drag.card.cloneNode(true);preview.className='pipeline-task pipeline-drag-preview';preview.removeAttribute('data-pipeline-task');preview.removeAttribute('draggable');preview.setAttribute('aria-hidden','true');preview.inert=true;preview.style.width=rect.width+'px';preview.querySelector('.demand-body')?.remove();document.body.appendChild(preview);drag.preview=preview;
+    }
+    dragFrame=requestAnimationFrame(pipelineDragFrame);
+  }
+  document.addEventListener('dragstart',event=>{
+    const card=event.target.closest?.('[data-pipeline-task]');if(!card||view.page!=='esteira')return;
+    if(event.target.closest('button,input,textarea,select,a')&&!event.target.closest('[data-drag-task]')){event.preventDefault();return;}
+    const task=findTask(card.dataset.pipelineTask);if(!task){event.preventDefault();return;}
+    cancelPipelineDrag();pipelineDrag={id:task.id,card,mode:'native',x:event.clientX,y:event.clientY};
+    event.dataTransfer.setData('application/x-flow-task',task.id);event.dataTransfer.setData('text/plain',task.title);event.dataTransfer.effectAllowed='move';beginPipelineDrag(pipelineDrag);
+  });
+  document.addEventListener('dragover',event=>{
+    if(pipelineDrag?.mode!=='native')return;pipelineDrag.x=event.clientX;pipelineDrag.y=event.clientY;
+    const lane=pipelineStageAt(event.clientX,event.clientY);highlightPipelineDrop(lane);if(lane){event.preventDefault();event.dataTransfer.dropEffect='move';}
+  });
+  document.addEventListener('drop',event=>{
+    if(pipelineDrag?.mode!=='native')return;
+    const id=pipelineDrag.id,lane=pipelineStageAt(event.clientX,event.clientY),target=lane?.dataset.stage;event.preventDefault();suppressDragClickUntil=Date.now()+400;cancelPipelineDrag();if(target)moveTask(findTask(id),target);
+  });
+  document.addEventListener('dragend',()=>{if(pipelineDrag?.mode==='native'){suppressDragClickUntil=Date.now()+400;cancelPipelineDrag();}});
+  document.addEventListener('pointerdown',event=>{
+    const handle=event.target.closest?.('[data-drag-task]');if(!handle||view.page!=='esteira'||event.pointerType==='mouse'||event.button!==0)return;
+    const card=handle.closest('[data-pipeline-task]'),rect=card.getBoundingClientRect();cancelPipelineDrag();
+    pipelineDrag={id:handle.dataset.dragTask,mode:'pointer',card,handle,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,x:event.clientX,y:event.clientY,offsetX:event.clientX-rect.left,offsetY:event.clientY-rect.top,active:false};
+    try{handle.setPointerCapture(event.pointerId);}catch{}event.preventDefault();
+  },{passive:false});
+  document.addEventListener('pointermove',event=>{
+    const drag=pipelineDrag;if(drag?.mode!=='pointer'||event.pointerId!==drag.pointerId)return;
+    drag.x=event.clientX;drag.y=event.clientY;if(!drag.active&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)>=8)beginPipelineDrag(drag);
+    if(drag.active){event.preventDefault();highlightPipelineDrop(pipelineStageAt(drag.x,drag.y));}
+  },{passive:false});
+  document.addEventListener('pointerup',event=>{
+    const drag=pipelineDrag;if(drag?.mode!=='pointer'||event.pointerId!==drag.pointerId)return;
+    const target=drag.active?pipelineStageAt(event.clientX,event.clientY)?.dataset.stage:null,id=drag.id;
+    if(drag.active){event.preventDefault();suppressDragClickUntil=Date.now()+400;}cancelPipelineDrag();if(target)moveTask(findTask(id),target);
+  });
+  document.addEventListener('pointercancel',event=>{if(pipelineDrag?.pointerId===event.pointerId)cancelPipelineDrag();});
+  document.addEventListener('lostpointercapture',event=>{if(pipelineDrag?.pointerId===event.pointerId)cancelPipelineDrag();});
+  window.addEventListener('blur',cancelPipelineDrag);
+  document.addEventListener('click',event=>{if(Date.now()<suppressDragClickUntil&&event.target.closest?.('.pipeline-board')){event.preventDefault();event.stopImmediatePropagation();}},true);
   function openPage(page){if(page==='gmail')page='entrada';if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0);if(page==='entrada'&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))}
   function selectTask(id){if(view.page!=='tarefas')view.detailReturnPage=view.page;view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
   function openGmail(t){const url=validGmailUrl(t?.gmailUrl);if(!url){notice('Não há um link válido do Gmail nesta tarefa.');return}window.open(url,'_blank','noopener,noreferrer')}
   function download(filename, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-  function exportIcs(t){if(!t?.plannedDate){notice('Informe a data de execução antes de exportar o evento.');return}const d=t.plannedDate.replaceAll('-','');let start='',end='';if(t.plannedTime){const dt=new Date(`${t.plannedDate}T${t.plannedTime}:00`);start=`DTSTART:${dt.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`;end=`DTEND:${new Date(dt.getTime()+30*60000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`}else{const next=new Date(`${t.plannedDate}T12:00:00`);next.setDate(next.getDate()+1);start=`DTSTART;VALUE=DATE:${d}`;end=`DTEND;VALUE=DATE:${localDate(next).replaceAll('-','')}`}const text=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Uflow Workspace//PT-BR//EN','BEGIN:VEVENT',`UID:${t.id}@flow.local`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`,start,end,`SUMMARY:${escapeIcs(t.title)}`,`DESCRIPTION:${escapeIcs(t.description+(t.gmailUrl?'\nGmail: '+t.gmailUrl:''))}`,'END:VEVENT','END:VCALENDAR'].join('\r\n');download(`flow-${t.id}.ics`,text,'text/calendar;charset=utf-8');notice('Evento .ics exportado. Importe o arquivo no Google Agenda.')}
+  function exportIcs(t){if(!t?.plannedDate){notice('Informe a data de execução antes de exportar o evento.');return}const d=t.plannedDate.replaceAll('-','');let start='',end='';if(t.plannedTime){const dt=new Date(`${t.plannedDate}T${t.plannedTime}:00`);start=`DTSTART:${dt.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`;end=`DTEND:${new Date(dt.getTime()+30*60000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`}else{const next=new Date(`${t.plannedDate}T12:00:00`);next.setDate(next.getDate()+1);start=`DTSTART;VALUE=DATE:${d}`;end=`DTEND;VALUE=DATE:${localDate(next).replaceAll('-','')}`}const text=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Ulbraflow Workspace//PT-BR//EN','BEGIN:VEVENT',`UID:${t.id}@flow.local`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`,start,end,`SUMMARY:${escapeIcs(t.title)}`,`DESCRIPTION:${escapeIcs(t.description+(t.gmailUrl?'\nGmail: '+t.gmailUrl:''))}`,'END:VEVENT','END:VCALENDAR'].join('\r\n');download(`ulbraflow-${t.id}.ics`,text,'text/calendar;charset=utf-8');notice('Evento .ics exportado. Importe o arquivo no Google Agenda.')}
   function promptModal({title,subtitle,content,onSubmit,ok='Salvar'}){
     const box=$('#modal-backdrop');box.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${html(title)}"><h2>${html(title)}</h2><p>${html(subtitle)}</p><form id="active-modal-form">${content}<div class="modal-footer"><button type="button" class="button" data-action="close-modal">Cancelar</button><button type="submit" class="button primary">${html(ok)}</button></div></form></div>`;box.classList.remove('hidden');box._submit=onSubmit;box.querySelector('input,select')?.focus();
   }
@@ -311,7 +407,7 @@
     const isMail=!!prefill.gmailUrl, fromAgenda=view.page==='agenda',fromArea=view.page==='area';
     if(fromAgenda&&!prefill.plannedDate){const date=new Date();if(view.weekOffset){date.setDate(date.getDate()-(date.getDay()+6)%7+view.weekOffset*7)}prefill={...prefill,plannedDate:localDate(date)}}
     const content=`<label class="field">O que precisa ser feito?<input name="title" required maxlength="180" value="${html(prefill.title||'')}" placeholder="Ex.: Conferir folha docente" /></label><div class="classification-questions"><label class="field">1. Para onde vai?<select name="project">${projOption(prefill.project||'',false)}</select></label><label class="field">2. Qual o prazo final?<input type="date" name="dueDate" value="${html(prefill.dueDate||'')}" /></label></div><p class="smalltext muted">Se ainda não souber a área ou a data, salve na Entrada e classifique depois.</p><div class="classification-questions"><label class="field">Data de execução<input type="date" name="plannedDate" ${fromAgenda?'required':''} value="${html(prefill.plannedDate||'')}" /></label><label class="field">Hora de execução<input type="time" name="plannedTime" value="${html(prefill.plannedTime||'')}" /></label></div><p class="smalltext muted">A data de execução coloca a demanda na Agenda. Sem horário, aparece como dia inteiro. O prazo final permanece separado.</p><label class="field">Contexto (opcional)<textarea name="description" rows="3" maxlength="7500">${html(prefill.description||'')}</textarea></label>${isMail?`<div class="notice" style="margin-top:13px">✉ ${html(prefill.gmailSubject||prefill.gmailUrl)}</div>`:''}`;
-    promptModal({title:isMail?'Incluir e-mail no Uflow':'Nova demanda',subtitle:'Capture a demanda. Área e data colocam a tarefa na esteira.',content,onSubmit:data=>{
+    promptModal({title:isMail?'Incluir e-mail no Ulbraflow':'Nova demanda',subtitle:'Capture a demanda. Área e data colocam a tarefa na esteira.',content,onSubmit:data=>{
       const title=String(data.get('title')||'').trim();if(!title||prefill.analyzing)return false;
       const t={id:uuid(),title,project:String(data.get('project')||''),status:'todo',priority:'medium',plannedDate:String(data.get('plannedDate')||''),plannedTime:String(data.get('plannedTime')||''),dueDate:String(data.get('dueDate')||''),description:String(data.get('description')||''),subtasks:[],sessions:[],startedAt:null,focusCycles:0,gmailUrl:validGmailUrl(prefill.gmailUrl||''),gmailSubject:String(prefill.gmailSubject||''),gmailSender:String(prefill.gmailSender||''),createdAt:Date.now(),completedAt:null,initiativeId:prefill.initiativeId||null,source:prefill.shareId?'share':null,sharedUrl:prefill.sharedUrl||null,geminiAnalyzed:!!prefill.geminiReview,geminiClassified:!!prefill.geminiReview?.areaId,geminiModel:prefill.geminiReview?.modelUsed||null};
       if(fromArea&&t.project!==view.areaId){notice('Use a área deste projeto para criar a tarefa.');return false}
@@ -330,15 +426,15 @@
     },ok:'Incluir na esteira'});
   }
   function linkMail(){promptModal({title:'Vincular conversa do Gmail',subtitle:'Cole o link da conversa e associe a uma nova tarefa.',content:`<label class="field">Link da conversa<input name="url" type="url" required placeholder="https://mail.google.com/mail/u/0/#..." /></label><label class="field">Assunto<input name="subject" required maxlength="180" placeholder="Assunto do e-mail" /></label><label class="field">Remetente (opcional)<input name="sender" maxlength="150" placeholder="Setor responsável" /></label>`,onSubmit:data=>{const gmailUrl=validGmailUrl(String(data.get('url')));if(!gmailUrl){notice('Cole um endereço HTTPS válido de mail.google.com.');return false}const gmailSubject=String(data.get('subject')||'').trim();const gmailSender=String(data.get('sender')||'').trim();newTask({title:`Responder: ${gmailSubject}`,gmailUrl,gmailSubject,gmailSender});return false},ok:'Continuar'})}
-  function exportData(){download(`flow-backup-${localDate()}.json`,JSON.stringify(db,null,2),'application/json');notice('Cópia de segurança exportada.')}
-  function importData(){promptModal({title:'Importar backup',subtitle:'Atenção: esta operação substitui as tarefas e áreas do workspace atual.',content:`<label class="field">Arquivo JSON do Uflow<input name="file" type="file" accept=".json,application/json" required /></label>`,onSubmit:()=>false,ok:'Importar'});const form=$('#active-modal-form');form.addEventListener('submit',async e=>{e.preventDefault();const file=form.elements.file.files?.[0];if(!file)return;try{const val=JSON.parse(await file.text());if(val?.version!==1||!Array.isArray(val.projects)||!Array.isArray(val.tasks))throw new Error();if(!confirm('Substituir todas as tarefas e áreas atuais pelo backup?'))return;db=workflow.normalize(val);workflow.reconcile(db);view.selectedId=db.tasks[0]?.id||null;persist();closeModal();render();notice('Backup importado com sucesso.')}catch{notice('Backup inválido ou incompatível.')}},{once:true})}
-  function settingsModal(){promptModal({title:'Dados do Uflow',subtitle:workspace.mode==='cloud'?'Dados privados da sua conta Google, salvos no Supabase.':'Seus dados estão salvos neste navegador.',content:`<div class="notice">Exporte uma cópia das suas tarefas e dos históricos de tempo. ${workspace.mode==='cloud'?'Confira o estado do salvamento no botão da conta.':'O acesso Google permite ativar o armazenamento na nuvem.'}</div><div class="row" style="margin-top:15px;flex-wrap:wrap"><button type="button" class="button" data-action="export-data">↓ Exportar backup</button><button type="button" class="button" data-action="import-data">↑ Importar backup</button>${workspace.mode==='cloud'?button('Trazer tarefas deste navegador','import-local'):button('Entrar com Google','account')}</div>`,onSubmit:()=>true,ok:'Fechar'})}
+  function exportData(){download(`ulbraflow-backup-${localDate()}.json`,JSON.stringify(db,null,2),'application/json');notice('Cópia de segurança exportada.')}
+  function importData(){promptModal({title:'Importar backup',subtitle:'Atenção: esta operação substitui as tarefas e áreas do workspace atual.',content:`<label class="field">Arquivo JSON do Ulbraflow<input name="file" type="file" accept=".json,application/json" required /></label>`,onSubmit:()=>false,ok:'Importar'});const form=$('#active-modal-form');form.addEventListener('submit',async e=>{e.preventDefault();const file=form.elements.file.files?.[0];if(!file)return;try{const val=JSON.parse(await file.text());if(val?.version!==1||!Array.isArray(val.projects)||!Array.isArray(val.tasks))throw new Error();if(!confirm('Substituir todas as tarefas e áreas atuais pelo backup?'))return;db=workflow.normalize(val);workflow.reconcile(db);view.selectedId=db.tasks[0]?.id||null;persist();closeModal();render();notice('Backup importado com sucesso.')}catch{notice('Backup inválido ou incompatível.')}},{once:true})}
+  function settingsModal(){promptModal({title:'Dados do Ulbraflow',subtitle:workspace.mode==='cloud'?'Dados privados da sua conta Google, salvos no Supabase.':'Seus dados estão salvos neste navegador.',content:`<div class="notice">Exporte uma cópia das suas tarefas e dos históricos de tempo. ${workspace.mode==='cloud'?'Confira o estado do salvamento no botão da conta.':'O acesso Google permite ativar o armazenamento na nuvem.'}</div><div class="row" style="margin-top:15px;flex-wrap:wrap"><button type="button" class="button" data-action="export-data">↓ Exportar backup</button><button type="button" class="button" data-action="import-data">↑ Importar backup</button>${workspace.mode==='cloud'?button('Trazer tarefas deste navegador','import-local'):button('Entrar com Google','account')}</div>`,onSubmit:()=>true,ok:'Fechar'})}
 
   async function generateAI(){
     const t=selectedTask();if(!t||view.aiLoading)return;const mode=view.aiMode;
     const input=$('#edit-description');if(input)t.description=input.value;
     if(!t.description.trim()){notice('Escreva uma descrição antes de chamar o Gemini.');return}
-    if(!accessToken){const value=prompt('Informe a senha de acesso ao assistente Uflow (não é a chave Gemini). Ela será mantida apenas nesta aba.');if(value===null)return;accessToken=value.trim()}
+    if(!accessToken){const value=prompt('Informe a senha de acesso ao assistente Ulbraflow (não é a chave Gemini). Ela será mantida apenas nesta aba.');if(value===null)return;accessToken=value.trim()}
     view.aiLoading=true;render();
     try{
       const result=await fetch('/api/gemini',{method:'POST',headers:{'content-type':'application/json','x-flow-access-token':accessToken},body:JSON.stringify({mode,title:t.title,description:t.description}),signal:AbortSignal.timeout(45000)});
@@ -359,6 +455,7 @@
   document.addEventListener('toggle',e=>{const details=e.target;if(details.matches?.('.demand-accordion')){if(details.open){expandedDemands.add(details.dataset.demand);const task=findTask(details.dataset.demand);if(task&&!details.querySelector('.demand-body'))details.insertAdjacentHTML('beforeend',renderPipelineBody(task,workflow.stage(db,task)));}else expandedDemands.delete(details.dataset.demand)}},true);
   document.addEventListener('click',async e=>{
     const element=e.target.closest('button');if(!element)return;
+    if(element.dataset.dragTask){chooseTaskStage(element.dataset.dragTask);return;}
     const areaId=element.dataset.areaUp||element.dataset.areaDown;
     if(areaId){const index=db.projects.findIndex(p=>p.id===areaId),target=index+(element.dataset.areaUp?-1:1);if(index>=0&&target>=0&&target<db.projects.length){[db.projects[index],db.projects[target]]=[db.projects[target],db.projects[index]];persistAndRender();document.querySelector(`[data-area-${element.dataset.areaUp?'up':'down'}="${CSS.escape(areaId)}"]`)?.focus()}return}
     if(element.dataset.ignoreEmail){const email=FlowGmailReview.info().emails.find(e=>e.id===element.dataset.ignoreEmail);if(email){db.gmailReviews??={};db.gmailReviews[email.id]={...(db.gmailReviews[email.id]||{}),messageId:email.messageId,state:'ignored'};persistAndRender()}return}
@@ -387,7 +484,7 @@
       case 'gmail-analyze':await FlowGmailReview.analyze(db,persist,true);break;
       case 'gmail-read-disconnect':cloud.disconnectGmail();FlowGmailReview.reset();render();break;
       case 'gmail-mobile':
-        try{const token=await cloud.createGmailToken();promptModal({title:'Gmail no celular',subtitle:'Cole esta chave no complemento Incluir no Uflow. Ela vale por 90 dias e substitui a conexão anterior.',content:`<label class="field">Chave de conexão<input readonly value="${html(token)}" autocomplete="off" spellcheck="false" aria-label="Chave de conexão Gmail" /></label><p class="smalltext">Guarde esta chave apenas no complemento. Ela permite consultar áreas e incluir demandas na sua conta.</p>`,onSubmit:()=>true,ok:'Fechar'})}catch(error){notice(error.message)}break;
+        try{const token=await cloud.createGmailToken();promptModal({title:'Gmail no celular',subtitle:'Cole esta chave no complemento Incluir no Ulbraflow. Ela vale por 90 dias e substitui a conexão anterior.',content:`<label class="field">Chave de conexão<input readonly value="${html(token)}" autocomplete="off" spellcheck="false" aria-label="Chave de conexão Gmail" /></label><p class="smalltext">Guarde esta chave apenas no complemento. Ela permite consultar áreas e incluir demandas na sua conta.</p>`,onSubmit:()=>true,ok:'Fechar'})}catch(error){notice(error.message)}break;
       case 'gmail-mobile-revoke':try{await cloud.revokeGmailToken();notice('Conexão do Gmail no celular revogada.')}catch(error){notice(error.message)}break;
       case 'new-project':newProject();break;
       case 'close-modal':closeModal();break;
@@ -395,8 +492,8 @@
       case 'show-pipeline':openPage('esteira');break;
       case 'show-inbox':openPage('entrada');break;
       case 'classify-task':classifyTask(findTask(element.dataset.id)||t);break;
-      case 'return-task':{const task=findTask(element.dataset.id);if(!task)break;const previous={doing:'todo',waiting:'doing',done:'waiting'}[workflow.stage(db,task)];if(previous){workflow.cancel(db,task.id);task.status=previous;task.completedAt=null;persistAndRender();notice('Demanda retornou uma etapa.')}break}
-      case 'advance-task':{const task=findTask(element.dataset.id);if(!task)break;const stage=workflow.stage(db,task);if(stage==='inbox'){classifyTask(task);break}if(stage==='waiting'){complete(task);break}if(stage==='todo'||stage==='doing'){task.status=stage==='todo'?'doing':'waiting';if(task.status!=='doing')workflow.cancel(db,task.id);persistAndRender()}break}
+      case 'return-task':{const task=findTask(element.dataset.id);if(!task)break;const previous={doing:'todo',waiting:'doing',done:'waiting'}[workflow.stage(db,task)];if(previous)moveTask(task,previous,{stopFocus:true,message:'Demanda retornou uma etapa.'});break;}
+      case 'advance-task':{const task=findTask(element.dataset.id);if(!task)break;const stage=workflow.stage(db,task);if(stage==='inbox'){classifyTask(task);break;}const target={todo:'doing',doing:'waiting',waiting:'done'}[stage];if(target)moveTask(task,target);break;}
       case 'focus-task':start(findTask(element.dataset.id));break;
       case 'focus-start':start(focusTask());break;
       case 'focus-pause':workflow.pause(db);persistAndRender();break;
@@ -424,7 +521,7 @@
       case 'time-next':view.timeOffset++;render();break;
       case 'time-current':view.timeOffset=0;render();break;
       case 'time-report':reportModal();break;
-      case 'time-csv':download(`flow-tempo-${view.timePeriod}-${localDate(timeReport().start)}.csv`,globalThis.FlowTime.csv(timeReport()),'text/csv;charset=utf-8');notice('Relatório CSV gerado.');break;
+      case 'time-csv':download(`ulbraflow-tempo-${view.timePeriod}-${localDate(timeReport().start)}.csv`,globalThis.FlowTime.csv(timeReport()),'text/csv;charset=utf-8');notice('Relatório CSV gerado.');break;
       case 'time-pdf':notice('Preparando o PDF…');await globalThis.FlowPDF.download(timeReport(),view.timePeriod);closeModal();notice('PDF gerado.');break;
       case 'week-previous':view.weekOffset--;render();break;
       case 'week-next':view.weekOffset++;render();break;
@@ -457,7 +554,7 @@
   document.addEventListener('change',e=>{
     const x=e.target,t=selectedTask();
     if(x.dataset.senderColor){db.gmailSenderColors??={};db.gmailSenderColors[x.dataset.senderColor]=x.value;persistAndRender();return}
-    if(x.dataset.moveTask){const task=findTask(x.dataset.moveTask);if(!task||!['todo','doing','waiting','done'].includes(x.value))return;if(x.value==='done'){complete(task);return}if(x.value!=='doing')workflow.cancel(db,task.id);task.status=x.value;task.completedAt=null;persistAndRender();return}
+    if(x.dataset.moveTask){moveTask(findTask(x.dataset.moveTask),x.value);return;}
     if(x.dataset.focusSub){const sub=focusTask()?.subtasks.find(s=>s.id===x.dataset.focusSub);if(sub){sub.done=x.checked;persistAndRender()}return}
     if(x.dataset.sub){const sub=t.subtasks.find(s=>s.id===x.dataset.sub);if(sub){sub.done=x.checked;persistAndRender()}return}
     if(x.id==='filter-project'){view.projectFilter=x.value;render();return}
@@ -471,7 +568,7 @@
     if(fieldMap[x.id] && t){const field=fieldMap[x.id];if(field==='status'&&x.value==='done'){workflow.cancel(db,t.id);t.completedAt=Date.now()}if(field==='status'&&t.status==='done'&&x.value!=='done')t.completedAt=null;t[field]=x.value;if((field==='project'||field==='dueDate')&&!workflow.classified(db,t))workflow.cancel(db,t.id);if(field==='status'&&x.value!=='doing')workflow.cancel(db,t.id);persistAndRender()}
   });
   document.addEventListener('input',e=>{if(e.target.id==='edit-description'){const t=selectedTask();if(t){t.description=e.target.value;persist()}}});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(pipelineDrag?.active)suppressDragClickUntil=Date.now()+400;cancelPipelineDrag();closeModal();}});
   window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){db=workflow.normalize(load());if(workflow.reconcile(db))persist();render()}});
   window.addEventListener('flow:open-capture',event=>{db=workflow.normalize(load());const task=db.tasks.find(t=>t.gmailCaptureId===event.detail?.requestId);if(task){view.projectBoard='all';openPage('esteira');selectTask(task.id)}});
   function rememberEmailDraft(event){const x=event.target,form=x.closest?.('form[data-email-review]');if(!form||!x.name)return;const email=FlowGmailReview.info().emails.find(e=>e.id===form.dataset.emailReview);if(!email)return;view.emailDrafts??={};let draft=view.emailDrafts[email.id];if(draft?.messageId!==email.messageId)draft=view.emailDrafts[email.id]={messageId:email.messageId,fields:{}};draft.fields[x.name]=x.type==='checkbox'?x.checked:x.value;}
@@ -489,7 +586,7 @@
   window.addEventListener('flow:cloud-save',async event=>{
     if(event.detail?.key!==STORAGE_KEY||workspace.mode!=='cloud')return;
     const requestId=event.detail.requestId;
-    try{db=workflow.normalize(load());if(!db.tasks.some(t=>t.gmailCaptureId===requestId))throw new Error('A demanda não foi recebida pelo Uflow. Recarregue o app e tente novamente.');render();await cloud.flush(db);window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:true}}))}
+    try{db=workflow.normalize(load());if(!db.tasks.some(t=>t.gmailCaptureId===requestId))throw new Error('A demanda não foi recebida pelo Ulbraflow. Recarregue o app e tente novamente.');render();await cloud.flush(db);window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:true}}))}
     catch(error){window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:false,error:error.message}}))}
   });
   window.addEventListener('online',()=>{cloud.flush().catch(()=>{});globalThis.FlowCalendar.schedule()});

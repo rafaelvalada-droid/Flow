@@ -3,7 +3,7 @@
   "version": "1.3.0",
   "private": true,
   "type": "module",
-  "description": "Uflow — classificação por área e data, esteira comum e ciclos de foco",
+  "description": "Ulbraflow — classificação por área e data, esteira comum e ciclos de foco",
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
@@ -14,6 +14,7 @@
     "test:cloud": "python3 tests/cloud-smoke.py",
     "test:time": "python3 tests/time-report-smoke.py",
     "test:app": "python3 tests/app-workflow-smoke.py",
+    "test:drag": "python3 tests/pipeline-drag-smoke.py",
     "test:gmail-addon": "node --test tests/gmail-addon.test.mjs",
     "test:areas": "python3 tests/area-projects-smoke.py",
     "test:gmail-review": "node --test tests/gmail-review.test.mjs tests/gmail-read-errors.test.mjs && python3 tests/gmail-review-smoke.py && python3 tests/gmail-performance-smoke.py",
