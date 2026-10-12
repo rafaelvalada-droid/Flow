@@ -416,19 +416,32 @@
       db.tasks.unshift(t);view.selectedId=t.id;persist();if(prefill.shareId){let saved=false;try{saved=JSON.parse(localStorage.getItem(STORAGE_KEY))?.tasks?.some(item=>item.id===t.id);}catch{}if(!saved){db.tasks=db.tasks.filter(item=>item.id!==t.id);return false;}FlowShareTarget.discard(prefill.shareId).catch(()=>{});pendingShare=null}if(fromAgenda){const date=new Date(t.plannedDate+'T12:00:00');const monday=new Date();monday.setHours(12,0,0,0);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);view.weekOffset=Math.floor(Math.round((date-monday)/86400000)/7)}openPage(fromArea?'area':fromAgenda?'agenda':workflow.classified(db,t)?'esteira':'entrada');notice(workflow.classified(db,t)?'Demanda incluída na esteira.':'Demanda capturada. Falta classificar área e data.');return true;
     },ok:'Salvar demanda'});
     const form=$('#active-modal-form'),context=form.elements.description,dictate=form.querySelector('#task-dictate'),rewrite=form.querySelector('#task-rewrite'),assistStatus=form.querySelector('#task-assist-status');
+    let stopContextDictation;
     dictate.addEventListener('click',()=>{
+      if(stopContextDictation){stopContextDictation();return;}
       if(activeDictation){activeDictation.stop();return;}
       const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(!Recognition){assistStatus.textContent='Ditado indisponível neste navegador. Use o Chrome ou o microfone do teclado.';return;}
-      const speech=new Recognition(),prefix=context.value;let failed=false,ended=false,timeout;
+      if(!Recognition){assistStatus.textContent='Use o microfone do teclado para ditar neste campo.';context.focus();return;}
+      const speech=new Recognition(),segments=new Map();let failed=false,ended=false,timeout,received=false;
       activeDictation=speech;speech.lang='pt-BR';speech.continuous=false;speech.interimResults=true;
-      const finish=()=>{if(ended)return;ended=true;clearTimeout(timeout);if(activeDictation===speech)activeDictation=null;if(form.isConnected){dictate.textContent='🎙 Ditar contexto';rewrite.disabled=false;if(!failed)assistStatus.textContent=context.value!==prefix?'Ditado concluído. Revise o texto ou reescreva com Gemini.':'Nenhuma fala reconhecida. Tente novamente.';}};
-      speech.onresult=event=>{if(!ended&&form.isConnected)context.value=(prefix+' '+Array.from(event.results).map(result=>result[0].transcript).join(' ')).trim().slice(0,7500);};
-      speech.onerror=event=>{failed=true;if(form.isConnected)assistStatus.textContent=event.error==='not-allowed'?'Permita o microfone no navegador para ditar.':event.error==='no-speech'?'Nenhuma fala reconhecida. Tente novamente.':'Não foi possível concluir o ditado. Você pode escrever o contexto.';finish();};
-      speech.onend=finish;
+      const append=text=>{if(!text.trim()||!form.isConnected)return;context.value=(context.value.trimEnd()+' '+text.trim()).trim().slice(0,7500);};
+      const finish=()=>{if(ended)return;ended=true;clearTimeout(timeout);stopContextDictation=null;if(activeDictation===speech)activeDictation=null;if(form.isConnected){dictate.textContent='🎙 Ditar contexto';rewrite.disabled=false;if(!failed)assistStatus.textContent=received?'Ditado concluído. Revise o texto.':'Nenhuma fala reconhecida. Use o microfone do teclado ou tente novamente.';}};
+      stopContextDictation=()=>{for(const segment of segments.values())if(!segment.saved){append(segment.text);segment.saved=true;}finish();try{speech.abort();}catch{}};
+      speech.onresult=event=>{
+        if(ended||!form.isConnected)return;received=true;
+        for(let i=event.resultIndex||0;i<event.results.length;i++){
+          const result=event.results[i],old=segments.get(i);if(old?.saved)continue;
+          const segment={text:result[0].transcript,saved:false};segments.set(i,segment);
+          if(result.isFinal){append(segment.text);segment.saved=true;}
+        }
+        const pending=[...segments.values()].filter(segment=>!segment.saved).map(segment=>segment.text).join(' ');
+        assistStatus.textContent=pending?'Ouvindo: '+pending:'Ouvindo…';
+      };
+      speech.onerror=event=>{failed=true;if(form.isConnected)assistStatus.textContent=event.error==='not-allowed'?'Permita o microfone ou use o microfone do teclado.':'O reconhecimento de voz falhou. Use o microfone do teclado neste campo.';finish();};
+      speech.onend=()=>{if(!ended)for(const segment of segments.values())if(!segment.saved){append(segment.text);segment.saved=true;}finish();};
       dictate.textContent='■ Parar ditado';rewrite.disabled=true;assistStatus.textContent='Ouvindo…';
-      timeout=setTimeout(()=>{speech.abort();finish();},30000);
-      try{speech.start();}catch{failed=true;assistStatus.textContent='Não foi possível iniciar o microfone.';finish();}
+      timeout=setTimeout(()=>{if(!received){failed=true;assistStatus.textContent='O ditado está demorando. Use o microfone do teclado neste campo.';}stopContextDictation?.();},15000);
+      try{speech.start();}catch{failed=true;assistStatus.textContent='Use o microfone do teclado para ditar neste campo.';finish();}
     });
     rewrite.addEventListener('click',async()=>{
       const text=context.value.trim();if(!text){assistStatus.textContent='Escreva ou dite o contexto primeiro.';return;}if(prefill.analyzing)return;
