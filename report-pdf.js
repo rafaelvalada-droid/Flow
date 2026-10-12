@@ -23,12 +23,12 @@
     return resources.get(path);
   }
   async function download(report, period) {
-    const [PDF, flow, ulbra, regular, bold] = await Promise.all([loadLibrary(), image('./assets/uflow-logo.png'), image('./assets/ulbra-sa-verde.png'), image('./assets/fonts/DejaVuSans.ttf'), image('./assets/fonts/DejaVuSans-Bold.ttf')]);
+    const [PDF, flow, ulbra, regular, bold] = await Promise.all([loadLibrary(), image('./assets/ulbraflow-blue-logo.png'), image('./assets/ulbra-sa-verde.png'), image('./assets/fonts/DejaVuSans.ttf'), image('./assets/fonts/DejaVuSans-Bold.ttf')]);
     const doc = new PDF({unit: 'mm', format: 'a4', compress: true});
     const encode = bytes => {let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);};
     doc.addFileToVFS('FlowSans.ttf',encode(regular));doc.addFont('FlowSans.ttf','FlowSans','normal');
     doc.addFileToVFS('FlowSans-Bold.ttf',encode(bold));doc.addFont('FlowSans-Bold.ttf','FlowSans','bold');
-    const green = [4,90,82], ink = [45,54,61], muted = [91,105,112], pale = [236,242,240];
+    const primary = [49,102,220], ink = [24,43,73], muted = [91,111,140], pale = [228,237,251];
     const duration = FlowTime.duration;
     const date = value => new Date(value).toLocaleDateString('pt-BR');
     const last = new Date(report.end); last.setDate(last.getDate()-1);
@@ -45,13 +45,13 @@
     }
     function header() {
       doc.setFillColor(...pale); doc.rect(0,0,210,30,'F');
-      doc.setFillColor(...green); doc.rect(0,29,210,1,'F');
-      doc.addImage(flow,'PNG',16,7,16,16);text('Ulbra',36,18,20,green,true);const wordWidth=doc.getTextWidth('Ulbra');text('flow',36+wordWidth,18,20,[251,182,64],true);
+      doc.setFillColor(...primary); doc.rect(0,29,210,1,'F');
+      doc.addImage(flow,'PNG',16,7,16,16);text('Ulbra',36,18,20,ink,true);const wordWidth=doc.getTextWidth('Ulbra');text('flow',36+wordWidth,18,20,primary,true);
       doc.addImage(ulbra,'PNG',145,9,49,14.1);
-      text('GESTÃO DO TEMPO',16,38,8,green,true); text(range,130,38,8,muted);
+      text('GESTÃO DO TEMPO',16,38,8,primary,true); text(range,130,38,8,muted);
     }
     function space(height) { if (y+height > 273) {doc.addPage(); header(); y=44;} }
-    function section(title) { y+=4;space(15); text(title,16,y,10,green,true); y+=7; }
+    function section(title) { y+=4;space(15); text(title,16,y,10,primary,true); y+=7; }
     function paragraph(value) { const wrapped=lines(value,178);space(wrapped.length*4.5+5);wrappedText(wrapped,16,y,9,muted);y+=wrapped.length*4.5+5; }
     // Arrays are intentionally passed directly to jsPDF for wrapped lines.
     function wrappedText(value, x, top, size=8, color=ink) {
@@ -62,14 +62,14 @@
     text('Relatório '+({day:'diário',week:'semanal',month:'mensal'}[period]||''),16,y,8,muted);y+=9;
     const topArea=report.areas[0];
     for (const [i,label,value] of [[0,'TEMPO TRABALHADO',duration(report.totalMs)],[1,'TAREFAS',String(report.tasks.length)],[2,'SESSÕES',String(report.sessionCount)]]) {
-      const x=16+i*61;doc.setFillColor(...pale);doc.roundedRect(x,y,56,21,2,2,'F');text(label,x+5,y+7,7,muted,true);text(value,x+5,y+16,14,green,true);
+      const x=16+i*61;doc.setFillColor(...pale);doc.roundedRect(x,y,56,21,2,2,'F');text(label,x+5,y+7,7,muted,true);text(value,x+5,y+16,14,primary,true);
     }
     y+=27;
     section(period==='day'?'Ritmo do dia':'Ritmo do período');
     const peak=Math.max(...report.buckets.map(b=>b.ms),1), step=178/Math.max(report.buckets.length,1), baseline=y+30;
-    doc.setDrawColor(210,219,216);doc.line(16,baseline,194,baseline);
+    doc.setDrawColor(200,215,238);doc.line(16,baseline,194,baseline);
     report.buckets.forEach((bucket,i)=>{
-      const h=bucket.ms/peak*24;doc.setFillColor(...green);if(h)doc.roundedRect(16+i*step+1,baseline-h,Math.max(1,step-2),h,.6,.6,'F');
+      const h=bucket.ms/peak*24;doc.setFillColor(...primary);if(h)doc.roundedRect(16+i*step+1,baseline-h,Math.max(1,step-2),h,.6,.6,'F');
       if(report.buckets.length<=10 || i%4===0 || i===report.buckets.length-1)text(bucket.label,16+i*step+1,baseline+5,7,muted);
     });
     text('Maior registro: '+duration(peak===1?0:peak),16,y,8,muted);y=baseline+12;
@@ -77,8 +77,8 @@
     if (!topArea) paragraph('Nenhum tempo registrado neste período. Inicie uma sessão de foco para acompanhar seu trabalho.');
     for(const area of report.areas){
       const title=lines(area.name,125);const height=title.length*3.5+10;space(height);
-      wrappedText(title,16,y);text(duration(area.ms)+'  |  '+Math.round(area.ms/(report.totalMs||1)*100)+'%',155,y,8,green,true);
-      y+=title.length*3.5;doc.setFillColor(...pale);doc.roundedRect(16,y,178,3,1,1,'F');doc.setFillColor(...green);
+      wrappedText(title,16,y);text(duration(area.ms)+'  |  '+Math.round(area.ms/(report.totalMs||1)*100)+'%',155,y,8,primary,true);
+      y+=title.length*3.5;doc.setFillColor(...pale);doc.roundedRect(16,y,178,3,1,1,'F');doc.setFillColor(...primary);
       if(area.ms)doc.roundedRect(16,y,Math.max(1,178*area.ms/(report.totalMs||1)),3,1,1,'F');y+=6;
     }
     section('Detalhamento por tarefa');
@@ -95,9 +95,9 @@
         if(available<2){doc.addPage();header();y=44;tableHeader();continue;}
         const chunk=all.slice(offset,offset+available);
         chunk.forEach((line,i)=>text(line.value,19,y+i*3.5,line.size,line.color));
-        if(offset===0){text(duration(task.ms),150,y,8,green,true);text(String(task.sessions),180,y,8,muted);}
+        if(offset===0){text(duration(task.ms),150,y,8,primary,true);text(String(task.sessions),180,y,8,muted);}
         y+=chunk.length*3.5+5;offset+=chunk.length;
-        doc.setDrawColor(222,228,226);doc.line(16,y-2,194,y-2);
+        doc.setDrawColor(200,215,238);doc.line(16,y-2,194,y-2);
       }
     }
     if(!report.tasks.length)paragraph('Nenhuma tarefa com sessões de trabalho neste período.');
@@ -105,7 +105,7 @@
     const note=lines('Somente tempo trabalhado; pausas não entram nos totais. Sessões que atravessam a meia-noite são divididas entre os dias. Fuso: '+Intl.DateTimeFormat().resolvedOptions().timeZone+'. Áreas correspondem à classificação atual das tarefas.',178,7);
     space(note.length*3.5+2);wrappedText(note,16,y,7,muted);
     const total=doc.getNumberOfPages(), generated=new Date().toLocaleString('pt-BR');
-    for(let page=1;page<=total;page++){doc.setPage(page);doc.setDrawColor(222,228,226);doc.line(16,282,194,282);text('Ulbraflow • Gerado em '+generated,16,288,7,muted);text(page+' / '+total,182,288,7,muted);}
+    for(let page=1;page<=total;page++){doc.setPage(page);doc.setDrawColor(200,215,238);doc.line(16,282,194,282);text('Ulbraflow • Gerado em '+generated,16,288,7,muted);text(page+' / '+total,182,288,7,muted);}
     doc.setProperties({title:'Ulbraflow - Gestão do Tempo - '+range,subject:'Tempo trabalhado por área e tarefa',creator:'Ulbraflow',author:'Ulbraflow'});
     doc.save('ulbraflow-tempo-'+period+'-'+report.start.getFullYear()+'-'+String(report.start.getMonth()+1).padStart(2,'0')+'-'+String(report.start.getDate()).padStart(2,'0')+'.pdf');
   }

@@ -6,23 +6,23 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#eef6f3",
-  "theme_color": "#045a52",
+  "background_color": "#f0f5fc",
+  "theme_color": "#3166dc",
   "icons": [
     {
-      "src": "/assets/icons/uflow-192.png",
+      "src": "/assets/icons/ulbraflow-blue-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/icons/uflow-512.png",
+      "src": "/assets/icons/ulbraflow-blue-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/icons/uflow-maskable-512.png",
+      "src": "/assets/icons/ulbraflow-blue-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

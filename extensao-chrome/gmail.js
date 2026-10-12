@@ -44,11 +44,11 @@
     shadow.innerHTML = `
       <style>
         :host{all:initial}*{box-sizing:border-box}
-        dialog{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#253b36;background:#eef6f3;border:0;border-radius:18px;padding:26px;width:430px;max-width:calc(100vw - 32px);box-shadow:0 20px 80px #045a5250}
-        dialog::backdrop{background:#03463f66}h2{font-size:22px;letter-spacing:-.5px;margin:0 0 5px}p{color:#5b7069;margin:0 0 20px}.brand{color:#045a52;border-left:3px solid #fbb640;padding-left:8px;font-weight:800;font-size:12px;letter-spacing:1px;margin-bottom:8px}
-        label{display:block;font-weight:650;margin-top:16px}input,select{font:inherit;width:100%;padding:11px;border:1px solid #c8dcd4;border-radius:9px;margin-top:6px;background:#fff;color:#253b36}input:focus,select:focus{outline:2px solid #045a52;outline-offset:2px}
-        .sender{font-size:12px;color:#5b7069;overflow-wrap:anywhere;margin-top:7px}.actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}button{font:inherit;font-weight:650;border-radius:9px;padding:10px 18px;border:1px solid #c8dcd4;background:#fff;color:#253b36;cursor:pointer}button:hover{background:#dcebe7}button.primary{background:#045a52;color:#fff;border-color:#045a52}button.primary:hover{background:#03463f;border-color:#03463f}button:focus-visible{outline:3px solid #fbb640;outline-offset:3px}button:disabled{opacity:.55;cursor:default}
-        #flow-status{min-height:22px;margin-top:15px;color:#5b7069;font-size:13px}#flow-status.error{color:#a4262c}#flow-status.success{color:#14774e}.footnote{font-size:12px;margin-top:12px;margin-bottom:0;color:#5b7069}
+        dialog{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#182b49;background:#f0f5fc;border:0;border-radius:18px;padding:26px;width:430px;max-width:calc(100vw - 32px);box-shadow:0 20px 80px #3166dc40}
+        dialog::backdrop{background:#182b4966}h2{font-size:22px;letter-spacing:-.5px;margin:0 0 5px}p{color:#5b6f8c;margin:0 0 20px}.brand{color:#3166dc;border-left:3px solid #3166dc;padding-left:8px;font-weight:800;font-size:12px;letter-spacing:1px;margin-bottom:8px}
+        label{display:block;font-weight:650;margin-top:16px}input,select{font:inherit;width:100%;padding:11px;border:1px solid #c8d7ee;border-radius:9px;margin-top:6px;background:#fff;color:#182b49}input:focus,select:focus{outline:2px solid #3166dc;outline-offset:2px}
+        .sender{font-size:12px;color:#5b6f8c;overflow-wrap:anywhere;margin-top:7px}.actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}button{font:inherit;font-weight:650;border-radius:9px;padding:10px 18px;border:1px solid #c8d7ee;background:#fff;color:#182b49;cursor:pointer}button:hover{background:#e4edfb}button.primary{background:#3166dc;color:#fff;border-color:#3166dc}button.primary:hover{background:#2554be;border-color:#2554be}button:focus-visible{outline:3px solid #3166dc;outline-offset:3px}button:disabled{opacity:.55;cursor:default}
+        #flow-status{min-height:22px;margin-top:15px;color:#5b6f8c;font-size:13px}#flow-status.error{color:#a4262c}#flow-status.success{color:#14774e}.footnote{font-size:12px;margin-top:12px;margin-bottom:0;color:#5b6f8c}
       </style>
       <dialog aria-labelledby="flow-dialog-title">
         <div class="brand">ULBRAFLOW · GMAIL</div>
@@ -166,7 +166,7 @@
     buttonHost = document.createElement('span');
     buttonHost.id = 'flow-gmail-button';
     const shadow = buttonHost.attachShadow({mode: 'open'});
-    shadow.innerHTML = `<style>:host{display:inline-flex;vertical-align:middle;margin:6px 0 6px 12px}button{font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:#045a52;color:#fff;border:0;border-radius:18px;padding:9px 16px;cursor:pointer;white-space:nowrap}button:hover{background:#03463f}button:focus-visible{outline:3px solid #fbb640;outline-offset:3px}</style><button type="button">+ Incluir no Ulbraflow</button>`;
+    shadow.innerHTML = `<style>:host{display:inline-flex;vertical-align:middle;margin:6px 0 6px 12px}button{font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:#3166dc;color:#fff;border:0;border-radius:18px;padding:9px 16px;cursor:pointer;white-space:nowrap}button:hover{background:#2554be}button:focus-visible{outline:3px solid #3166dc;outline-offset:3px}</style><button type="button">+ Incluir no Ulbraflow</button>`;
     shadow.querySelector('button').addEventListener('click', openDialog);
     headingAnchor = email.heading;
     headingAnchor.insertAdjacentElement('afterend', buttonHost);

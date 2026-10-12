@@ -1,4 +1,4 @@
-# Ulbraflow no Gmail — extensão Chrome 1.3.9
+# Ulbraflow no Gmail — extensão Chrome 1.4.0
 
 A extensão adiciona **Incluir no Ulbraflow** ao lado do assunto da conversa aberta no Gmail.
 Você escolhe a área e a data e salva a tarefa em uma caixa no próprio Gmail.

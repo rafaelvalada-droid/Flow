@@ -14,7 +14,7 @@
   "addOns": {
     "common": {
       "name": "Incluir no Ulbraflow",
-      "logoUrl": "https://flow-blue-theta.vercel.app/assets/uflow-logo.png",
+      "logoUrl": "https://flow-blue-theta.vercel.app/assets/ulbraflow-blue-logo.png",
       "homepageTrigger": {
         "runFunction": "flowHome"
       }

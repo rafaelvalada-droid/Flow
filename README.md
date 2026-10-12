@@ -14,7 +14,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Gmail:** extensão 1.3 com Incluir no Ulbraflow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-A marca Ulbraflow usa verde profundo (#045A52) e amarelo âmbar (#FBB640): menu verde, navegação ativa e destaques amarelos, fundo verde claro e cartões brancos. O símbolo aprovado é “Uf”: U branco e f âmbar em um quadrado verde com cantos arredondados, acompanhado de uma esteira conectada de três etapas. A imagem aparece no acesso, no PDF e nos ícones de instalação, com um ícone maskable separado para Android. A barra lateral mostra o nome Ulbraflow. O logo verde Ulbra S.A. aparece no acesso e na barra superior. As cores escolhidas para áreas e remetentes são preservadas.
+A marca Ulbraflow usa azul forte (#3166DC), azul claro e azul-marinho (#182B49): menu escuro, navegação ativa e botões azuis, fundo azul claro e cartões brancos. O símbolo UF tem U branco, F azul e uma órbita pontilhada sobre um quadrado azul com cantos arredondados. O acesso mostra uma marca horizontal; a barra lateral mostra somente o nome Ulbraflow. O mesmo símbolo aparece no PDF e nos ícones de instalação, com um ícone maskable separado para Android. O logo institucional Ulbra S.A. e as cores escolhidas para áreas e remetentes são preservados.
 
 ## Google e armazenamento
 
@@ -73,7 +73,7 @@ Ocultar concluídas recolhe a coluna de entregues sem excluir dados; Mostrar con
 
 Concluídas aparecem como cartões compactos com título e área. Clicar abre os detalhes, incluindo Reabrir tarefa; a coluna acompanha a altura do conteúdo.
 
-A esteira diferencia as etapas por tons suaves de verde e âmbar: verde neutro na classificação, verde claro em A fazer, verde profundo em andamento, amarelo em Aguardando e verde nas concluídas. Colunas, cards e marcadores compartilham a cor da etapa; a classificação por área fica preservada.
+A esteira diferencia as etapas por tons suaves de azul, com destaque mais forte em Em andamento. Colunas, cards e marcadores compartilham a cor da etapa; a classificação por área fica preservada.
 
 ## Gmail no Android
 
