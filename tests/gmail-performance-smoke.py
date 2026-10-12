@@ -27,7 +27,7 @@ async def run():
    else:await r.continue_()
   await context.route('**/*',route)
   page=await context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-  await page.add_init_script("window.screenReplacements=0;new MutationObserver(ms=>{for(const m of ms)if(m.target.id==='screen'&&m.removedNodes.length)screenReplacements++}).observe(document,{childList:true,subtree:true});")
+  await page.add_init_script("window.screenReplacements=0;new MutationObserver(ms=>{for(const m of ms)if(m.target.id==='screen'&&m.removedNodes.length&&!Array.from(m.removedNodes).some(n=>n.nodeType===1&&(n.matches('#google-login,#login-message')||n.querySelector('#google-login,#login-message'))))screenReplacements++}).observe(document,{childList:true,subtree:true});")
   started=time.perf_counter();await page.goto(os.environ.get('FLOW_TEST_URL','http://127.0.0.1:3000'))
   await page.wait_for_function("window.FlowGmailReview?.info().emails.length===25&&!FlowGmailReview.info().loading&&!FlowGmailReview.info().analyzing&&document.querySelectorAll('.gemini-status.classified').length===25")
   assert state['first_full_count']<25,'Classification must start before the full inbox finishes loading'

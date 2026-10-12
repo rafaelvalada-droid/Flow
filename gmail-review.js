@@ -1,7 +1,7 @@
 /* Raw message bodies remain in memory; only reviews are saved. */
 (() => {
  'use strict';
- let emails=[],nextPage='',loading=false,analyzing=false,analysisBlocked=false,error='',analysisError='',owner='',generation=0,verifiedHistory='',verifiedToken='',analysisEpoch=0,completed=0;
+ let emails=[],nextPage='',loading=false,analyzing=false,analysisBlocked=false,error='',analysisError='',owner='',generation=0,verifiedHistory='',analysisEpoch=0,completed=0;
  const emit=(emailsChanged=false)=>window.dispatchEvent(new CustomEvent('flow:gmail-review',{detail:{emailsChanged}}));
  const decode=value=>{try{return new TextDecoder().decode(Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0)));}catch{return '';}};
  function bodyText(part){
@@ -13,7 +13,7 @@
  const header=(m,name)=>m.payload?.headers?.find(h=>h.name.toLowerCase()===name.toLowerCase())?.value||'';
  async function api(path,method='GET',body){
   const token=FlowCloud.gmailToken();if(!token)throw new Error('Conecte a leitura do Gmail.');
-  let response;try{response=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/'+path,{method,headers:{Authorization:'Bearer '+token,...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(path==='messages/send'?45000:15000)});}catch{throw new Error(path==='messages/send'?'O Gmail não confirmou o envio. Confira Enviados antes de tentar novamente.':'A leitura do Gmail demorou ou perdeu a conexão. Clique em Atualizar e-mails para tentar novamente.');}
+  let response;try{const url='https://gmail.googleapis.com/gmail/v1/users/me/'+path,options={method,headers:{Authorization:'Bearer '+token,...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(path==='messages/send'?45000:15000)};response=FlowCloud.googleFetch?await FlowCloud.googleFetch('gmail',url,options):await fetch(url,options);}catch(failure){if(failure.googleAuthorization)throw failure;throw new Error(path==='messages/send'?'O Gmail não confirmou o envio. Confira Enviados antes de tentar novamente.':'A leitura do Gmail demorou ou perdeu a conexão. Clique em Atualizar e-mails para tentar novamente.');}
   const result=await response.json().catch(()=>({}));
   if(response.status===401){FlowCloud.disconnectGmail();throw new Error('A autorização do Gmail expirou. Clique em Conectar leitura do Gmail novamente.');}
   if(response.status===403){
@@ -41,16 +41,16 @@
   return null; // A large or expired history falls back to a complete refresh.
  }
  async function refresh(more=false){
-  if(loading)return;const id=++generation,currentOwner=FlowCloud.info().user?.id||'',token=FlowCloud.gmailToken();
-  if(owner!==currentOwner||verifiedToken&&verifiedToken!==token){emails=[];nextPage='';verifiedHistory='';}
+  if(loading)return;const id=++generation,currentOwner=FlowCloud.info().user?.id||'';
+  if(owner!==currentOwner){emails=[];nextPage='';verifiedHistory='';}
   owner=currentOwner;loading=true;error='';emit();
-  const valid=()=>id===generation&&currentOwner===FlowCloud.info().user?.id&&token===FlowCloud.gmailToken();
+  const valid=()=>id===generation&&currentOwner===FlowCloud.info().user?.id&&!!FlowCloud.gmailToken();
   try{
    const profile=await api('profile');if(profile.emailAddress?.toLowerCase()!==FlowCloud.info().user?.email?.toLowerCase())throw new Error('Conecte o Gmail da mesma conta usada no Ulbraflow.');
    if(!valid())return;
-   if(!more&&verifiedHistory&&profile.historyId===verifiedHistory&&verifiedToken===token)return;
+   if(!more&&verifiedHistory&&profile.historyId===verifiedHistory)return;
    let changed=null;
-   if(!more&&verifiedHistory&&profile.historyId&&verifiedToken===token){try{changed=await changedThreads(verifiedHistory);}catch(e){if(e.status!==404)throw e;}}
+   if(!more&&verifiedHistory&&profile.historyId){try{changed=await changedThreads(verifiedHistory);}catch(e){if(e.status!==404)throw e;}}
    const cached=new Map(emails.map(email=>[email.id,email])),collected=[];
    const target=more?25:Math.max(25,emails.length);let page=more?nextPage:'';
    do{
@@ -73,14 +73,14 @@
    if(!valid())return;
    emails=(more?[...emails.filter(e=>!collected.some(n=>n.id===e.id)),...collected]:collected).sort((a,b)=>b.date-a.date);nextPage=page;
    // Loading another page does not prove older cached pages were refreshed.
-   if(!more){verifiedHistory=profile.historyId||'';verifiedToken=token;}
+   if(!more){verifiedHistory=profile.historyId||'';}
   }catch(e){if(id===generation&&currentOwner===FlowCloud.info().user?.id)error=e.message;}finally{if(id===generation){loading=false;emit();}}
  }
  async function analyze(db,persist,force=false){
   if(analyzing||(!force&&analysisBlocked)||!FlowCloud.gmailToken()||!emails.length)return;
   if(!emails.some(email=>db.gmailReviews?.[email.id]?.messageId!==email.messageId))return;
-  analysisBlocked=false;const currentOwner=FlowCloud.info().user?.id,token=FlowCloud.gmailToken(),epoch=analysisEpoch;
-  const valid=()=>epoch===analysisEpoch&&currentOwner===FlowCloud.info().user?.id&&token===FlowCloud.gmailToken();
+  analysisBlocked=false;const currentOwner=FlowCloud.info().user?.id,epoch=analysisEpoch;
+  const valid=()=>epoch===analysisEpoch&&currentOwner===FlowCloud.info().user?.id&&!!FlowCloud.gmailToken();
   analyzing=true;completed=0;analysisError='';emit();
   try{
    db.gmailReviews??={};
@@ -115,6 +115,6 @@
   parts.push('--'+boundary+'--','');
   return api('messages/send','POST',{threadId:email.id,raw:base64(new TextEncoder().encode(parts.join(line))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')});
  }
- function reset(){generation++;analysisEpoch++;emails=[];nextPage='';loading=false;analyzing=false;completed=0;error='';analysisError='';analysisBlocked=false;owner='';verifiedHistory='';verifiedToken='';emit();}
+ function reset(){generation++;analysisEpoch++;emails=[];nextPage='';loading=false;analyzing=false;completed=0;error='';analysisError='';analysisBlocked=false;owner='';verifiedHistory='';emit();}
  globalThis.FlowGmailReview={refresh,analyze,reset,bodyText,address,archive,replyContext,reply,info:()=>({emails:FlowCloud.gmailToken()&&owner===FlowCloud.info().user?.id?emails:[],nextPage,loading,analyzing,completed,error:error||analysisError})};
 })();

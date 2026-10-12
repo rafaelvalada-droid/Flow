@@ -18,7 +18,8 @@ export function publicConfig(env = process.env) {
 
 export function GET() {
   try {
-    return Response.json(publicConfig(), {headers: {'cache-control': 'no-store'}});
+    const googleRefreshConfigured=!!((process.env.GOOGLE_CLIENT_ID||process.env.GOOGLE_OAUTH_CLIENT_ID||'').trim()&&(process.env.GOOGLE_CLIENT_SECRET||process.env.GOOGLE_OAUTH_CLIENT_SECRET||'').trim());
+    return Response.json({...publicConfig(),googleRefreshConfigured}, {headers: {'cache-control': 'no-store'}});
   } catch (error) {
     return Response.json({error: error.message}, {status: 503, headers: {'cache-control': 'no-store'}});
   }

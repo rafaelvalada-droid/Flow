@@ -19,7 +19,7 @@ A análise nova usa a sessão Google/Supabase verificada e não precisa de FLOW_
 - Novas respostas de uma conversa já vinculada atualizam a demanda existente após revisão; não duplicam tarefas. Respostas enviadas pelo próprio usuário não são tratadas como novas mensagens de entrada quando identificadas com SENT.
 - A cor é escolhida por endereço de remetente e aplicada a todos os cartões desse remetente, inclusive mensagens futuras.
 - Responder abre um formulário explícito de envio, com destinatário, texto e anexos até 10 MB no total. MIME UTF-8 inclui threadId, In-Reply-To e References. Não envia automaticamente nem inclui anexos na análise de IA.
-- A leitura usa provider_token Google, que pode expirar. Nesse caso, reconecte o Gmail. Não há renovação Google em servidor ou notificações Pub/Sub nesta versão.
+- A leitura renova automaticamente o acesso Google no servidor, preservando a conexão entre aberturas. Configure as credenciais conforme [Renovação Google](RENOVACAO-GOOGLE.md). Autorizações antigas precisam de uma reconexão para obter o refresh token. Não há notificações Pub/Sub nesta versão.
 
 ## Validação
 `npm run test:gmail-review` exercita autenticação da análise, saída Gemini, Entrada manual, cache, confirmação, nova resposta sem duplicação, cores, envio com anexo, arquivamento e bloqueio de arquivamento quando a nuvem falha. Serviços Google/Gemini são simulados. Validação real ainda exige configuração, consentimento e um e-mail de teste.

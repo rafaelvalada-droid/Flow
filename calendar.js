@@ -8,15 +8,22 @@
   async function api(path = '', method = 'GET', body) {
     const token = FlowCloud.calendarToken();
     if (!token) throw new Error('Conecte sua conta ao Google Agenda.');
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events' + path, {
+    const url='https://www.googleapis.com/calendar/v3/calendars/primary/events'+path;
+    const options={
       method, headers: {Authorization: `Bearer ${token}`, ...(body ? {'content-type': 'application/json'} : {})},
       ...(body ? {body: JSON.stringify(body)} : {}), signal: AbortSignal.timeout(12000)
-    });
-    if (response.status === 401 || response.status === 403) {
+    };
+    const response=FlowCloud.googleFetch?await FlowCloud.googleFetch('calendar',url,options):await fetch(url,options);
+    const data = response.status === 204 ? null : await response.json().catch(() => null);
+    if (response.status === 401) {
       FlowCloud.disconnectCalendar();
       throw new Error('Autorize o Google Agenda novamente. Confira também se a API Google Calendar está ativada.');
     }
-    const data = response.status === 204 ? null : await response.json().catch(() => null);
+    if(response.status===403){
+      const reasons=[...(data?.error?.errors||[]),...(data?.error?.details||[])].map(item=>item.reason);
+      if(reasons.some(reason=>['insufficientPermissions','ACCESS_TOKEN_SCOPE_INSUFFICIENT'].includes(reason))){FlowCloud.disconnectCalendar();throw new Error('Conecte o Google Agenda novamente e autorize a permissão da Agenda.');}
+      throw new Error(reasons.some(reason=>['SERVICE_DISABLED','accessNotConfigured','API_DISABLED'].includes(reason))?'Ative a Google Calendar API no projeto da conexão Google. Sua conexão foi mantida.':'O Google bloqueou o acesso à Agenda. Confira as regras da conta; sua conexão foi mantida.');
+    }
     if (!response.ok) {
       const err = new Error('Não foi possível sincronizar com o Google Agenda. Tente novamente.');
       err.status = response.status;

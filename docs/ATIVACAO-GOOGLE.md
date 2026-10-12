@@ -54,7 +54,7 @@ Os dados de tarefas, notas, subtarefas e sessões ficam no Supabase. Este navega
 
 O Ulbraflow cria eventos privados no calendário principal enquanto está aberto. A data de execução determina o evento; o prazo final fica separado na descrição. Com horário, a duração usa o ciclo de foco configurado. Sem horário, o evento ocupa o dia inteiro. Editar atualiza o mesmo evento; retirar a data de execução ou excluir a tarefa remove somente o evento identificado como pertencente ao Ulbraflow. Concluir mantém o planejamento/histórico do evento.
 
-**Sincronizar agora** repete a operação com segurança, sem duplicar eventos. A autorização Google pode expirar: reconecte quando o Ulbraflow pedir. Não há sincronização com a aba fechada nem renovação automática do token do Google. Desconectar encerra a sincronização local e preserva os eventos já criados; para revogar acesso no Google, use as configurações de segurança da conta Google. Alterações feitas diretamente na Agenda não são importadas para o Ulbraflow.
+**Sincronizar agora** repete a operação com segurança, sem duplicar eventos. O acesso Google é renovado automaticamente conforme [Renovação Google](RENOVACAO-GOOGLE.md). Uma autorização revogada precisa de reconexão. Não há sincronização com a aba fechada. Desconectar encerra a sincronização local e preserva os eventos já criados; para revogar acesso no Google, use as configurações de segurança da conta Google. Alterações feitas diretamente na Agenda não são importadas para o Ulbraflow.
 
 ## Gmail e Gestão do Tempo
 

@@ -5,6 +5,9 @@
   "installCommand": "",
   "outputDirectory": ".",
   "functions": {
+    "api/google-token.mjs": {
+      "maxDuration": 45
+    },
     "api/gmail-review.mjs": {
       "maxDuration": 60
     },

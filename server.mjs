@@ -6,6 +6,7 @@ import { dirname } from 'node:path';
 import { POST as geminiPost } from './api/gemini.mjs';
 import { POST as gmailReviewPost } from './api/gmail-review.mjs';
 import { GET as authConfigGet } from './api/auth-config.mjs';
+import { POST as googleTokenPost } from './api/google-token.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -18,12 +19,13 @@ const server = createServer(async (req, res) => {
       const result=authConfigGet();
       res.writeHead(result.status,Object.fromEntries(result.headers));res.end(await result.text());return;
     }
-    if (['/api/gemini','/api/gmail-review'].includes(req.url?.split('?')[0])) {
+    if (['/api/gemini','/api/gmail-review','/api/google-token'].includes(req.url?.split('?')[0])) {
       if (req.method !== 'POST') {res.writeHead(405, {'content-type':'application/json'});res.end(JSON.stringify({error:'Método não permitido.'}));return;}
       const parts=[];
       for await(const part of req){ parts.push(part); if (parts.reduce((n,p)=>n+p.length,0)>30_000){res.writeHead(413);res.end();return;} }
       const request=new Request(`http://localhost:${port}${req.url}`,{method:'POST',headers:{'content-type':req.headers['content-type']||'application/json','x-flow-access-token':req.headers['x-flow-access-token']||'',authorization:req.headers.authorization||''},body:Buffer.concat(parts)});
-      const result=await (req.url.split('?')[0]==='/api/gmail-review'?gmailReviewPost:geminiPost)(request);
+      const handlers={'/api/gemini':geminiPost,'/api/gmail-review':gmailReviewPost,'/api/google-token':googleTokenPost};
+      const result=await handlers[req.url.split('?')[0]](request);
       res.writeHead(result.status,Object.fromEntries(result.headers));res.end(await result.text());return;
     }
     const pathname=decodeURIComponent((req.url || '/').split('?')[0]);

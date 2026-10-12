@@ -33,7 +33,7 @@ test('a late previous-week response cannot replace the current week',async()=>{
  release({items:[event('stale')]});await tick();assert.equal(calendar.info().events[0].id,'current');calendar.disconnect();
 });
 test('expired authorization clears appointments and requires reconnecting',async()=>{
- const calendar=setup(async()=>({status:401}));calendar.showRange('2026-10-12T03:00:00Z','2026-10-19T03:00:00Z');await tick();
+ const calendar=setup(async()=>Response.json({error:{message:'Unauthorized'}},{status:401}));calendar.showRange('2026-10-12T03:00:00Z','2026-10-19T03:00:00Z');await tick();
  assert.equal(calendar.info().connected,false);assert.equal(calendar.info().events.length,0);assert.match(calendar.info().readError,/novamente/);calendar.disconnect();
 });
 
@@ -50,4 +50,10 @@ test('Unrelated saves do not synchronize Agenda; edits during a request receive 
  assert.ok(timers.size,'Changed input must remain scheduled after a slow request finishes');
  const retry=[...timers.values()][0];timers.clear();retry();while(calendar.info().status==='syncing')await tick();assert.deepEqual(writes,['Antes','Depois']);
  timers.clear();db.gmailReviews={email:{summary:'Nothing changed in Agenda'}};calendar.schedule();assert.equal(timers.size,0);calendar.disconnect();
+});
+
+test('disabled Calendar API keeps the connection for retry after configuration',async()=>{
+ const calendar=setup(async()=>Response.json({error:{errors:[{reason:'accessNotConfigured'}]}},{status:403}));
+ calendar.showRange('2026-10-12T03:00:00Z','2026-10-19T03:00:00Z');await tick();
+ assert.equal(calendar.info().connected,true);assert.match(calendar.info().readError,/conexão foi mantida/);calendar.disconnect();
 });

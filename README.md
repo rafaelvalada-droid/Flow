@@ -24,7 +24,7 @@ Sem configuração Google, o Ulbraflow continua usando `flow.workspace.v1` neste
 
 O SQL em `supabase/flow.sql` implementa RLS e salvamento com revisões. `docs/schema-postgresql-futuro.sql` é uma proposta antiga, não o schema utilizado. Erros deixam alterações pendentes; conflitos exigem revisão/carregamento explícito da nuvem. Exporte backups em Dados do Ulbraflow.
 
-A Agenda sincroniza com o calendário principal enquanto o Ulbraflow está aberto. Tokens Google expirados exigem reconexão. O prazo final fica na descrição do evento, sem alterar a data de execução. A conexão é opcional e solicita consentimento separado.
+A Agenda sincroniza com o calendário principal enquanto o Ulbraflow está aberto. O acesso Google é renovado automaticamente quando as credenciais OAuth do servidor estão configuradas; veja [Renovação Google](docs/RENOVACAO-GOOGLE.md). O prazo final fica na descrição do evento, sem alterar a data de execução. A conexão é opcional e solicita consentimento separado.
 
 ## Desenvolvimento
 
