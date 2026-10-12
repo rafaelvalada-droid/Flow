@@ -14,7 +14,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Gmail:** extensão 1.3 com Incluir no Flow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-A marca Ulbraflow apresenta “Ulbra” em verde e “flow” em dourado, com destaques amarelos na interface. O símbolo de etapas conectadas permanece na aplicação enquanto as opções do novo ícone são avaliadas. A marca aparece no acesso, na barra lateral e no PDF. O logo verde Ulbra S.A. aparece no acesso e na barra superior.
+A marca Ulbraflow apresenta “Ulbra” em verde e “flow” em dourado, com destaques amarelos na interface. O novo ícone UF, em verde e dourado, aparece no acesso, na barra lateral, no PDF e nos ícones de instalação. O logo verde Ulbra S.A. aparece no acesso e na barra superior.
 
 ## Google e armazenamento
 
@@ -66,7 +66,7 @@ Nova demanda inclui data e hora de execução separadas do prazo final. Pela Age
 
 A esteira oferece Retornar de Em andamento para A fazer, de Aguardando para Em andamento e de Concluídas para Aguardando, preservando a classificação e o histórico de tempo. Conexão da Agenda e instruções do Gmail ficam em controles compactos com detalhes expansíveis.
 
-O relatório de Gestão do Tempo baixa um PDF direto no navegador, sem diálogo de impressão. Cabeçalho com Flow e Ulbra S.A., fontes incorporadas, indicadores, gráficos e tarefas paginadas. jsPDF 3.0.3 e fontes DejaVu estão incluídos localmente com licenças em vendor/ e assets/fonts/. Dados permanecem no navegador; não são enviados para gerar o PDF.
+O relatório de Gestão do Tempo baixa um PDF direto no navegador, sem diálogo de impressão. Cabeçalho com Ulbraflow e Ulbra S.A., fontes incorporadas, indicadores, gráficos e tarefas paginadas. jsPDF 3.0.3 e fontes DejaVu estão incluídos localmente com licenças em vendor/ e assets/fonts/. Dados permanecem no navegador; não são enviados para gerar o PDF.
 
 Ocultar concluídas recolhe a coluna de entregues sem excluir dados; Mostrar concluídas restaura a esteira completa. Os indicadores superiores são compactos. A Agenda mantém conexão e navegação da semana junto do cabeçalho.
 
