@@ -1,4 +1,4 @@
-# Uflow no Gmail — extensão Chrome 1.3.7
+# Uflow no Gmail — extensão Chrome 1.3.8
 
 A extensão adiciona **Incluir no Uflow** ao lado do assunto da conversa aberta no Gmail.
 Você escolhe a área e a data e salva a tarefa em uma caixa no próprio Gmail.
