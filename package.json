@@ -16,7 +16,7 @@
     "test:app": "python3 tests/app-workflow-smoke.py",
     "test:gmail-addon": "node --test tests/gmail-addon.test.mjs",
     "test:areas": "python3 tests/area-projects-smoke.py",
-    "test:gmail-review": "node --test tests/gmail-review.test.mjs && python3 tests/gmail-review-smoke.py"
+    "test:gmail-review": "node --test tests/gmail-review.test.mjs tests/gmail-read-errors.test.mjs && python3 tests/gmail-review-smoke.py"
   },
   "engines": {
     "node": ">=20"

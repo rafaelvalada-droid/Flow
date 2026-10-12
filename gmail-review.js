@@ -1,7 +1,7 @@
 /* Inbox is read only. Raw message bodies remain in memory; only reviews are saved. */
 (() => {
  'use strict';
- let emails=[],nextPage='',loading=false,analyzing=false,error='',owner='',generation=0;
+ let emails=[],nextPage='',loading=false,analyzing=false,error='',analysisError='',owner='',generation=0;
  const emit=()=>window.dispatchEvent(new CustomEvent('flow:gmail-review'));
  const decode=value=>{try{return new TextDecoder().decode(Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0)));}catch{return '';}};
  function bodyText(part){
@@ -11,7 +11,22 @@
   const parsed=new DOMParser().parseFromString(html.join('\n').replace(/<(img|iframe|link|video|audio|source|object|embed)\b[^>]*>/gi,''),'text/html');parsed.querySelectorAll('script,style').forEach(n=>n.remove());return parsed.body.textContent||'';
  }
  const header=(m,name)=>m.payload?.headers?.find(h=>h.name.toLowerCase()===name.toLowerCase())?.value||'';
- async function api(path,method='GET',body){const token=FlowCloud.gmailToken();if(!token)throw new Error('Conecte a leitura do Gmail.');const response=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/'+path,{method,headers:{Authorization:'Bearer '+token,...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(path==='messages/send'?45000:15000)});if(response.status===401||response.status===403){FlowCloud.disconnectGmail();throw new Error('Autorize o Gmail novamente. Confira se a Gmail API está ativada no projeto Google Cloud.');}if(!response.ok)throw new Error('Não foi possível ler o Gmail. Tente novamente.');return response.json();}
+ async function api(path,method='GET',body){
+  const token=FlowCloud.gmailToken();if(!token)throw new Error('Conecte a leitura do Gmail.');
+  let response;try{response=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/'+path,{method,headers:{Authorization:'Bearer '+token,...(body?{'content-type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(path==='messages/send'?45000:15000)});}catch{throw new Error(path==='messages/send'?'O Gmail não confirmou o envio. Confira Enviados antes de tentar novamente.':'A leitura do Gmail demorou ou perdeu a conexão. Clique em Atualizar e-mails para tentar novamente.');}
+  const result=await response.json().catch(()=>({}));
+  if(response.status===401){FlowCloud.disconnectGmail();throw new Error('A autorização do Gmail expirou. Clique em Conectar leitura do Gmail novamente.');}
+  if(response.status===403){
+   const reasons=[...(result.error?.details||[]).map(d=>d.reason),...(result.error?.errors||[]).map(d=>d.reason)];
+   if(reasons.some(r=>['SERVICE_DISABLED','accessNotConfigured','API_DISABLED'].includes(r))||/has not been used|is disabled|not enabled/i.test(result.error?.message||''))throw new Error('O acesso foi autorizado, mas a Gmail API está desativada. No Google Cloud do projeto Flow, abra APIs e serviços → Biblioteca → Gmail API → Ativar. Depois clique em Atualizar e-mails.');
+   if(reasons.includes('insufficientPermissions')||reasons.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT')){FlowCloud.disconnectGmail();throw new Error('O Google não liberou a leitura da caixa de entrada. Conecte o Gmail novamente e autorize as permissões solicitadas.');}
+   throw new Error('O Google bloqueou a leitura do Gmail. Confira as permissões da conta e as regras da organização.');
+  }
+  if(response.status===429)throw new Error('O Gmail atingiu o limite de consultas. Aguarde um momento e tente novamente.');
+  if(!response.ok)throw new Error('Não foi possível acessar o Gmail (HTTP '+response.status+'). Tente novamente.');
+  return result;
+ }
+
  async function refresh(more=false){
   if(loading)return;const id=++generation;owner=FlowCloud.info().user?.id||'';const currentOwner=owner;loading=true;error='';if(!more){nextPage='';}emit();
   try{
@@ -31,7 +46,7 @@
   }catch(e){if(id===generation)error=e.message;}finally{if(id===generation){loading=false;emit();}}
  }
  async function analyze(db,persist){
-  if(analyzing)return;const currentOwner=FlowCloud.info().user?.id,source=[...emails];analyzing=true;error='';emit();
+  if(analyzing||!FlowCloud.gmailToken()||!emails.length)return;const currentOwner=FlowCloud.info().user?.id,source=[...emails];analyzing=true;analysisError='';emit();
   try{
    db.gmailReviews??={};
    for(const email of source){
@@ -42,7 +57,7 @@
     if(emails.find(e=>e.id===email.id)?.messageId!==email.messageId)continue;
     db.gmailReviews[email.id]={...review,messageId:email.messageId,state:'pending'};persist();emit();
    }
-  }catch(e){error=e.message;}finally{analyzing=false;emit();}
+  }catch(e){analysisError=e.message;}finally{analyzing=false;emit();}
  }
  function base64(bytes){let value='';for(let i=0;i<bytes.length;i+=8192)value+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(value);}
  function address(value){const match=String(value||'').match(/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9.-]+/);return match?.[0]||'';}
@@ -65,6 +80,6 @@
   parts.push('--'+boundary+'--','');
   return api('messages/send','POST',{threadId:email.id,raw:base64(new TextEncoder().encode(parts.join(line))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')});
  }
- function reset(){generation++;emails=[];nextPage='';loading=false;error='';owner='';emit();}
- globalThis.FlowGmailReview={refresh,analyze,reset,bodyText,address,archive,replyContext,reply,info:()=>({emails:FlowCloud.gmailToken()&&owner===FlowCloud.info().user?.id?emails:[],nextPage,loading,analyzing,error})};
+ function reset(){generation++;emails=[];nextPage='';loading=false;error='';analysisError='';owner='';emit();}
+ globalThis.FlowGmailReview={refresh,analyze,reset,bodyText,address,archive,replyContext,reply,info:()=>({emails:FlowCloud.gmailToken()&&owner===FlowCloud.info().user?.id?emails:[],nextPage,loading,analyzing,error:error||analysisError})};
 })();

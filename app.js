@@ -55,7 +55,7 @@
   workflow.reconcile(db);
   db.initiatives=Array.isArray(db.initiatives)?db.initiatives:[];
   const expandedDemands=new Set();
-  let view={page:'esteira',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
+  let view={page:workspace.resumePage||'esteira',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
   let accessToken='';
   let toastTimeout;
   const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));cloud.queue(db);globalThis.FlowCalendar.schedule()}catch(e){notice('Não foi possível salvar os dados. Verifique o espaço disponível no navegador.')}};
@@ -446,5 +446,6 @@
   globalThis.FlowCalendar.initialize(()=>db,persist);
   persist();render();updateAccount();handleCapture();
   $('#login-screen').hidden=true;$('.app-shell').hidden=false;
+  if(view.page==='entrada'&&cloud.gmailToken())FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist));
   setInterval(()=>{if(view.page==='tempo'&&!document.hidden&&!db.focus?.endsAt)return;if(view.page==='tempo'&&!document.hidden)render()},60000);
 })();

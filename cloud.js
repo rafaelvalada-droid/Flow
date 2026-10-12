@@ -63,6 +63,7 @@
     location.assign(url.href);
   }
   async function initialize() {
+    let resumePage=null;
     // Fail closed when configuration or the remote workspace cannot be checked.
     const response = await fetch('/api/auth-config', {cache: 'no-store', signal: AbortSignal.timeout(12000)});
     config = await response.json();
@@ -92,6 +93,7 @@
         method: 'POST', body: JSON.stringify({auth_code: code, code_verifier: proof.verifier})
       }, false);
       if (proof.expectedUser && next?.user?.id !== proof.expectedUser) throw new Error('Conecte a Agenda usando a mesma conta Google do Flow.');
+      if(proof.gmail)resumePage='entrada';
       remember({...next, calendarConnected: !!(proof.calendar && next.provider_token),gmailConnected:!!((proof.gmail||session?.gmailConnected)&&next.provider_token)});
     }
     if (!session) return {mode: 'login'};
@@ -115,7 +117,7 @@
     if (!conflict) localStorage.setItem(key + '.revision', String(revision));
     localStorage.setItem(ACTIVE, JSON.stringify({mode: 'cloud', userId: user.id, key}));
     setStatus(conflict ? 'conflict' : pending ? 'pending' : 'saved', conflict ? 'Há alterações locais e uma versão nova na nuvem. Exporte um backup antes de carregar a nuvem.' : '');
-    return {mode: 'cloud', key, data, user};
+    return {mode: 'cloud', key, data, user,resumePage};
   }
   function queue(data) {
     if (!user) return;
