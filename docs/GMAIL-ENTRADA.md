@@ -23,3 +23,9 @@ A análise nova usa a sessão Google/Supabase verificada e não precisa de FLOW_
 
 ## Validação
 `npm run test:gmail-review` exercita autenticação da análise, saída Gemini, Entrada manual, cache, confirmação, nova resposta sem duplicação, cores, envio com anexo, arquivamento e bloqueio de arquivamento quando a nuvem falha. Serviços Google/Gemini são simulados. Validação real ainda exige configuração, consentimento e um e-mail de teste.
+
+## Rascunho de resposta e estabilidade
+
+Cada e-mail indica se a análise Gemini já foi feita. Demandas aprovadas guardam a indicação de análise. Atualizações mantêm a posição da leitura, o foco e a seleção do texto dos campos, e não movem conversas existentes durante o carregamento.
+
+Em Responder, escreva a ideia ou use Ditar ideia (SpeechRecognition do navegador, em pt-BR). O áudio não é salvo pelo Flow; o serviço de reconhecimento do navegador pode processá-lo. O navegador precisa suportar ditado e autorizar o microfone. Reescrever com Gemini gera texto editável; só Enviar resposta envia pelo Gmail. A reescrita usa a mesma GEMINI_API_KEY e a autorização verificada da análise. Os testes usam reconhecimento de voz simulado; o microfone real requer validação no dispositivo do usuário.

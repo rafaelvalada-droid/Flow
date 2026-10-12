@@ -6,7 +6,7 @@ async def run():
  async with async_playwright() as p:
   browser=await p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
   context=await browser.new_context(viewport={'width':1440,'height':1000})
-  state={'message':'abc123456789','analyses':0,'archived':0,'sent':None}
+  state={'message':'abc123456789','analyses':0,'drafts':0,'archived':0,'sent':None}
   async def route(req):
    url=req.request.url
    if 'cloud.js' in url:
@@ -21,6 +21,9 @@ async def run():
     else:data={'messages':[{'id':state['message'],'internalDate':'1791720000000','snippet':'Revisar turmas','payload':{'mimeType':'text/plain','headers':[{'name':'Subject','value':'Turmas PoA'},{'name':'From','value':'coord@ulbra.br'},{'name':'Message-ID','value':'<original@example.test>'}],'body':{'data':'UmV2aXNhciB0dXJtYXM='}}}]}
     await req.fulfill(json=data)
    elif '/api/gmail-review' in url:
+    body=json.loads(req.request.post_data)
+    if body.get('mode')=='reply':
+     state['drafts']+=1;await req.fulfill(json={'reply':'Resposta revisada pelo Gemini.'});return
     state['analyses']+=1
     await req.fulfill(json={'summary':'Solicita revisar turmas.','title':'Revisar turmas PoA','areaId':'oferta','dueDate':'2026-10-20','dateEvidence':'','needsReview':False,'alert':''})
    else:await req.continue_()
@@ -38,11 +41,28 @@ async def run():
   await expect(page.locator('.gmail-summary').filter(has_text='Solicita revisar')).to_be_visible()
   await page.locator('[data-action="gmail-analyze"]').click()
   assert state['analyses']==1
+  await expect(page.get_by_text('Classificado pelo Gemini',exact=True)).to_be_visible()
+  title=page.locator('form[data-email-review] [name="title"]')
+  await title.fill('Título ajustado')
+  await title.evaluate('(input)=>input.setSelectionRange(3,3)')
+  before=await title.evaluate('(input)=>input.getBoundingClientRect().top')
+  await page.evaluate('FlowGmailReview.refresh()')
+  assert await page.evaluate('document.activeElement.name')=='title'
+  assert await title.evaluate('(input)=>input.selectionStart')==3
+  assert abs(await title.evaluate('(input)=>input.getBoundingClientRect().top')-before)<2
+
   await page.locator('[data-sender-color]').fill('#9270d4')
   await page.locator('[data-sender-color]').dispatch_event('change')
   assert await page.evaluate("JSON.parse(localStorage.getItem('test-workspace')).gmailSenderColors['coord@ulbra.br']")=='#9270d4'
   await page.locator('[data-reply-email]').click()
-  await page.locator('#active-modal-form [name="message"]').fill('Resposta com anexo')
+  await page.evaluate('''() => {window.SpeechRecognition=class{start(){this.onresult({results:[{isFinal:true,0:{transcript:'Minha ideia falada'}}]})}stop(){this.onend()}abort(){this.onend()}};}''')
+  await page.locator('#reply-dictate').click()
+  await expect(page.locator('#active-modal-form [name="idea"]')).to_have_value('Minha ideia falada')
+  await page.locator('#reply-dictate').click()
+  await page.locator('#reply-rewrite').click()
+  await expect(page.locator('#active-modal-form [name="message"]')).to_have_value('Resposta revisada pelo Gemini.')
+  assert state['sent'] is None and state['drafts']==1
+
   await page.locator('#active-modal-form [name="attachments"]').set_input_files({'name':'teste.txt','mimeType':'text/plain','buffer':b'attachment'})
   await page.locator('#active-modal-form [type="submit"]').click()
   await expect(page.locator('#modal-backdrop')).to_have_class('modal-backdrop hidden')

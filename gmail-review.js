@@ -41,7 +41,7 @@
     const result=await api('threads/'+encodeURIComponent(thread.id)+'?format=full');const messages=result.messages||[],latest=messages.filter(m=>!m.labelIds?.includes('SENT')||m.labelIds?.includes('INBOX')).at(-1);if(!latest)continue;
     const text=messages.slice(-3).map(m=>'De: '+header(m,'From')+'\nAssunto: '+header(m,'Subject')+'\n'+bodyText(m.payload)).join('\n\n');
     collected.push({id:thread.id,messageId:latest.id,subject:header(latest,'Subject')||'(Sem assunto)',sender:header(latest,'From'),recipient:header(latest,'To'),rfcMessageId:header(latest,'Message-ID'),references:header(latest,'References'),snippet:latest.snippet||'',text:text.slice(-12000),truncated:text.length>12000||messages.length>3,date:Number(latest.internalDate),gmailUrl:'https://mail.google.com/mail/?authuser='+encodeURIComponent(profile.emailAddress)+'#all/'+thread.id});
-    if(id===generation&&currentOwner===FlowCloud.info().user?.id){emails=[...emails.filter(e=>e.id!==collected.at(-1).id),collected.at(-1)];emit();}
+    if(id===generation&&currentOwner===FlowCloud.info().user?.id){const item=collected.at(-1),index=emails.findIndex(e=>e.id===item.id),changed=index<0||emails[index].messageId!==item.messageId;if(index<0)emails.push(item);else emails[index]=item;if(changed)emit();}
    }}));
    if(id!==generation||currentOwner!==FlowCloud.info().user?.id)return;
    emails=(more?[...emails.filter(e=>!collected.some(n=>n.id===e.id)),...collected]:collected).sort((a,b)=>b.date-a.date);nextPage=list.nextPageToken||'';
