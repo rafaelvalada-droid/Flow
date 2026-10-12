@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {POST,validateReview} from '../api/gmail-review.mjs';
+import {POST,validateReview,geminiFailure} from '../api/gmail-review.mjs';
 const areas=[{id:'oferta',name:'Oferta de turmas'}];
 test('Review keeps only known areas and bounds untrusted output',()=>{const r=validateReview({summary:'Resumo',title:'Título',areaId:'inventada',dueDate:'amanhã',alert:'a'.repeat(400)},areas);assert.equal(r.areaId,'');assert.equal(r.dueDate,'');assert.equal(r.alert.length,300);assert.equal(r.needsReview,true);});
 test('Authenticated Gemini review checks identity and rejects invented date evidence',async()=>{
@@ -13,4 +13,13 @@ test('Authenticated Gemini review checks identity and rejects invented date evid
   calls=[];const denied=await POST(new Request('https://flow.test/api/gmail-review',{method:'POST'}));assert.equal(denied.status,401);assert.equal(calls.length,0);
   globalThis.fetch=async()=>new Response('{}',{status:401});assert.equal((await POST(request())).status,401);
  }finally{globalThis.fetch=originalFetch;process.env=oldEnv;}
+});
+
+test('Google failures identify quota, disabled service, invalid keys and model errors without exposing credentials',()=>{
+ assert.match(geminiFailure(429),/cota/);
+ assert.match(geminiFailure(400,{error:{details:[{reason:'API_KEY_INVALID'}]}}),/chave Gemini foi rejeitada/);
+ assert.match(geminiFailure(403,{error:{details:[{reason:'SERVICE_DISABLED'}]}}),/Generative Language/);
+ assert.match(geminiFailure(403,{error:{details:[{reason:'API_KEY_HTTP_REFERRER_BLOCKED'}]}}),/restrição/);
+ assert.match(geminiFailure(404),/modelo/);
+ const message=geminiFailure(403,{error:{message:'PRIVATE-KEY-HERE'}});assert.ok(!message.includes('PRIVATE-KEY-HERE'));
 });

@@ -22,6 +22,7 @@ async def main(folder):
         page = await context.new_page()
         await page.clock.install(time=datetime(2026, 10, 10, 18, tzinfo=timezone.utc))
         await page.goto(BASE)
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-direction li')).to_have_count(5)
         positions = await page.locator('.pipeline-direction li').evaluate_all('(items)=>items.map(el=>el.getBoundingClientRect().x)')
         assert positions == sorted(positions)

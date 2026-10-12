@@ -26,7 +26,7 @@ async def run():
    else:await req.continue_()
   await context.route('**/*',route)
   page=await context.new_page();await page.goto('http://127.0.0.1:3000')
-  await page.locator('#sidebar-nav [data-page="entrada"]').click()
+  await expect(page.locator('.page-head h1')).to_have_text('Entrada')
   assert await page.locator('[data-page="gmail"]').count()==0
   await page.locator('#screen [data-action="new-task"]').click()
   await page.locator('#active-modal-form [name="title"]').fill('Entrada manual')

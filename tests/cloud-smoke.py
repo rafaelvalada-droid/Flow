@@ -155,6 +155,7 @@ async def main():
         await expect(page.locator('.app-shell')).to_be_hidden()
         await page.evaluate('data=>localStorage.setItem("flow.workspace.v1",JSON.stringify(data))', LEGACY)
         await page.locator('#google-login').click()
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-board')).to_be_visible()
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert len(services.authorizations) == len(services.exchanges) == 1
@@ -170,6 +171,7 @@ async def main():
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert services.rows[A]['data']['tasks'][0]['id'] == 'legacy-task'
         await page.reload()
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-task')).to_have_count(1)
         passed('Explicit local import preserves task IDs and survives a cloud reload')
 
@@ -218,6 +220,7 @@ async def main():
         await page.evaluate('FlowCloud.flush()')
         await page.locator('#sidebar-nav [data-page="agenda"]').click()
         await page.locator('[data-action="calendar-connect"]').click()
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-board')).to_be_visible()
         await page.wait_for_function('FlowCalendar.info().status==="synced"')
         assert 'calendar.events' in services.authorizations[-1]['scopes'][0]
@@ -274,6 +277,7 @@ async def main():
         await expect(page.locator('#google-login')).to_be_visible()
         services.oauth_user = B
         await page.locator('#google-login').click()
+        await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-board')).to_be_visible()
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert await page.locator('.pipeline-task').count() == 0

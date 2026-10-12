@@ -55,7 +55,7 @@
   workflow.reconcile(db);
   db.initiatives=Array.isArray(db.initiatives)?db.initiatives:[];
   const expandedDemands=new Set();
-  let view={page:workspace.resumePage||'esteira',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
+  let view={page:'entrada',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
   let accessToken='';
   let toastTimeout;
   const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));cloud.queue(db);globalThis.FlowCalendar.schedule()}catch(e){notice('Não foi possível salvar os dados. Verifique o espaço disponível no navegador.')}};
@@ -333,7 +333,7 @@
       case 'gmail-read-connect':try{await cloud.signIn('gmail')}catch(error){notice(error.message)}break;
       case 'gmail-refresh':await FlowGmailReview.refresh();await FlowGmailReview.analyze(db,persist);break;
       case 'gmail-more':await FlowGmailReview.refresh(true);await FlowGmailReview.analyze(db,persist);break;
-      case 'gmail-analyze':await FlowGmailReview.analyze(db,persist);break;
+      case 'gmail-analyze':await FlowGmailReview.analyze(db,persist,true);break;
       case 'gmail-read-disconnect':cloud.disconnectGmail();FlowGmailReview.reset();render();break;
       case 'gmail-mobile':
         try{const token=await cloud.createGmailToken();promptModal({title:'Gmail no celular',subtitle:'Cole esta chave no complemento Incluir no Flow. Ela vale por 90 dias e substitui a conexão anterior.',content:`<label class="field">Chave de conexão<input readonly value="${html(token)}" autocomplete="off" spellcheck="false" aria-label="Chave de conexão Gmail" /></label><p class="smalltext">Guarde esta chave apenas no complemento. Ela permite consultar áreas e incluir demandas na sua conta.</p>`,onSubmit:()=>true,ok:'Fechar'})}catch(error){notice(error.message)}break;
