@@ -97,7 +97,7 @@
       const db = getDatabase(), owner = FlowCloud.info().user.id;
       db.calendar ||= {events: {}};
       db.calendar.events ||= {};
-      // Remove only Ulbraflow-owned events that no longer have an execution date.
+      // Remove only Uflow-owned events that no longer have an execution date.
       for (const taskId of Object.keys(db.calendar.events)) {
         if (db.tasks.some(t => t.id === taskId && t.plannedDate)) continue;
         const id = await eventId(owner, taskId);
@@ -118,7 +118,7 @@
         catch (err) {
           if (err.status !== 409) throw err;
           const existing = await api('/' + id);
-          if (!owned(existing, owner, task.id)) throw new Error('O evento existente não pertence a esta tarefa do Ulbraflow.');
+          if (!owned(existing, owner, task.id)) throw new Error('O evento existente não pertence a esta tarefa do Uflow.');
           event = await api('/' + id, 'PATCH', body);
         }
         // Keep the signature of the snapshot sent, even if the task changed during the request.

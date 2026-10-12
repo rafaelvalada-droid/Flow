@@ -196,7 +196,7 @@ async def main(profile):
         await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-10')
         await gmail.locator('#flow-gmail-dialog [name="title"]').fill('Organizar planejamento')
         await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no Ulbraflow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no Uflow')
         flow_id = next(i for i, page in adapter.pages.items() if page.url.startswith(FLOW))
         flow = adapter.pages[flow_id]
         db = await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1'))")
@@ -223,7 +223,7 @@ async def main(profile):
         await email_page.close()
         passed('The explicit Abrir Gmail button on the pipeline card opens the original conversation')
 
-        await gmail.get_by_role('button', name='Ver no Ulbraflow').click()
+        await gmail.get_by_role('button', name='Ver no Uflow').click()
         await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
         assert adapter.active_id == flow_id
         passed('Ver no Flow activates the destination tab and closes the Gmail dialog')
@@ -283,7 +283,7 @@ async def main(profile):
         await flow.evaluate("""() => {const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));db.projects=[];localStorage.setItem('flow.workspace.v1',JSON.stringify(db));}""")
         await gmail.locator('#flow-close').click()
         await button.click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Crie uma área no Ulbraflow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Crie uma área no Uflow')
         await expect(gmail.locator('#flow-gmail-dialog [type="submit"]')).to_be_disabled()
         passed('An empty list collection cannot create an orphan task')
 

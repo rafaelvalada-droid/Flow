@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Ulbraflow — Workspace",
-  "short_name": "Ulbraflow",
+  "name": "Uflow — Workspace",
+  "short_name": "Uflow",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
@@ -10,19 +10,19 @@
   "theme_color": "#045a52",
   "icons": [
     {
-      "src": "/assets/icons/ulbraflow-steps-192.png",
+      "src": "/assets/icons/uflow-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/icons/ulbraflow-steps-512.png",
+      "src": "/assets/icons/uflow-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/icons/ulbraflow-steps-maskable-512.png",
+      "src": "/assets/icons/uflow-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

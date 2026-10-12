@@ -1,4 +1,4 @@
-# Ulbraflow — Workspace
+# Uflow — Workspace
 
 Classifique cada demanda por área e prazo, organize o trabalho em uma esteira comum e concentre-se em uma tarefa de cada vez.
 
@@ -14,7 +14,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Gmail:** extensão 1.3 com Incluir no Flow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-A marca Ulbraflow apresenta “Ulbra” em verde e “flow” em amarelo vivo (#FFD600), com destaques amarelos na interface. O símbolo escolhido (opção 4 da primeira grade de seis variações), com três quadrados em sequência nas cores verde e amarelo chapado, aparece no acesso, na barra lateral, no PDF e nos ícones de instalação. O logo verde Ulbra S.A. aparece no acesso e na barra superior.
+A marca Uflow apresenta “U” em verde profundo (#045A52) e “flow” em âmbar (#FBB640), com destaques âmbar na interface. O símbolo aprovado é “Uf”: U branco e f âmbar em um quadrado verde com cantos arredondados, acompanhado de uma esteira conectada de três etapas. A mesma imagem aparece no acesso, na barra lateral, no PDF e nos ícones de instalação, com um ícone maskable separado para Android. O logo verde Ulbra S.A. aparece no acesso e na barra superior.
 
 ## Google e armazenamento
 
@@ -66,7 +66,7 @@ Nova demanda inclui data e hora de execução separadas do prazo final. Pela Age
 
 A esteira oferece Retornar de Em andamento para A fazer, de Aguardando para Em andamento e de Concluídas para Aguardando, preservando a classificação e o histórico de tempo. Conexão da Agenda e instruções do Gmail ficam em controles compactos com detalhes expansíveis.
 
-O relatório de Gestão do Tempo baixa um PDF direto no navegador, sem diálogo de impressão. Cabeçalho com Ulbraflow e Ulbra S.A., fontes incorporadas, indicadores, gráficos e tarefas paginadas. jsPDF 3.0.3 e fontes DejaVu estão incluídos localmente com licenças em vendor/ e assets/fonts/. Dados permanecem no navegador; não são enviados para gerar o PDF.
+O relatório de Gestão do Tempo baixa um PDF direto no navegador, sem diálogo de impressão. Cabeçalho com Uflow e Ulbra S.A., fontes incorporadas, indicadores, gráficos e tarefas paginadas. jsPDF 3.0.3 e fontes DejaVu estão incluídos localmente com licenças em vendor/ e assets/fonts/. Dados permanecem no navegador; não são enviados para gerar o PDF.
 
 Ocultar concluídas recolhe a coluna de entregues sem excluir dados; Mostrar concluídas restaura a esteira completa. Os indicadores superiores são compactos. A Agenda mantém conexão e navegação da semana junto do cabeçalho.
 
