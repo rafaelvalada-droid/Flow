@@ -40,24 +40,26 @@
           method: 'POST', body: JSON.stringify({refresh_token: old.refresh_token})
         }, false);
         if (next?.user?.id !== old.user?.id) throw new Error('A sessão mudou. Entre novamente.');
-        remember({...next, provider_token: old.provider_token, calendarConnected: old.calendarConnected});
+        remember({...next, provider_token: old.provider_token, calendarConnected: old.calendarConnected, gmailConnected:old.gmailConnected});
       };
       refresh = (navigator.locks ? navigator.locks.request('flow-auth-refresh', renew) : renew()).finally(() => { refresh = null; });
     }
     await refresh;
   }
   async function signIn(calendar = false) {
+    const gmail=calendar==='gmail';
+    const includeCalendar=gmail?!!session?.calendarConnected:!!calendar;
     if (!config?.configured) throw new Error('Para ativar Entrar com Google, configure o projeto Supabase na Vercel. Consulte as instruções de ativação.');
     if (calendar && pending) await flush();
     const bytes = crypto.getRandomValues(new Uint8Array(32));
     const base64url = data => btoa(String.fromCharCode(...data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const verifier = base64url(bytes);
     const challenge = base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
-    sessionStorage.setItem(PKCE, JSON.stringify({verifier, calendar, expectedUser: calendar ? user.id : null, createdAt: Date.now()}));
+    sessionStorage.setItem(PKCE, JSON.stringify({verifier, calendar:includeCalendar,gmail, expectedUser: calendar ? user.id : null, createdAt: Date.now()}));
     const url = new URL(config.url + '/auth/v1/authorize');
     url.search = new URLSearchParams({provider: 'google', redirect_to: location.origin + location.pathname,
       code_challenge: challenge, code_challenge_method: 's256', prompt: calendar ? 'consent' : 'select_account',
-      ...(calendar ? {scopes: 'https://www.googleapis.com/auth/calendar.events'} : {})});
+      ...(calendar ? {scopes:[...(includeCalendar?['https://www.googleapis.com/auth/calendar.events']:[]),...(gmail||session?.gmailConnected?['https://www.googleapis.com/auth/gmail.modify']:[])].join(' ')} : {})});
     location.assign(url.href);
   }
   async function initialize() {
@@ -90,7 +92,7 @@
         method: 'POST', body: JSON.stringify({auth_code: code, code_verifier: proof.verifier})
       }, false);
       if (proof.expectedUser && next?.user?.id !== proof.expectedUser) throw new Error('Conecte a Agenda usando a mesma conta Google do Flow.');
-      remember({...next, calendarConnected: !!(proof.calendar && next.provider_token)});
+      remember({...next, calendarConnected: !!(proof.calendar && next.provider_token),gmailConnected:!!((proof.gmail||session?.gmailConnected)&&next.provider_token)});
     }
     if (!session) return {mode: 'login'};
     // Use the verified user, never an email or user ID supplied by the browser.
@@ -195,7 +197,10 @@
       location.reload();
     } else session = next;
   });
-  globalThis.FlowCloud = {createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
+  async function analyzeGmail(body){
+    await ensureToken();const response=await fetch('/api/gmail-review',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),signal:AbortSignal.timeout(45000)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Falha na análise.');return result;
+  }
+  globalThis.FlowCloud = {analyzeGmail,gmailToken:()=>session?.gmailConnected?session.provider_token:null,disconnectGmail:()=>{if(session)remember({...session,gmailConnected:false})},createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
     info: () => ({mode: user ? 'cloud' : 'local', user, key, status, error, configured: !!config?.configured}),
     calendarToken: () => session?.calendarConnected ? session.provider_token : null,
     disconnectCalendar: () => { if (session) { remember({...session, provider_token: null, calendarConnected: false}); } }};

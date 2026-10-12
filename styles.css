@@ -146,3 +146,7 @@ input,textarea,select{accent-color:var(--accent)}
 .area-projects{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:15px;margin-top:18px}
 
 .page-head>.row{flex-wrap:wrap;justify-content:flex-end;max-width:100%}
+
+.gmail-review-box{margin-bottom:20px}.gmail-review-box>.between,.gmail-review-box .row{flex-wrap:wrap}.gmail-review-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px;margin-top:15px}.gmail-review-card{padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}.gmail-review-card h3{font-size:14px;margin:0 0 7px}.gmail-summary{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.review-alert{font-size:11px;color:#806032}.gmail-review-card form>.row{margin-top:12px}.gmail-review-card .field{margin-top:10px}.gmail-review-card .button{font-size:11px}.gmail-review-card .detail-grid{gap:10px}
+
+.sender-color-label{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin:8px 0}.sender-color-label input{width:30px;height:24px;padding:2px;border:1px solid var(--border);border-radius:4px}.archive-choice{display:flex;gap:7px;align-items:center;font-size:11px;margin-top:12px}

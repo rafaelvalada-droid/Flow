@@ -80,10 +80,16 @@
   const focusTask=()=>findTask(db.focus?.taskId)||db.tasks.find(t=>t.id===view.focusId&&t.status!=='done'&&workflow.classified(db,t))||nextTask()||db.tasks.filter(t=>t.status!=='done'&&workflow.classified(db,t)).sort(workflow.byDue)[0];
   const workflowTrail=()=>'<div class="workflow-trail"><span><b>01</b> Classificar</span><i>→</i><span><b>02</b> Organizar na esteira</span><i>→</i><span><b>03</b> Entrar em foco</span></div>';
 
-  function renderInbox(){
-    const tasks=db.tasks.filter(t=>workflow.stage(db,t)==='inbox').sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    return pageHead('Primeiro, dê um destino.','Duas perguntas para cada demanda: para onde vai e para quando?')+workflowTrail()+`<section class="card inbox-card"><div class="between"><h3 class="sectiontitle">A classificar</h3><span class="pill">${tasks.length} demandas</span></div>${tasks.map(t=>`<article class="inbox-item"><div><button class="text-button" data-task="${html(t.id)}">${html(t.title)}</button><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}${t.gmailUrl?'<span class="pill">✉ Gmail</span>':''}</div></div>${button('Classificar →','classify-task',true,`data-id="${html(t.id)}"`)}</article>`).join('')||`<div class="empty inbox-empty"><span>✓</span><h2>Entrada em dia.</h2><p>As demandas já têm destino e data. Seu trabalho está na esteira.</p>${button('Ir para a esteira','show-pipeline',true)}</div>`}</section>`;
+  function linkedEmailTask(email){return db.tasks.find(t=>t.gmailThreadId===email.id||t.gmailCaptureId==='gmail-mobile-'+email.id||t.gmailUrl?.endsWith('#all/'+email.id));}
+  function renderGmailReview(){
+    const state=FlowGmailReview.info(),connected=!!cloud.gmailToken();
+    const rows=state.emails.filter(email=>{const r=db.gmailReviews?.[email.id],t=linkedEmailTask(email);return !(r?.messageId===email.messageId&&['accepted','ignored'].includes(r.state))&&!(t?.gmailMessageId===email.messageId&&r?.state!=='pending')});
+    return `<section class="card gmail-review-box"><div class="between"><h3 class="sectiontitle">Para revisar</h3><div class="row">${connected?button(state.loading?'Buscando…':'Atualizar e-mails','gmail-refresh',false,state.loading?'disabled':'')+button(state.analyzing?'Analisando…':'Analisar com Gemini','gmail-analyze',false,state.analyzing||!state.emails.length?'disabled':'')+button('Desconectar leitura','gmail-read-disconnect'):button('Conectar leitura do Gmail','gmail-read-connect',true)}</div></div><p class="smalltext muted">A leitura consulta a caixa de entrada. Ao analisar, o texto das últimas três mensagens é enviado ao Gemini, sem anexos. Você confirma cada demanda antes de incluí-la na esteira.</p>${state.error?`<p class="sync-error" role="alert">${html(state.error)}</p>`:''}<div class="gmail-review-grid">${rows.map(email=>{const sender=FlowGmailReview.address(email.sender).toLowerCase(),color=/^#[a-f0-9]{6}$/i.test(db.gmailSenderColors?.[sender]||'')?db.gmailSenderColors[sender]:'',review=db.gmailReviews?.[email.id],current=review?.messageId===email.messageId?review:null,existing=linkedEmailTask(email);return `<article class="gmail-review-card" ${color?`style="border-left:4px solid ${color};background:${color}14"`: ''}><h3>${html(email.subject)}</h3><p class="smalltext muted">${html(email.sender)} · ${new Date(email.date).toLocaleDateString('pt-BR')}</p>${existing?'<span class="pill">Nova resposta · demanda já vinculada</span>':''}<p class="gmail-summary">${html(current?.summary||email.snippet||'Sem texto disponível.')}</p>${current?.alert?`<p class="review-alert">${html(current.alert)}</p>`:''}${current?.needsReview?'<p class="smalltext muted">Confira a classificação sugerida.</p>':''}<label class="sender-color-label">Cor deste remetente <input type="color" data-sender-color="${html(sender)}" value="${color||'#507ee9'}" /></label>${email.truncated?'<p class="smalltext muted">Análise limitada às últimas mensagens e a 12 mil caracteres.</p>':''}<form data-email-review="${html(email.id)}"><label class="field">Título da demanda<input name="title" maxlength="180" required value="${html(current?.title||email.subject.slice(0,180))}" /></label><div class="detail-grid"><label class="field">Área${!current?'<small>Escolha uma área ou analise com Gemini</small>':''}<select name="project" required>${projOption(current?.areaId||existing?.project||'',false)}</select></label><label class="field">Prazo final<input name="dueDate" type="date" required value="${html(workflow.validDate(current?.dueDate)?current.dueDate:existing?.dueDate||'')}" /></label></div>${current?.dateEvidence?`<p class="smalltext muted">Trecho do prazo: “${html(current.dateEvidence)}”</p>`:''}<label class="archive-choice"><input type="checkbox" name="archive" checked> Arquivar no Gmail após salvar</label><div class="row"><button type="button" class="button" data-reply-email="${html(email.id)}">Responder</button><button type="submit" class="button primary">${existing?'Atualizar demanda':'✓ Incluir na esteira'}</button><button type="button" class="button" data-ignore-email="${html(email.id)}">Ignorar</button><a class="button" target="_blank" rel="noopener noreferrer" href="${html(email.gmailUrl)}">Abrir Gmail</a></div></form></article>`}).join('')||`<p class="muted smalltext">${state.loading?'Carregando e-mails…':connected?'Clique em Atualizar e-mails para buscar mensagens, ou todas as mensagens carregadas já foram revisadas.':'Conecte sua conta para revisar os e-mails aqui.'}</p>`}${db.tasks.filter(t=>workflow.stage(db,t)==='inbox').map(t=>`<article class="gmail-review-card"><span class="pill">${t.gmailUrl?'E-mail vinculado':'Entrada manual'}</span><h3 style="margin-top:10px">${html(t.title)}</h3><p class="gmail-summary">${html(t.description||'')}</p><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}</div><div class="row" style="margin-top:12px">${button('Classificar →','classify-task',true,`data-id="${html(t.id)}"`)}${button('Detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div></article>`).join('')}</div>${state.nextPage?button('Carregar mais','gmail-more'):''}</section>`;
   }
+  function renderInbox(){
+    return pageHead('Entrada','Revise e-mails e registros manuais antes de incluí-los na esteira.',`<div class="row">${button('Conectar celular','gmail-mobile')}${button('Desconectar celular','gmail-mobile-revoke')}${button('+ Adicionar entrada','new-task',true)}</div>`)+workflowTrail()+renderGmailReview();
+  }
+
   function renderPipeline(){
     const open=db.tasks.filter(t=>t.status!=='done'), today=localDate();
     const inbox=open.filter(t=>workflow.stage(db,t)==='inbox').length;
@@ -127,7 +133,7 @@
         <label class="field">Prazo final<input id="edit-due" type="date" value="${html(t.dueDate||'')}" /></label>
         <label class="field">Agenda Google (.ics)<button class="button" style="margin-top:6px;display:block;width:100%" data-action="export-ics" type="button">↧ Exportar evento</button></label>
       </div>
-      <div class="timerbox"><div class="label">◷ TEMPO DE TRABALHO</div><div class="timer-value" data-time="${html(t.id)}">${secondsLabel(sessionSeconds(t))}</div><div class="timer-meta">${active(t)?'● Ciclo de foco em andamento':'Tempo registrado de trabalho'} · ${len} ${len===1?'sessão':'sessões'} no histórico</div><div class="actionbar">${active(t)?button('Ⅱ Pausar','pause',true):button('Entrar em foco','start',true)}${t.status==='done'?button('← Reabrir tarefa','return-task',false,`data-id="${html(t.id)}"`):button('✓ Concluir','complete')}${t.gmailUrl?button('↗ Voltar ao Gmail','open-email'):''}</div></div>
+      <div class="timerbox"><div class="label">◷ TEMPO DE TRABALHO</div><div class="timer-value" data-time="${html(t.id)}">${secondsLabel(sessionSeconds(t))}</div><div class="timer-meta">${active(t)?'● Ciclo de foco em andamento':'Tempo registrado de trabalho'} · ${len} ${len===1?'sessão':'sessões'} no histórico</div><div class="actionbar">${active(t)?button('Ⅱ Pausar','pause',true):button('Entrar em foco','start',true)}${t.status==='done'?button('← Reabrir tarefa','return-task',false,`data-id="${html(t.id)}"`):button('✓ Concluir','complete')}${t.gmailUrl?button('↗ Voltar ao Gmail','open-email'):''}${t.gmailThreadId?button('Responder e-mail','reply-task'):''}</div></div>
       ${titleRow('Subtarefas',`<span class="pill">${t.subtasks.filter(s=>s.done).length}/${t.subtasks.length}</span>`)}${t.subtasks.map(s=>`<label class="subtask ${s.done?'done':''}"><input type="checkbox" data-sub="${html(s.id)}" ${s.done?'checked':''} /><span>${html(s.text)}</span><button class="button small ghost right" type="button" data-delete-sub="${html(s.id)}" aria-label="Excluir subtarefa">✕</button></label>`).join('')||'<div class="muted smalltext" style="margin-top:10px">Ainda não há subtarefas.</div>'}
       <form class="inline-add" id="sub-form"><input name="title" required placeholder="+ Adicionar subtarefa" maxlength="180"/><button class="button small" type="submit">Adicionar</button></form>
       ${origin}<div class="divider"></div>
@@ -206,10 +212,13 @@
     $('.sidebar-foot strong').textContent=account.user?.email||'Meu workspace';
     $('.sidebar-foot small').textContent=account.mode==='cloud'?'Google · Supabase':'Flow · neste navegador';
   }
-  function renderGmail(){
-    const linked=db.tasks.filter(t=>t.gmailUrl);
-    const mail=view.mailSelected?findTask(view.mailSelected):null;
-    return pageHead('Gmail + Flow','Cada e-mail vira uma tarefa, sem perder o acesso à conversa original.',`<div class="row">${button('Conectar celular','gmail-mobile')}${button('Desconectar celular','gmail-mobile-revoke')}${button('+ Vincular e-mail','link-email',true)}</div>`)+`<div class="mailgrid ${mail?'':'mailgrid-single'}"><section class="card"><div class="between"><h3 class="sectiontitle">Conversas vinculadas</h3><span class="pill">${linked.length}</span></div><div style="margin-top:13px">${linked.map(t=>`<button class="mail-link" data-mail-task="${html(t.id)}"><b>${html(t.gmailSubject||t.title)}</b><small>${html(t.gmailSender||'Gmail')} · ${html(projectName(t.project))}</small></button>`).join('')||'<div class="empty">Nenhuma conversa vinculada. Use a extensão ou o botão de vinculação.</div>'}</div></section><section class="card" ${mail?'':'hidden'}>${mail?`<div class="eyebrow">E-MAIL DE ORIGEM</div><h2 class="mail-subject">${html(mail.gmailSubject||mail.title)}</h2><p class="smalltext muted">${html(mail.gmailSender||'Remetente não registrado')}</p><div class="divider"></div><p class="smalltext">Esta conversa está associada à tarefa <strong>${html(mail.title)}</strong>.</p><div class="actionbar">${button('↗ Abrir Gmail','open-linked-email',true)}${button('Abrir tarefa no Flow','open-mail-task')}</div>`:''}</section></div>`;
+  async function composeReply(threadId){
+    try{const email=await FlowGmailReview.replyContext(threadId),me=cloud.info().user?.email?.toLowerCase(),sender=FlowGmailReview.address(email.sender),recipient=sender.toLowerCase()===me?FlowGmailReview.address(email.recipient):sender;
+    promptModal({title:'Responder e-mail',subtitle:email.subject,content:`<label class="field">Para<input name="to" type="email" required value="${html(recipient)}" /></label><label class="field">Resposta<textarea name="message" required rows="8" maxlength="20000"></textarea></label><label class="field">Anexos · até 10 MB no total<input type="file" name="attachments" multiple /></label><p class="smalltext muted">O botão Enviar resposta envia o e-mail pela sua conta Gmail.</p><p id="reply-status" role="status"></p>`,onSubmit:()=>false,ok:'Enviar resposta'});
+    const form=$('#active-modal-form');let sending=false;
+    form.addEventListener('submit',async event=>{event.preventDefault();if(sending)return;sending=true;const send=form.querySelector('[type="submit"]');send.disabled=true;const status=form.querySelector('#reply-status');status.textContent='Enviando…';
+     try{await FlowGmailReview.reply(email,form.elements.to.value,form.elements.message.value,[...form.elements.attachments.files]);closeModal();notice('Resposta enviada pelo Gmail.');}catch(error){status.textContent=error.message;}finally{sending=false;send.disabled=false;}
+    });}catch(error){notice(error.message)}
   }
   function renderAlerts(){
     const rows=[['Lembrar antes do vencimento','Planejado para a etapa de envio de e-mails.'],['Acompanhar tarefas atrasadas','Alerta para tarefas cujo prazo final já passou.'],['Resumo diário de tarefas','Consolidar as demandas previstas para cada dia.'],['Resumo semanal por área','Entregar um resumo de pendências por área.']];
@@ -230,7 +239,7 @@
     document.querySelectorAll('#sidebar-nav [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===view.page));
     const inbox=db.tasks.filter(t=>workflow.stage(db,t)==='inbox').length;
     const count=$('#inbox-count');if(count){count.textContent=inbox;count.hidden=!inbox}
-    $('#screen').innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,area:renderArea,agenda:renderCalendar,gmail:renderGmail,alertas:renderAlerts,tempo:renderTime})[view.page]();tick();
+    $('#screen').innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,area:renderArea,agenda:renderCalendar,gmail:renderInbox,alertas:renderAlerts,tempo:renderTime})[view.page]();tick();if(view.page==='entrada')restoreEmailDrafts();
   }
   function stop(t){if(!t)return;if(db.focus?.taskId===t.id)workflow.pause(db);else workflow.cancel(db,t.id)}
   function start(t){
@@ -240,7 +249,7 @@
     workflow.start(db,t.id);view.focusId=t.id;persist();openPage('foco');notice('Uma tarefa, um ciclo de foco.');
   }
   function complete(t){if(!t)return;workflow.cancel(db,t.id);t.status='done';t.completedAt=Date.now();persistAndRender();notice('Tarefa concluída. Tempo de trabalho preservado.')}
-  function openPage(page){if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0)}
+  function openPage(page){if(page==='gmail')page='entrada';if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0);if(page==='entrada'&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))}
   function selectTask(id){if(view.page!=='tarefas')view.detailReturnPage=view.page;view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
   function openGmail(t){const url=validGmailUrl(t?.gmailUrl);if(!url){notice('Não há um link válido do Gmail nesta tarefa.');return}window.open(url,'_blank','noopener,noreferrer')}
   function download(filename, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
@@ -303,6 +312,8 @@
     const element=e.target.closest('button');if(!element)return;
     const areaId=element.dataset.areaUp||element.dataset.areaDown;
     if(areaId){const index=db.projects.findIndex(p=>p.id===areaId),target=index+(element.dataset.areaUp?-1:1);if(index>=0&&target>=0&&target<db.projects.length){[db.projects[index],db.projects[target]]=[db.projects[target],db.projects[index]];persistAndRender();document.querySelector(`[data-area-${element.dataset.areaUp?'up':'down'}="${CSS.escape(areaId)}"]`)?.focus()}return}
+    if(element.dataset.ignoreEmail){const email=FlowGmailReview.info().emails.find(e=>e.id===element.dataset.ignoreEmail);if(email){db.gmailReviews??={};db.gmailReviews[email.id]={...(db.gmailReviews[email.id]||{}),messageId:email.messageId,state:'ignored'};persistAndRender()}return}
+    if(element.dataset.replyEmail){await composeReply(element.dataset.replyEmail);return}
     const page=element.dataset.page;
     if(page){openPage(page);return}
     if(element.dataset.timePeriod){view.timePeriod=element.dataset.timePeriod;view.timeOffset=0;render();return}
@@ -319,6 +330,11 @@
       case 'area-new-task':newTask({project:view.areaId});break;
       case 'initiative-new-task':{const initiative=(db.initiatives||[]).find(p=>p.id===element.dataset.id&&p.areaId===view.areaId);if(initiative)newTask({project:view.areaId,initiativeId:initiative.id});break}
       case 'new-task':newTask();break;
+      case 'gmail-read-connect':try{await cloud.signIn('gmail')}catch(error){notice(error.message)}break;
+      case 'gmail-refresh':await FlowGmailReview.refresh();await FlowGmailReview.analyze(db,persist);break;
+      case 'gmail-more':await FlowGmailReview.refresh(true);await FlowGmailReview.analyze(db,persist);break;
+      case 'gmail-analyze':await FlowGmailReview.analyze(db,persist);break;
+      case 'gmail-read-disconnect':cloud.disconnectGmail();FlowGmailReview.reset();render();break;
       case 'gmail-mobile':
         try{const token=await cloud.createGmailToken();promptModal({title:'Gmail no celular',subtitle:'Cole esta chave no complemento Incluir no Flow. Ela vale por 90 dias e substitui a conexão anterior.',content:`<label class="field">Chave de conexão<input readonly value="${html(token)}" autocomplete="off" spellcheck="false" aria-label="Chave de conexão Gmail" /></label><p class="smalltext">Guarde esta chave apenas no complemento. Ela permite consultar áreas e incluir demandas na sua conta.</p>`,onSubmit:()=>true,ok:'Fechar'})}catch(error){notice(error.message)}break;
       case 'gmail-mobile-revoke':try{await cloud.revokeGmailToken();notice('Conexão do Gmail no celular revogada.')}catch(error){notice(error.message)}break;
@@ -340,6 +356,7 @@
       case 'pause':stop(t);persistAndRender();notice('Cronômetro pausado.');break;
       case 'complete':complete(t);break;
       case 'delete-task':if(confirm('Excluir a tarefa e todo seu histórico de tempo?')){workflow.cancel(db,t.id);db.tasks=db.tasks.filter(x=>x.id!==t.id);view.selectedId=null;persist();openPage(view.detailReturnPage||'esteira');notice('Tarefa excluída.')}break;
+      case 'reply-task':if(t?.gmailThreadId)await composeReply(t.gmailThreadId);break;
       case 'open-email':openGmail(t);break;
       case 'open-linked-email':openGmail(findTask(view.mailSelected));break;
       case 'open-mail-task':selectTask(view.mailSelected);break;
@@ -375,8 +392,20 @@
     if(e.target.id==='sub-form'){e.preventDefault();const txt=e.target.elements.title.value.trim();if(!txt)return;selectedTask().subtasks.push({id:uuid(),text:txt.slice(0,180),done:false});persistAndRender()}
     if(e.target.id==='active-modal-form'){e.preventDefault();const submit=$('#modal-backdrop')._submit;if(!submit)return;const result=submit(new FormData(e.target));if(result!==false)closeModal()}
   });
+  document.addEventListener('submit',async event=>{
+    const form=event.target;if(!form.dataset.emailReview)return;event.preventDefault();
+    const email=FlowGmailReview.info().emails.find(e=>e.id===form.dataset.emailReview);if(!email)return;
+    const data=new FormData(form),project=String(data.get('project')||''),dueDate=String(data.get('dueDate')||''),title=String(data.get('title')||'').trim();
+    if(!title||!db.projects.some(p=>p.id===project)||!workflow.validDate(dueDate)){notice('Confira o título, a área e o prazo.');return}
+    const submit=form.querySelector('[type="submit"]');if(submit.disabled)return;submit.disabled=true;const shouldArchive=data.has('archive');
+    const existing=linkedEmailTask(email),cached=db.gmailReviews?.[email.id],review=cached?.messageId===email.messageId?cached:null;
+    if(existing){existing.title=title;existing.gmailSubject=email.subject;existing.gmailSender=email.sender;existing.project=project;existing.dueDate=dueDate;existing.gmailMessageId=email.messageId;existing.gmailThreadId=email.id;}
+    else db.tasks.unshift({id:uuid(),title,project,dueDate,status:'todo',priority:'medium',plannedDate:'',plannedTime:'',description:review?.summary||email.snippet,subtasks:[],sessions:[],startedAt:null,focusCycles:0,completedAt:null,createdAt:Date.now(),gmailUrl:email.gmailUrl,gmailSubject:email.subject,gmailSender:email.sender,gmailCaptureId:'gmail-review-'+email.id,gmailThreadId:email.id,gmailMessageId:email.messageId});
+    db.gmailReviews??={};db.gmailReviews[email.id]={...(review||{}),messageId:email.messageId,state:'accepted'};persistAndRender();let confirmed=false;try{await cloud.flush(db);confirmed=true;if(shouldArchive)await FlowGmailReview.archive(email.id);notice(shouldArchive?'Demanda salva e e-mail arquivado.':existing?'Demanda atualizada.':'Demanda incluída na esteira.')}catch(error){if(!confirmed){db.gmailReviews[email.id].state='pending';persistAndRender();notice('A nuvem não confirmou o salvamento. O e-mail não foi arquivado: '+error.message)}else notice('Demanda salva, mas o Gmail não foi arquivado: '+error.message)}
+  });
   document.addEventListener('change',e=>{
     const x=e.target,t=selectedTask();
+    if(x.dataset.senderColor){db.gmailSenderColors??={};db.gmailSenderColors[x.dataset.senderColor]=x.value;persistAndRender();return}
     if(x.dataset.moveTask){const task=findTask(x.dataset.moveTask);if(!task||!['todo','doing','waiting','done'].includes(x.value))return;if(x.value==='done'){complete(task);return}if(x.value!=='doing')workflow.cancel(db,task.id);task.status=x.value;task.completedAt=null;persistAndRender();return}
     if(x.dataset.focusSub){const sub=focusTask()?.subtasks.find(s=>s.id===x.dataset.focusSub);if(sub){sub.done=x.checked;persistAndRender()}return}
     if(x.dataset.sub){const sub=t.subtasks.find(s=>s.id===x.dataset.sub);if(sub){sub.done=x.checked;persistAndRender()}return}
@@ -394,6 +423,12 @@
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
   window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){db=workflow.normalize(load());if(workflow.reconcile(db))persist();render()}});
   window.addEventListener('flow:open-capture',event=>{db=workflow.normalize(load());const task=db.tasks.find(t=>t.gmailCaptureId===event.detail?.requestId);if(task){view.projectBoard='all';openPage('esteira');selectTask(task.id)}});
+  function rememberEmailDraft(event){const x=event.target,form=x.closest?.('form[data-email-review]');if(!form||!x.name)return;const email=FlowGmailReview.info().emails.find(e=>e.id===form.dataset.emailReview);if(!email)return;view.emailDrafts??={};let draft=view.emailDrafts[email.id];if(draft?.messageId!==email.messageId)draft=view.emailDrafts[email.id]={messageId:email.messageId,fields:{}};draft.fields[x.name]=x.type==='checkbox'?x.checked:x.value;}
+  document.addEventListener('input',rememberEmailDraft);document.addEventListener('change',rememberEmailDraft);
+  function restoreEmailDrafts(){for(const email of FlowGmailReview.info().emails){const draft=view.emailDrafts?.[email.id];if(draft?.messageId!==email.messageId)continue;const form=document.querySelector(`form[data-email-review="${CSS.escape(email.id)}"]`);if(form)for(const [name,value] of Object.entries(draft.fields)){const input=form.elements.namedItem(name);if(input){if(input.type==='checkbox')input.checked=value;else input.value=value}}}}
+  window.addEventListener('flow:gmail-review',()=>{if(view.page==='entrada')render()});
+  setInterval(()=>{if(view.page==='entrada'&&!document.hidden&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))},30000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&view.page==='entrada'&&cloud.gmailToken())FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))});
   window.addEventListener('flow:sync-status',updateAccount);
   window.addEventListener('flow:calendar-status',()=>{if(view.page==='agenda')render()});
   window.addEventListener('flow:cloud-save',async event=>{

@@ -20,7 +20,7 @@ O banco guarda apenas SHA-256 da chave de conexão. A conexão dura 90 dias e po
 A conta @ulbra.br pode exigir aprovação do administrador para instalar ou publicar. Não é necessário criar uma API key do Gmail; o Google pede autorização OAuth das permissões do complemento. Não publique a chave de conexão na configuração do Marketplace.
 
 ## 3. Conectar ao Flow
-1. No Flow, entre com Google, aguarde **Salvo na nuvem** e abra **Gmail → Conectar celular**.
+1. No Flow, entre com Google, aguarde **Salvo na nuvem** e abra **Entrada → Conectar celular**.
 2. Copie a chave recém-gerada. Ela é mostrada uma vez e substitui a conexão anterior.
 3. Na página inicial do complemento Gmail, cole essa chave e toque em **Conectar**.
 4. No Gmail Android, abra um e-mail e procure o ícone do complemento no fim da mensagem (a localização depende da versão do Gmail).

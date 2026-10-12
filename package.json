@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
-    "check": "node --check areas.js && node --check workflow.js && node --check cloud.js && node --check calendar.js && node --check time-report.js && node --check report-pdf.js && node --check app.js && node --check server.mjs && node --check api/auth-config.mjs && node --check api/gemini.mjs && node --check extensao-chrome/shared.js && node --check extensao-chrome/background.js && node --check extensao-chrome/gmail.js && node --check extensao-chrome/flow-bridge.js && node --check extensao-chrome/popup.js",
+    "check": "node --check areas.js && node --check workflow.js && node --check cloud.js && node --check calendar.js && node --check time-report.js && node --check report-pdf.js && node --check app.js && node --check server.mjs && node --check api/auth-config.mjs && node --check api/gemini.mjs && node --check extensao-chrome/shared.js && node --check extensao-chrome/background.js && node --check extensao-chrome/gmail.js && node --check extensao-chrome/flow-bridge.js && node --check extensao-chrome/popup.js && node --check gmail-review.js && node --check api/gmail-review.mjs",
     "package:extension": "python3 scripts/package-extension.py",
     "test:extension": "python3 tests/gmail-extension-smoke.py",
     "test:workflow": "node --test tests/workflow.test.mjs tests/areas.test.mjs tests/time-report.test.mjs tests/cloud-config.test.mjs tests/calendar-read.test.mjs",
@@ -15,7 +15,8 @@
     "test:time": "python3 tests/time-report-smoke.py",
     "test:app": "python3 tests/app-workflow-smoke.py",
     "test:gmail-addon": "node --test tests/gmail-addon.test.mjs",
-    "test:areas": "python3 tests/area-projects-smoke.py"
+    "test:areas": "python3 tests/area-projects-smoke.py",
+    "test:gmail-review": "node --test tests/gmail-review.test.mjs && python3 tests/gmail-review-smoke.py"
   },
   "engines": {
     "node": ">=20"

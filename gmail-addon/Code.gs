@@ -3,7 +3,7 @@ var FLOW_ORIGIN = 'https://flow-blue-theta.vercel.app';
 function flowCard(title) { return CardService.newCardBuilder().setHeader(CardService.newCardHeader().setTitle(title)); }
 function flowAction(name, parameters) { var action=CardService.newAction().setFunctionName(name);if(parameters)action.setParameters(parameters);return action; }
 function flowHome() {
- var section=CardService.newCardSection().addWidget(CardService.newTextParagraph().setText('No Flow, abra Gmail → Conectar celular. Cole aqui a chave de conexão. Depois abra um e-mail para classificar a demanda.'));
+ var section=CardService.newCardSection().addWidget(CardService.newTextParagraph().setText('No Flow, abra Entrada → Conectar celular. Cole aqui a chave de conexão. Depois abra um e-mail para classificar a demanda.'));
  section.addWidget(CardService.newTextInput().setFieldName('flowToken').setTitle('Chave de conexão'));
  section.addWidget(CardService.newTextButton().setText('Conectar').setOnClickAction(flowAction('flowConnect')));
  section.addWidget(CardService.newTextButton().setText('Desconectar').setOnClickAction(flowAction('flowDisconnect')));

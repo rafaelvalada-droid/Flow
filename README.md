@@ -81,3 +81,7 @@ Complemento Google Workspace preparado em `gmail-addon/`, com pacote `downloads/
 ## Projetos dentro das áreas
 
 Clique numa área para criar tarefas com a área preenchida e projetos que agrupam tarefas. Os projetos ficam em `initiatives`; `projects` continua representando o catálogo de áreas legado. Cada tarefa pode ter `initiativeId`. Todas seguem na esteira comum.
+
+## Entrada unificada e Gemini
+
+Gmail e registros manuais agora compartilham a Entrada. Ativação de Gmail API, variável GEMINI_API_KEY, consentimento e comportamento: [docs/GMAIL-ENTRADA.md](docs/GMAIL-ENTRADA.md). Testes: `npm run test:gmail-review`.
