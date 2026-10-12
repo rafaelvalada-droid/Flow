@@ -154,3 +154,18 @@ input,textarea,select{accent-color:var(--accent)}
 .gemini-status{display:inline-flex;align-items:center;gap:6px;font-size:10px;margin:8px 0;color:var(--muted)}.gemini-status.pending{opacity:.65}.gemini-status.classified{color:var(--ink)}[data-action="gmail-analyze"],#reply-rewrite{display:inline-flex;align-items:center;gap:6px}.gmail-review-grid{overflow-anchor:none}.gmail-review-card{overflow-anchor:none}
 
 .pending-share{margin-bottom:16px}.share-assist{margin-top:14px}.share-assist .button{display:inline-flex;align-items:center;gap:6px}
+
+/* Compact area overview. */
+.projectgrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.project-order-card{display:flex;flex-direction:column}
+.project-order-card>.projectcard{flex:1;padding:13px 14px;border-radius:10px}
+.projectcard .projecticon{width:30px;height:30px;font-size:17px;border-radius:8px}
+.projectcard strong{font-size:13px;line-height:1.4;margin:9px 0 3px;overflow-wrap:anywhere}
+.projectcard p{font-size:10px}
+.projectcard .progressbar{height:4px;margin-top:11px}
+.projectcard .pill{font-size:9px;padding:4px 6px}
+.area-order-actions{gap:4px;margin:4px 0 2px}
+.area-order-actions .button{padding:4px 9px;font-size:10px}
+@media(min-width:1600px){.projectgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1000px){.projectgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}}
+@media(max-width:420px){.project-order-card>.projectcard{padding:11px}.projectcard strong{font-size:12px}}
