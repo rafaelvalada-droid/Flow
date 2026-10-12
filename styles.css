@@ -225,6 +225,11 @@ input,textarea,select{accent-color:var(--accent)}
 .login-lockup{display:flex;align-items:center;gap:22px;max-width:100%;animation:login-enter .5s ease-out both}
 .login-lockup>img{width:100px;height:100px;aspect-ratio:1;object-fit:contain;border-radius:25px;flex-shrink:0}
 .login-brand-copy{text-align:left;min-width:0}
+.header-brand{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.header-brand>img{width:32px;height:32px;aspect-ratio:1;object-fit:contain;border-radius:8px}
+.header-brand-word{font-size:23px;font-weight:800;letter-spacing:-1px;line-height:1;white-space:nowrap}
+.login-topbar .header-brand>img{width:40px;height:40px;border-radius:10px}
+@media(max-width:420px){.topbar .header-brand{gap:6px}.topbar .header-brand-word{font-size:20px}.topbar .header-brand>img{width:28px;height:28px;border-radius:7px}}
 .login-lockup .login-brand{font-size:48px;font-weight:800;letter-spacing:-2px;line-height:1.05;white-space:nowrap}
 .brand-tagline{font-size:12px;letter-spacing:6px;color:var(--muted);margin-top:12px;font-weight:650}
 @media(max-width:760px){.login-lockup{gap:14px}.login-lockup>img{width:72px;height:72px;border-radius:18px}.login-lockup .login-brand{font-size:34px;letter-spacing:-1.5px}.brand-tagline{font-size:9px;letter-spacing:4px;margin-top:9px}}
