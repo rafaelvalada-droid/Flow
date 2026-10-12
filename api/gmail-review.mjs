@@ -1,5 +1,5 @@
 import {publicConfig} from './auth-config.mjs';
-const json=(status,data)=>Response.json(data,{status,headers:{'cache-control':'no-store'}});
+const json=(status,data)=>Response.json(data,{status,headers:{'cache-control':'no-store','x-flow-review-version':'4'}});
 export function validateReview(value,areas){
  if(!value||typeof value.summary!=='string'||typeof value.title!=='string'||!value.summary.trim()||!value.title.trim())throw new Error('Resposta incompleta do Gemini.');
  return {summary:value.summary.slice(0,1200),title:value.title.slice(0,180),areaId:areas.some(a=>a.id===value.areaId)?value.areaId:'',dueDate:/^\d{4}-\d{2}-\d{2}$/.test(value.dueDate||'')?value.dueDate:'',dateEvidence:String(value.dateEvidence||'').slice(0,300),needsReview:value.needsReview!==false||!areas.some(a=>a.id===value.areaId),alert:String(value.alert||'').slice(0,300)};
