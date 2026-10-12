@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "Flow — Workspace",
+  "name": "Flow \u2014 Workspace",
   "short_name": "Flow",
   "lang": "pt-BR",
   "start_url": "/",
@@ -9,7 +9,27 @@
   "background_color": "#e3e5e7",
   "theme_color": "#045a52",
   "icons": [
-    {"src": "/assets/icons/flow-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-    {"src": "/assets/icons/flow-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
-  ]
+    {
+      "src": "/assets/icons/flow-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icons/flow-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }

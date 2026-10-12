@@ -91,3 +91,11 @@ A análise Gemini consulta os modelos disponíveis quando o configurado retorna 
 ## Instalar no Android
 
 Abra o Flow no Chrome normal e escolha menu ⋮ → Adicionar à tela inicial → Instalar. O manifesto define nome, ícones 192/512 e abertura standalone. O service worker guarda apenas a página pública de reconexão; APIs, e-mails e dados da conta não são colocados em cache. `npm run test:pwa` verifica os critérios de instalação do Chrome e o fallback sem conexão. O aplicativo continua exigindo internet para autenticar e sincronizar.
+
+## Compartilhar do Android para o Flow
+
+O manifesto registra um Web Share Target de texto e links, via POST multipart no service worker. O Flow precisa estar instalado como aplicativo no Chrome para aparecer na folha de compartilhamento dos apps que oferecem essa ação. O WhatsApp pode oferecer compartilhamento ou apenas copiar/encaminhar dependendo do tipo de mensagem e da versão.
+
+O texto recebido fica temporariamente no IndexedDB do aparelho, associado a um identificador aleatório. Expira após 30 minutos, é removido na próxima leitura/captura ou após salvar/descartar e não vai no URL nem vira tarefa automaticamente. O identificador permanece na sessão durante o login. O usuário revisa título, área e prazo e pode pedir uma sugestão ao Gemini antes de salvar. Esta versão recebe apenas texto e links.
+
+`npm run test:share` exercita o recebimento POST pelo service worker, cancelamento, recarga e salvamento de uma única demanda. O compartilhamento real do Android/WhatsApp requer validação no aparelho.
