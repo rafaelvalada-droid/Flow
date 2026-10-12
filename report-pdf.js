@@ -46,7 +46,7 @@
     function header() {
       doc.setFillColor(...pale); doc.rect(0,0,210,30,'F');
       doc.setFillColor(...green); doc.rect(0,29,210,1,'F');
-      doc.addImage(flow,'PNG',16,7,16,16);text('Ulbra',36,18,20,green,true);const wordWidth=doc.getTextWidth('Ulbra');text('flow',36+wordWidth,18,20,[228,168,52],true);
+      doc.addImage(flow,'PNG',16,7,16,16);text('Ulbra',36,18,20,green,true);const wordWidth=doc.getTextWidth('Ulbra');text('flow',36+wordWidth,18,20,[255,214,0],true);
       doc.addImage(ulbra,'PNG',145,9,49,14.1);
       text('GESTÃO DO TEMPO',16,38,8,green,true); text(range,130,38,8,muted);
     }
