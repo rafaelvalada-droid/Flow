@@ -420,11 +420,15 @@
       if(activeDictation){activeDictation.stop();return;}
       const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
       if(!Recognition){assistStatus.textContent='Ditado indisponível neste navegador. Use o Chrome ou o microfone do teclado.';return;}
-      const speech=new Recognition(),prefix=context.value;activeDictation=speech;speech.lang='pt-BR';speech.continuous=true;speech.interimResults=false;
-      speech.onresult=event=>{if(form.isConnected)context.value=(prefix+' '+Array.from(event.results).filter(result=>result.isFinal).map(result=>result[0].transcript).join(' ')).trim().slice(0,7500);};
-      speech.onerror=event=>{if(form.isConnected)assistStatus.textContent=event.error==='not-allowed'?'Permita o microfone no navegador para ditar.':'Não foi possível concluir o ditado. Você pode escrever o contexto.';};
-      speech.onend=()=>{if(activeDictation===speech)activeDictation=null;if(form.isConnected){dictate.textContent='🎙 Ditar contexto';rewrite.disabled=false;}};
-      try{speech.start();dictate.textContent='■ Parar ditado';rewrite.disabled=true;assistStatus.textContent='Ouvindo…';}catch{activeDictation=null;assistStatus.textContent='Não foi possível iniciar o microfone.';}
+      const speech=new Recognition(),prefix=context.value;let failed=false,ended=false,timeout;
+      activeDictation=speech;speech.lang='pt-BR';speech.continuous=false;speech.interimResults=true;
+      const finish=()=>{if(ended)return;ended=true;clearTimeout(timeout);if(activeDictation===speech)activeDictation=null;if(form.isConnected){dictate.textContent='🎙 Ditar contexto';rewrite.disabled=false;if(!failed)assistStatus.textContent=context.value!==prefix?'Ditado concluído. Revise o texto ou reescreva com Gemini.':'Nenhuma fala reconhecida. Tente novamente.';}};
+      speech.onresult=event=>{if(!ended&&form.isConnected)context.value=(prefix+' '+Array.from(event.results).map(result=>result[0].transcript).join(' ')).trim().slice(0,7500);};
+      speech.onerror=event=>{failed=true;if(form.isConnected)assistStatus.textContent=event.error==='not-allowed'?'Permita o microfone no navegador para ditar.':event.error==='no-speech'?'Nenhuma fala reconhecida. Tente novamente.':'Não foi possível concluir o ditado. Você pode escrever o contexto.';finish();};
+      speech.onend=finish;
+      dictate.textContent='■ Parar ditado';rewrite.disabled=true;assistStatus.textContent='Ouvindo…';
+      timeout=setTimeout(()=>{speech.abort();finish();},30000);
+      try{speech.start();}catch{failed=true;assistStatus.textContent='Não foi possível iniciar o microfone.';finish();}
     });
     rewrite.addEventListener('click',async()=>{
       const text=context.value.trim();if(!text){assistStatus.textContent='Escreva ou dite o contexto primeiro.';return;}if(prefill.analyzing)return;
