@@ -14,7 +14,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Gmail:** extensão 1.3 com Incluir no Flow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-A marca Ulbraflow apresenta “Ulbra” em verde e “flow” em dourado, com destaques amarelos na interface. O novo ícone UF, em verde e dourado, aparece no acesso, na barra lateral, no PDF e nos ícones de instalação. O logo verde Ulbra S.A. aparece no acesso e na barra superior.
+A marca Ulbraflow apresenta “Ulbra” em verde e “flow” em amarelo quente, com destaques amarelos na interface. O símbolo escolhido (opção 4 da primeira grade de seis variações), com três quadrados em sequência nas cores verde e amarelo chapado, aparece no acesso, na barra lateral, no PDF e nos ícones de instalação. O logo verde Ulbra S.A. aparece no acesso e na barra superior.
 
 ## Google e armazenamento
 

@@ -23,7 +23,7 @@
     return resources.get(path);
   }
   async function download(report, period) {
-    const [PDF, flow, ulbra, regular, bold] = await Promise.all([loadLibrary(), image('./assets/ulbraflow-logo.png'), image('./assets/ulbra-sa-verde.png'), image('./assets/fonts/DejaVuSans.ttf'), image('./assets/fonts/DejaVuSans-Bold.ttf')]);
+    const [PDF, flow, ulbra, regular, bold] = await Promise.all([loadLibrary(), image('./assets/ulbraflow-steps-logo.png'), image('./assets/ulbra-sa-verde.png'), image('./assets/fonts/DejaVuSans.ttf'), image('./assets/fonts/DejaVuSans-Bold.ttf')]);
     const doc = new PDF({unit: 'mm', format: 'a4', compress: true});
     const encode = bytes => {let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);};
     doc.addFileToVFS('FlowSans.ttf',encode(regular));doc.addFont('FlowSans.ttf','FlowSans','normal');
@@ -46,7 +46,7 @@
     function header() {
       doc.setFillColor(...pale); doc.rect(0,0,210,30,'F');
       doc.setFillColor(...green); doc.rect(0,29,210,1,'F');
-      doc.addImage(flow,'PNG',16,7,16,16);text('Ulbra',36,18,20,green,true);const wordWidth=doc.getTextWidth('Ulbra');text('flow',36+wordWidth,18,20,[218,157,49],true);
+      doc.addImage(flow,'PNG',16,7,16,16);text('Ulbra',36,18,20,green,true);const wordWidth=doc.getTextWidth('Ulbra');text('flow',36+wordWidth,18,20,[228,168,52],true);
       doc.addImage(ulbra,'PNG',145,9,49,14.1);
       text('GESTÃO DO TEMPO',16,38,8,green,true); text(range,130,38,8,muted);
     }
