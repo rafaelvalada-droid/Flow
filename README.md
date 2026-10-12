@@ -14,7 +14,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Gmail:** extensão 1.3 com Incluir no Ulbraflow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-A marca Ulbraflow usa azul forte (#3166DC), azul claro e azul-marinho (#182B49): menu escuro, navegação ativa e botões azuis, fundo azul claro e cartões brancos. O símbolo UF tem U branco, F azul e uma órbita pontilhada sobre um quadrado azul com cantos arredondados. O acesso mostra uma marca horizontal; a barra lateral mostra somente o nome Ulbraflow. O mesmo símbolo aparece no PDF e nos ícones de instalação, com um ícone maskable separado para Android. Os cabeçalhos usam a marca azul Ulbraflow; o logo institucional Ulbra S.A. é mantido no PDF. As cores escolhidas para áreas e remetentes são preservadas.
+A marca Ulbraflow usa azul forte (#3166DC), azul claro e azul-marinho (#182B49): menu escuro, navegação ativa e botões azuis, fundo azul claro e cartões brancos. O símbolo UF tem U branco, F azul e uma órbita pontilhada sobre um quadrado azul com cantos arredondados. O app abre diretamente na Entrada, com carregamento e acesso Google dentro da própria tela; a barra lateral mostra somente o nome Ulbraflow. O mesmo símbolo aparece no PDF e nos ícones de instalação, com um ícone maskable separado para Android. Os cabeçalhos usam a marca azul Ulbraflow; o logo institucional Ulbra S.A. é mantido no PDF. As cores escolhidas para áreas e remetentes são preservadas.
 
 ## Google e armazenamento
 

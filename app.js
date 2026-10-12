@@ -4,22 +4,23 @@
   const cloud = globalThis.FlowCloud;
   let pendingShare=null;try{pendingShare=await globalThis.FlowShareTarget?.initialize();}catch{}
   const loginMessage = document.querySelector('#login-message');
+  const finishStartup=()=>{document.querySelector('.app-shell').removeAttribute('aria-busy');document.querySelector('#screen').removeAttribute('aria-busy');};
   document.querySelector('#google-login').addEventListener('click', async () => {
     try { await cloud.signIn(); } catch (error) { loginMessage.textContent = error.message; }
   });
   document.querySelector('#login-retry').addEventListener('click', () => location.reload());
-  const stopLoading=()=>document.querySelector('.login-loader')?.setAttribute('hidden','');
   let workspace;
   try { workspace = await cloud.initialize(); }
   catch (error) {
-    stopLoading();
+    finishStartup();
+    loginMessage.setAttribute('role','alert');
     loginMessage.textContent = error.message;
     document.querySelector('#google-login').hidden = false;
     document.querySelector('#login-retry').hidden = false;
     return;
   }
-  stopLoading();
   if (workspace.mode === 'login') {
+    finishStartup();
     loginMessage.textContent = 'Entre com sua conta Google para abrir suas tarefas.';
     document.querySelector('#google-login').hidden = false;
     return;
@@ -598,7 +599,7 @@
   globalThis.FlowCalendar.initialize(()=>db,persist);
   persist();render();updateAccount();handleCapture();
   if(pendingShare)newTask({title:pendingShare.title||'Mensagem compartilhada',description:[pendingShare.text,pendingShare.url].filter(Boolean).join('\n\n').slice(0,7500),shareId:pendingShare.id,sharedUrl:pendingShare.url});
-  $('#login-screen').hidden=true;$('.app-shell').hidden=false;
+  $('.sidebar').inert=false;$('.top-actions').inert=false;finishStartup();
   if(view.page==='entrada'&&cloud.gmailToken())FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist));
   setInterval(()=>{if(view.page==='tempo'&&!document.hidden&&!db.focus?.endsAt)return;if(view.page==='tempo'&&!document.hidden)render()},60000);
 })();

@@ -22,14 +22,13 @@
   <script defer src="./app.js"></script>
 </head>
 <body>
-  <section id="login-screen" class="login-screen" aria-live="polite"><header class="login-topbar"><div class="header-brand" aria-label="Ulbraflow"><img src="./assets/ulbraflow-blue-logo.png" alt="" width="32" height="32" /><span class="header-brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></div></header><div class="login-lockup" aria-label="Ulbraflow Workspace"><img src="./assets/ulbraflow-blue-logo.png" alt="UF — símbolo do Ulbraflow" width="100" height="100" /><div class="login-brand-copy"><div class="login-brand"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span><span class="brand-dot">.</span></div><div class="brand-tagline">WORKSPACE</div></div></div><h1>Seu espaço para entrar em fluxo.</h1><div class="login-loader" aria-hidden="true"><span></span><span></span><span></span></div><p id="login-message">Preparando seu workspace…</p><button id="google-login" type="button" class="button primary" hidden>Entrar com Google</button><button id="login-retry" type="button" class="button" hidden>Tentar novamente</button></section>
-  <div class="app-shell" hidden>
-    <aside class="sidebar" aria-label="Menu principal">
+  <div class="app-shell" aria-busy="true">
+    <aside class="sidebar" aria-label="Menu principal" inert>
       <a class="brand" href="#esteira" aria-label="Ulbraflow, início"><span class="brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">flow</span></span></a>
       <div class="sidebar-caption">PRINCIPAL</div>
       <nav id="sidebar-nav">
-        <button type="button" data-page="entrada"><span class="nav-icon">↘</span><span>Entrada</span><span id="inbox-count" class="nav-count" hidden></span></button>
-        <button type="button" data-page="esteira" class="active"><span class="nav-icon">▤</span><span>Esteira</span></button>
+        <button type="button" data-page="entrada" class="active"><span class="nav-icon">↘</span><span>Entrada</span><span id="inbox-count" class="nav-count" hidden></span></button>
+        <button type="button" data-page="esteira"><span class="nav-icon">▤</span><span>Esteira</span></button>
         <button type="button" data-page="foco"><span class="nav-icon">◉</span><span>Foco</span></button>
         <button type="button" data-page="projetos"><span class="nav-icon">▦</span><span>Áreas</span></button>
         <button type="button" data-page="agenda"><span class="nav-icon">▤</span><span>Agenda</span></button>
@@ -40,10 +39,13 @@
     </aside>
     <div class="workspace">
       <header class="topbar">
-        <div class="topbar-identity"><div class="header-brand" aria-label="Ulbraflow"><img src="./assets/ulbraflow-blue-logo.png" alt="" width="32" height="32" /><span class="header-brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></div><div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Esteira</strong></div></div>
-        <div class="top-actions"><button id="account-button" type="button" class="button" data-action="account">Entrar com Google</button><button id="active-clock" type="button" class="active-clock" data-action="open-active">◉ Entrar em foco</button><button type="button" class="button primary" data-action="new-task">+ Nova demanda</button></div>
+        <div class="topbar-identity"><div class="header-brand" aria-label="Ulbraflow"><img src="./assets/ulbraflow-blue-logo.png" alt="" width="32" height="32" /><span class="header-brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></div><div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Entrada</strong></div></div>
+        <div class="top-actions" inert><button id="account-button" type="button" class="button" data-action="account">Entrar com Google</button><button id="active-clock" type="button" class="active-clock" data-action="open-active">◉ Entrar em foco</button><button type="button" class="button primary" data-action="new-task">+ Nova demanda</button></div>
       </header>
-      <main id="screen" class="screen" aria-live="polite"></main>
+      <main id="screen" class="screen" aria-live="polite" aria-busy="true">
+        <div class="startup-heading"><div class="eyebrow">ULBRAFLOW / WORKSPACE</div><h1>Entrada</h1><p>Revise e-mails e registros manuais antes de incluí-los na esteira.</p></div>
+        <section id="workspace-access" class="card startup-access"><p id="login-message" role="status">Carregando suas demandas…</p><div class="actionbar"><button id="google-login" type="button" class="button primary" hidden>Entrar com Google</button><button id="login-retry" type="button" class="button" hidden>Tentar novamente</button></div></section>
+      </main>
     </div>
   </div>
   <div id="modal-backdrop" class="modal-backdrop hidden" role="presentation"></div>

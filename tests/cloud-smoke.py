@@ -150,9 +150,24 @@ async def main():
         page = await context.new_page()
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
+        boot_requested, boot_release = asyncio.Event(), asyncio.Event()
+        async def hold_config(route):
+            boot_requested.set()
+            await boot_release.wait()
+            await services.route(route)
+        await page.route('**/api/auth-config', hold_config)
         await page.goto(BASE)
+        await boot_requested.wait()
+        await expect(page.locator('.app-shell')).to_be_visible()
+        await expect(page.locator('.startup-heading h1')).to_have_text('Entrada')
+        assert await page.locator('#login-screen').count() == 0
+        assert await page.locator('.pipeline-task,.gmail-review-card').count() == 0
+        assert await page.locator('.sidebar').evaluate('(el)=>el.inert')
+        boot_release.set()
         await expect(page.locator('#google-login')).to_be_visible()
-        await expect(page.locator('.app-shell')).to_be_hidden()
+        await page.unroute('**/api/auth-config', hold_config)
+        await expect(page.locator('.app-shell')).to_be_visible()
+        passed('Entrada opens during initialization; sign-in stays inline and private tasks remain protected')
         await page.evaluate('data=>localStorage.setItem("flow.workspace.v1",JSON.stringify(data))', LEGACY)
         await page.locator('#google-login').click()
         await page.locator('#sidebar-nav [data-page="esteira"]').click()

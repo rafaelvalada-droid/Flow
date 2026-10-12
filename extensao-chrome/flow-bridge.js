@@ -3,8 +3,10 @@
   globalThis.__flowGmailBridge = true;
   let key = 'flow.workspace.v1';
   let cloudMode = false;
+  const opening=()=>document.querySelector('.app-shell')?.hidden||document.querySelector('.sidebar')?.inert;
 
   function read() {
+    if(opening())throw new Error('Aguarde a abertura do Ulbraflow ou entre com Google antes de capturar.');
     let active;
     try {active=JSON.parse(localStorage.getItem('flow.active-workspace.v1'));}catch{}
     cloudMode=active?.mode==='cloud';
@@ -84,7 +86,7 @@
     (async()=>{try {
       // A freshly opened Ulbraflow tab may still be checking OAuth and loading its data.
       const started=Date.now();
-      while(document.querySelector('.app-shell')?.hidden && document.querySelector('#google-login')?.hidden && Date.now()-started<12000)await new Promise(resolve=>setTimeout(resolve,50));
+      while(opening() && document.querySelector('#google-login')?.hidden && Date.now()-started<12000)await new Promise(resolve=>setTimeout(resolve,50));
       if(message.type==='FLOW_BRIDGE_OPEN'){const task=read().db.tasks.find(t=>t.gmailCaptureId===message.data?.requestId);if(!task)throw new Error('A demanda não está neste Ulbraflow. Confira o endereço configurado na extensão.');window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{requestId:message.data.requestId}}));sendResponse({ok:true});return;}
       const result = message.type === 'FLOW_BRIDGE_SAVE' ? await save(message.data) : {
         projects: read().db.projects.filter(p => typeof p.id === 'string' && typeof p.name === 'string')

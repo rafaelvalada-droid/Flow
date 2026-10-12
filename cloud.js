@@ -1,6 +1,8 @@
 (() => {
   'use strict';
   const SESSION = 'flow.auth.session.v1', ACTIVE = 'flow.active-workspace.v1';
+  // An open shell is not proof that this account has finished authentication.
+  localStorage.removeItem(ACTIVE);
   const REQUIRED = 'flow.cloud-required.v1', PKCE = 'flow.auth.pkce.v1';
   let config, session, user, key = 'flow.workspace.v1', revision = 0;
   let pending = null, saved = '', timer, saving, refresh, conflict = false;
