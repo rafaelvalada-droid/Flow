@@ -1,4 +1,4 @@
-# Flow — Workspace
+# Ulbraflow — Workspace
 
 Classifique cada demanda por área e prazo, organize o trabalho em uma esteira comum e concentre-se em uma tarefa de cada vez.
 
@@ -14,7 +14,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 - **Gmail:** extensão 1.3 com Incluir no Flow, escolha de área/data e retorno ao e-mail. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
-O slogan foi retirado. A marca Flow usa o conceito Esteira: três etapas conectadas, duas grafite e a entrega verde Ulbra S.A., com nome grafite e ponto verde. A marca aparece no acesso, na barra lateral e no PDF. O logo verde Ulbra S.A. enviado aparece na tela de acesso e na barra superior. A interface usa tons de cinza claro com ações e destaques no verde Ulbra S.A. (#045A52), com letras brancas. O relatório para impressão/PDF usa fundo claro.
+A marca Ulbraflow apresenta “Ulbra” em verde e “flow” em dourado, com destaques amarelos na interface. O símbolo de etapas conectadas permanece na aplicação enquanto as opções do novo ícone são avaliadas. A marca aparece no acesso, na barra lateral e no PDF. O logo verde Ulbra S.A. aparece no acesso e na barra superior.
 
 ## Google e armazenamento
 
@@ -28,7 +28,7 @@ A Agenda sincroniza com o calendário principal enquanto o Flow está aberto. To
 
 ## Desenvolvimento
 
-Node.js ≥20, sem dependências npm nem build.
+Node.js 24, sem dependências npm nem build.
 
 ```bash
 npm run check
@@ -99,3 +99,7 @@ O manifesto registra um Web Share Target de texto e links, via POST multipart no
 O texto recebido fica temporariamente no IndexedDB do aparelho, associado a um identificador aleatório. Expira após 30 minutos, é removido na próxima leitura/captura ou após salvar/descartar e não vai no URL nem vira tarefa automaticamente. O identificador permanece na sessão durante o login. O usuário revisa título, área e prazo e pode pedir uma sugestão ao Gemini antes de salvar. Esta versão recebe apenas texto e links.
 
 `npm run test:share` exercita o recebimento POST pelo service worker, cancelamento, recarga e salvamento de uma única demanda. O compartilhamento real do Android/WhatsApp requer validação no aparelho.
+
+## Revisão de desempenho e confiabilidade
+
+[Revisão de 12/10/2026](docs/REVISAO-PROJETO-2026-10-12.md) documenta as medições, correções e limites restantes. A leitura Gmail reaproveita conversas pelo histórico da caixa; a classificação inicia durante o carregamento e atualiza os cartões sem substituir a tela inteira. Testes de regressão de desempenho estão em `npm run test:gmail-review`.

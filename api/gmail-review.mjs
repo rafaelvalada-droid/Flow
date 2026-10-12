@@ -1,5 +1,5 @@
 import {publicConfig} from './auth-config.mjs';
-const json=(status,data)=>Response.json(data,{status,headers:{'cache-control':'no-store','x-flow-review-version':'6'}});
+const json=(status,data)=>Response.json(data,{status,headers:{'cache-control':'no-store','x-flow-review-version':'7'}});
 export function validateReview(value,areas){
  if(!value||typeof value.summary!=='string'||typeof value.title!=='string'||!value.summary.trim()||!value.title.trim())throw new Error('Resposta incompleta do Gemini.');
  return {summary:value.summary.slice(0,1200),title:value.title.slice(0,180),areaId:areas.some(a=>a.id===value.areaId)?value.areaId:'',dueDate:/^\d{4}-\d{2}-\d{2}$/.test(value.dueDate||'')?value.dueDate:'',dateEvidence:String(value.dateEvidence||'').slice(0,300),needsReview:value.needsReview!==false||!areas.some(a=>a.id===value.areaId),alert:String(value.alert||'').slice(0,300)};
@@ -26,28 +26,30 @@ export function selectReviewModel(models){
  const stable=names.filter(name=>!/preview|latest/.test(name)),pool=stable.length?stable:names;
  return pool.sort((a,b)=>Number(/lite/.test(a))-Number(/lite/.test(b))||b.localeCompare(a,undefined,{numeric:true}))[0]||'';
 }
-async function availableReviewModel(key){
+async function availableReviewModel(key,signal){
  const models=[];let pageToken='';
  for(let page=0;page<3;page++){
   const params=new URLSearchParams({pageSize:'1000'});if(pageToken)params.set('pageToken',pageToken);
-  const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models?'+params,{headers:{'x-goog-api-key':key},signal:AbortSignal.timeout(12000)});
+  const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models?'+params,{headers:{'x-goog-api-key':key},signal:signal(12000)});
   const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(geminiFailure(response.status,data));models.push(...(data.models||[]));pageToken=data.nextPageToken||'';if(!pageToken)break;
  }
  const model=selectReviewModel(models);if(!model)throw new Error('Esta chave não tem um modelo Gemini Flash compatível disponível. Confira o projeto e o acesso da API no Google AI Studio.');return model;
 }
 export async function POST(request){
+ const deadline=AbortSignal.timeout(50000);
+ const signal=ms=>AbortSignal.any([deadline,AbortSignal.timeout(ms)]);
  if(!process.env.GEMINI_API_KEY)return json(503,{error:'Configure GEMINI_API_KEY na Vercel para analisar os e-mails.'});
- let config;try{config=publicConfig();if(!config.configured)throw new Error();}catch{return json(503,{error:'O acesso Google do Flow não está configurado.'});}
+ let config;try{config=publicConfig();if(!config.configured)throw new Error();}catch{return json(503,{error:'O acesso Google do Ulbraflow não está configurado.'});}
  const authorization=request.headers.get('authorization')||'';
- if(!/^Bearer [A-Za-z0-9._-]{20,5000}$/.test(authorization))return json(401,{error:'Entre com Google no Flow.'});
+ if(!/^Bearer [A-Za-z0-9._-]{20,5000}$/.test(authorization))return json(401,{error:'Entre com Google no Ulbraflow.'});
  try{
-  const auth=await fetch(config.url+'/auth/v1/user',{headers:{apikey:config.key,authorization},signal:AbortSignal.timeout(12000)});
+  const auth=await fetch(config.url+'/auth/v1/user',{headers:{apikey:config.key,authorization},signal:signal(12000)});
   if(!auth.ok)return json(401,{error:'Sua sessão expirou. Entre novamente.'});
   const user=await auth.json();if(!user.id)return json(401,{error:'Conta inválida.'});
   if(!(request.headers.get('content-type')||'').includes('application/json'))return json(415,{error:'Envie JSON.'});
   const raw=await request.text();if(raw.length>24000)return json(413,{error:'Texto maior que o limite permitido.'});
   let body;try{body=JSON.parse(raw);}catch{return json(400,{error:'JSON inválido.'});}
-  if(typeof body.text!=='string'||!body.text.trim()||body.text.length>12000||typeof body.subject!=='string'||body.subject.length>300||!Array.isArray(body.areas)||body.areas.length>100||body.areas.some(a=>typeof a.id!=='string'||a.id.length>100||typeof a.name!=='string'||a.name.length>150))return json(400,{error:'E-mail ou áreas inválidos.'});
+  if(!body||typeof body!=='object'||typeof body.text!=='string'||!body.text.trim()||body.text.length>12000||typeof body.subject!=='string'||body.subject.length>300||!Array.isArray(body.areas)||body.areas.length>100||body.areas.some(a=>!a||typeof a.id!=='string'||a.id.length>100||typeof a.name!=='string'||a.name.length>150))return json(400,{error:'E-mail ou áreas inválidos.'});
   const reply=body.mode==='reply';
   if(body.mode&&!['review','reply'].includes(body.mode))return json(400,{error:'Ação inválida.'});
   const schema=reply?{type:'OBJECT',properties:{text:{type:'STRING'}},required:['text']}:{type:'OBJECT',properties:{summary:{type:'STRING'},title:{type:'STRING'},areaId:{type:'STRING'},dueDate:{type:'STRING'},dateEvidence:{type:'STRING'},needsReview:{type:'BOOLEAN'},alert:{type:'STRING'}},required:['summary','title','areaId','dueDate','dateEvidence','needsReview','alert']};
@@ -57,10 +59,10 @@ export async function POST(request){
   const cached=modelCache?.key===key&&modelCache.configured===configured&&modelCache.expires>Date.now()?modelCache:null;
   let model=cached?.model||configured,minimal=!!cached?.minimal,interactions=!!cached?.interactions;
   const input={systemInstruction:{parts:[{text:instruction}]},contents:[{role:'user',parts:[{text:JSON.stringify({subject:body.subject,email:body.text,areas:body.areas})}]}],generationConfig:{responseMimeType:'application/json',responseSchema:schema,temperature:0.1,maxOutputTokens:2000}};
-  const generate=name=>interactions?fetch('https://generativelanguage.googleapis.com/v1beta/interactions',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:AbortSignal.timeout(35000),body:JSON.stringify({model:name,input:instruction+'\n\n'+JSON.stringify({subject:body.subject,email:body.text,areas:body.areas}),store:false})}):fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(name)+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:AbortSignal.timeout(35000),body:JSON.stringify(minimal?{contents:[{role:'user',parts:[{text:instruction+'\n\n'+JSON.stringify({subject:body.subject,email:body.text,areas:body.areas})}]}],generationConfig:{maxOutputTokens:2000}}:input)});
+  const generate=name=>interactions?fetch('https://generativelanguage.googleapis.com/v1beta/interactions',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:signal(35000),body:JSON.stringify({model:name,input:instruction+'\n\n'+JSON.stringify({subject:body.subject,email:body.text,areas:body.areas}),store:false})}):fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(name)+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},signal:signal(35000),body:JSON.stringify(minimal?{contents:[{role:'user',parts:[{text:instruction+'\n\n'+JSON.stringify({subject:body.subject,email:body.text,areas:body.areas})}]}],generationConfig:{maxOutputTokens:2000}}:input)});
   let result=await generate(model);
   if(result.status===404){
-   try{model=await availableReviewModel(key);}catch(error){return json(502,{error:error.message});}
+   try{model=await availableReviewModel(key,signal);}catch(error){return json(502,{error:error.message});}
    result=await generate(model);
   }
   if(result.status===400&&!interactions){
@@ -68,8 +70,9 @@ export async function POST(request){
    if(/only supports Interactions API/i.test(failure.error?.message||'')){interactions=true;result=await generate(model);}
    else if(!minimal&&/response[_ ]?schema|responseSchema|response[_ ]?mime[_ ]?type|JSON mode|system[_ ]?instruction|systemInstruction|developer instruction|unsupported.*generation/i.test(failure.error?.message||'')){minimal=true;result=await generate(model);}
   }
-  if(!result.ok){const failure=await result.json().catch(()=>({}));return json(502,{error:geminiFailure(result.status,failure),upstreamStatus:result.status});}
+  // Keep a discovered protocol even when the next request hits quota.
   modelCache={key,configured,model,minimal,interactions,expires:Date.now()+300000};
+  if(!result.ok){const failure=await result.json().catch(()=>({}));return json(502,{error:geminiFailure(result.status,failure),upstreamStatus:result.status});}
   const response=await result.json();
   const outputs=(response.outputs||[]).filter(p=>p.type==='text').map(p=>p.text||'').join('\n');
   const steps=(response.steps||[]).filter(p=>p.type==='model_output').flatMap(p=>p.content||[]).filter(p=>p.type==='text').map(p=>p.text||'').join('\n');
@@ -78,5 +81,5 @@ export async function POST(request){
   // An invented evidence quote must never become a suggested deadline.
   if(!reply&&(!parsed.dateEvidence||!body.text.includes(parsed.dateEvidence))){parsed.dueDate='';parsed.dateEvidence='';}
   return json(200,{...parsed,modelUsed:model});
- }catch{return json(502,{error:'Falha ao analisar o e-mail. Tente novamente.'});}
+ }catch(error){return json(502,{error:deadline.aborted||['TimeoutError','AbortError'].includes(error?.name)?'O Gemini excedeu o tempo de resposta. Tente novamente.':'Falha ao analisar o e-mail. Tente novamente.'});}
 }

@@ -92,7 +92,7 @@
       const next = await request('/auth/v1/token?grant_type=pkce', {
         method: 'POST', body: JSON.stringify({auth_code: code, code_verifier: proof.verifier})
       }, false);
-      if (proof.expectedUser && next?.user?.id !== proof.expectedUser) throw new Error('Conecte a Agenda usando a mesma conta Google do Flow.');
+      if (proof.expectedUser && next?.user?.id !== proof.expectedUser) throw new Error('Conecte a Agenda usando a mesma conta Google do Ulbraflow.');
       if(proof.gmail)resumePage='entrada';
       remember({...next, calendarConnected: !!(proof.calendar && next.provider_token),gmailConnected:!!((proof.gmail||session?.gmailConnected)&&next.provider_token)});
     }
@@ -119,10 +119,9 @@
     setStatus(conflict ? 'conflict' : pending ? 'pending' : 'saved', conflict ? 'Há alterações locais e uma versão nova na nuvem. Exporte um backup antes de carregar a nuvem.' : '');
     return {mode: 'cloud', key, data, user,resumePage};
   }
-  function queue(data) {
+  function queue(data, serialized = JSON.stringify(data)) {
     if (!user) return;
-    const serialized = JSON.stringify(data);
-    if (serialized === saved && !pending) return;
+    if ((serialized === saved && !pending)||serialized===pending) return;
     pending = serialized;
     localStorage.setItem(key + '.pending', '1');
     if (conflict) { setStatus('conflict', error); return; }
@@ -180,7 +179,7 @@
     location.reload();
   }
   async function createGmailToken() {
-    if(!user)throw new Error('Entre com Google no Flow para conectar o Gmail do celular.');
+    if(!user)throw new Error('Entre com Google no Ulbraflow para conectar o Gmail do celular.');
     await flush();
     const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
     const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
@@ -200,10 +199,10 @@
     } else session = next;
   });
   async function analyzeGmail(body){
-    await ensureToken();const response=await fetch('/api/gmail-review',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Falha na análise.');return result;
+    await ensureToken();const response=await fetch('/api/gmail-review',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});const result=await response.json();if(!response.ok){const failure=new Error(result.error||'Falha na análise.');failure.upstreamStatus=result.upstreamStatus;throw failure;}return result;
   }
   globalThis.FlowCloud = {analyzeGmail,gmailToken:()=>session?.gmailConnected?session.provider_token:null,disconnectGmail:()=>{if(session)remember({...session,gmailConnected:false})},createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
     info: () => ({mode: user ? 'cloud' : 'local', user, key, status, error, configured: !!config?.configured}),
     calendarToken: () => session?.calendarConnected ? session.provider_token : null,
-    disconnectCalendar: () => { if (session) { remember({...session, provider_token: null, calendarConnected: false}); } }};
+    disconnectCalendar: () => { if (session) { remember({...session, calendarConnected: false}); } }};
 })();

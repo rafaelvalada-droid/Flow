@@ -196,7 +196,7 @@ async def main(profile):
         await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-10')
         await gmail.locator('#flow-gmail-dialog [name="title"]').fill('Organizar planejamento')
         await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no Flow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no Ulbraflow')
         flow_id = next(i for i, page in adapter.pages.items() if page.url.startswith(FLOW))
         flow = adapter.pages[flow_id]
         db = await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1'))")
@@ -205,6 +205,7 @@ async def main(profile):
         assert task['project'] == 'oferta' and task['gmailSubject'] == 'Planejamento da semana'
         assert task['gmailSender'] == 'coordenacao@example.test' and task['gmailUrl'] == GMAIL
         assert len(db['tasks']) == 5
+        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         passed('Save writes the chosen project, title, sender and link; Flow updates immediately')
         demand = flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')
@@ -222,7 +223,7 @@ async def main(profile):
         await email_page.close()
         passed('The explicit Abrir Gmail button on the pipeline card opens the original conversation')
 
-        await gmail.get_by_role('button', name='Ver no Flow').click()
+        await gmail.get_by_role('button', name='Ver no Ulbraflow').click()
         await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
         assert adapter.active_id == flow_id
         passed('Ver no Flow activates the destination tab and closes the Gmail dialog')
@@ -236,6 +237,7 @@ async def main(profile):
         passed('Retrying the same save does not duplicate the task')
 
         await flow.reload()
+        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         await flow.locator('#sidebar-nav [data-page="projetos"]').click()
         await flow.locator('[data-action="new-project"]').click()
@@ -281,7 +283,7 @@ async def main(profile):
         await flow.evaluate("""() => {const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));db.projects=[];localStorage.setItem('flow.workspace.v1',JSON.stringify(db));}""")
         await gmail.locator('#flow-close').click()
         await button.click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Crie uma área no Flow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Crie uma área no Ulbraflow')
         await expect(gmail.locator('#flow-gmail-dialog [type="submit"]')).to_be_disabled()
         passed('An empty list collection cannot create an orphan task')
 

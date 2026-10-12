@@ -31,7 +31,7 @@
     let result;
     try { result = await chrome.runtime.sendMessage({type, data}); }
     catch { throw new Error('A extensão foi atualizada. Recarregue o Gmail e tente novamente.'); }
-    if (!result?.ok) throw new Error(result?.error || 'Não foi possível conectar ao Flow.');
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível conectar ao Ulbraflow.');
     return result;
   }
 
@@ -51,16 +51,16 @@
         #flow-status{min-height:22px;margin-top:15px;color:#61738c;font-size:13px}#flow-status.error{color:#a4262c}#flow-status.success{color:#14774e}.footnote{font-size:12px;margin-top:12px;margin-bottom:0;color:#73849b}
       </style>
       <dialog aria-labelledby="flow-dialog-title">
-        <div class="brand">FLOW · GMAIL</div>
-        <h2 id="flow-dialog-title">Incluir no Flow</h2>
+        <div class="brand">ULBRAFLOW · GMAIL</div>
+        <h2 id="flow-dialog-title">Incluir no Ulbraflow</h2>
         <p>Classifique a demanda e inclua na esteira comum.</p>
         <form>
           <label>Título da tarefa<input name="title" maxlength="180" required></label>
           <div class="sender"></div>
           <label>1. Para onde vai? (área)<select name="project" required disabled><option value="">Carregando áreas…</option></select></label>
           <label>2. Para quando?<input name="dueDate" type="date" required></label>
-          <div id="flow-status" role="status" aria-live="polite">Conectando ao Flow…</div>
-          <div class="actions"><button type="button" id="flow-close">Cancelar</button><button class="primary" type="submit" disabled>Salvar no Flow</button></div>
+          <div id="flow-status" role="status" aria-live="polite">Conectando ao Ulbraflow…</div>
+          <div class="actions"><button type="button" id="flow-close">Cancelar</button><button class="primary" type="submit" disabled>Salvar no Ulbraflow</button></div>
           <p class="footnote">Área e data determinam a classificação. Todas as tarefas seguem pela mesma esteira.</p>
         </form>
       </dialog>`;
@@ -110,7 +110,7 @@
       title.disabled = true;
       select.disabled = true;
       dueDate.disabled = true;
-      update('Salvando no Flow…');
+      update('Salvando no Ulbraflow…');
       try {
         await send('FLOW_SAVE_EMAIL', {
           requestId, projectId: select.value, title: title.value.trim(), dueDate: dueDate.value,
@@ -118,8 +118,8 @@
         });
         if (dialogHost !== host) return;
         finished = true;
-        update('Salvo no Flow! Você pode continuar no Gmail.', 'success');
-        save.textContent = 'Ver no Flow';
+        update('Salvo no Ulbraflow! Você pode continuar no Gmail.', 'success');
+        save.textContent = 'Ver no Ulbraflow';
         save.disabled = false;
         cancel.textContent = 'Fechar';
       } catch (error) {
@@ -140,7 +140,7 @@
       select.replaceChildren(new Option('Escolha uma área', ''));
       for (const project of result.projects) select.add(new Option(project.name, project.id));
       if (!result.projects.length) {
-        update('Crie uma área no Flow para que ela apareça aqui.', 'error');
+        update('Crie uma área no Ulbraflow para que ela apareça aqui.', 'error');
         return;
       }
       select.disabled = false;
@@ -166,7 +166,7 @@
     buttonHost = document.createElement('span');
     buttonHost.id = 'flow-gmail-button';
     const shadow = buttonHost.attachShadow({mode: 'open'});
-    shadow.innerHTML = `<style>:host{display:inline-flex;vertical-align:middle;margin:6px 0 6px 12px}button{font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:#3268dc;color:#fff;border:0;border-radius:18px;padding:9px 16px;cursor:pointer;white-space:nowrap}button:hover{background:#2453bc}button:focus-visible{outline:3px solid #91b7ff;outline-offset:3px}</style><button type="button">+ Incluir no Flow</button>`;
+    shadow.innerHTML = `<style>:host{display:inline-flex;vertical-align:middle;margin:6px 0 6px 12px}button{font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:#3268dc;color:#fff;border:0;border-radius:18px;padding:9px 16px;cursor:pointer;white-space:nowrap}button:hover{background:#2453bc}button:focus-visible{outline:3px solid #91b7ff;outline-offset:3px}</style><button type="button">+ Incluir no Ulbraflow</button>`;
     shadow.querySelector('button').addEventListener('click', openDialog);
     headingAnchor = email.heading;
     headingAnchor.insertAdjacentElement('afterend', buttonHost);

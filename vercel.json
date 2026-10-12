@@ -7,6 +7,9 @@
   "functions": {
     "api/gmail-review.mjs": {
       "maxDuration": 60
+    },
+    "api/gemini.mjs": {
+      "maxDuration": 45
     }
   }
 }

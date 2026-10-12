@@ -21,6 +21,8 @@ async def main(folder):
         context = await browser.new_context(viewport={'width': 1440, 'height': 1100}, timezone_id='America/Sao_Paulo')
         page = await context.new_page()
         await page.clock.install(time=datetime(2026, 10, 10, 18, tzinfo=timezone.utc))
+        resource_requests=[]
+        page.on('request',lambda r:resource_requests.append(r.url) if '/assets/fonts/' in r.url else None)
         await page.goto(BASE)
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-direction li')).to_have_count(5)
@@ -76,7 +78,8 @@ async def main(folder):
         await (await large.value).save_as(str(Path(folder)/'large.pdf'))
         large_text=subprocess.check_output(['pdftotext',str(Path(folder)/'large.pdf'),'-'],text=True)
         assert 'Tarefa de relatório 0' in large_text and 'Tarefa de relatório 74' in large_text
-        passed('Designed PDF downloads directly, without the browser print dialog')
+        assert len(resource_requests)==2,'Regular and bold fonts must load only once across both PDF downloads'
+        passed('Designed PDF downloads directly, paginates long tasks and reuses fonts on the next export')
         await page.screenshot(path='/tmp/flow-time-preview.png', full_page=True)
         for width in [390, 768, 1440]:
             await page.set_viewport_size({'width':width,'height':1000})

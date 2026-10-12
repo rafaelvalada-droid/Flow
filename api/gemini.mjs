@@ -28,7 +28,8 @@ export async function POST(request){
     });
     const payload=await result.json().catch(()=>({}));
     if(!result.ok){return json(502,{error:`Gemini não respondeu corretamente (HTTP ${result.status}). Confira a chave, o modelo e a cota da API.`})}
-    const text=(payload.steps||[]).filter(s=>s.type==='model_output').flatMap(s=>s.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n').trim();
+    const outputs=(payload.outputs||[]).filter(c=>c.type==='text').map(c=>c.text||'').join('\n').trim();
+    const text=outputs||(payload.steps||[]).filter(s=>s.type==='model_output').flatMap(s=>s.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('\n').trim();
     if(!text)return json(502,{error:'O Gemini retornou uma resposta sem texto utilizável.'});
     return json(200,{text});
   }catch(err){return json(502,{error:err?.name==='TimeoutError'?'O Gemini excedeu o tempo de resposta.':'Falha ao acessar a API Gemini.'});}

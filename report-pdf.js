@@ -13,10 +13,14 @@
     });
     return library;
   }
-  async function image(path) {
-    const response = await fetch(path);
-    if (!response.ok) throw new Error('Não foi possível carregar os logos do relatório.');
-    return new Uint8Array(await response.arrayBuffer());
+  const resources=new Map();
+  function image(path){
+    if(!resources.has(path))resources.set(path,(async()=>{
+      const response=await fetch(path,{signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw new Error('Não foi possível carregar os recursos do relatório.');
+      return new Uint8Array(await response.arrayBuffer());
+    })().catch(error=>{resources.delete(path);throw error;}));
+    return resources.get(path);
   }
   async function download(report, period) {
     const [PDF, flow, ulbra, regular, bold] = await Promise.all([loadLibrary(), image('./assets/flow-esteira.png'), image('./assets/ulbra-sa-verde.png'), image('./assets/fonts/DejaVuSans.ttf'), image('./assets/fonts/DejaVuSans-Bold.ttf')]);
@@ -42,7 +46,7 @@
     function header() {
       doc.setFillColor(...pale); doc.rect(0,0,210,30,'F');
       doc.setFillColor(...green); doc.rect(0,29,210,1,'F');
-      doc.addImage(flow,'PNG',16,10,24,8); text('flow',43,18,22,[53,59,67],true); const wordWidth=doc.getTextWidth('flow'); text('.',43+wordWidth,18,22,green,true);
+      doc.addImage(flow,'PNG',16,10,24,8);text('Ulbra',43,18,20,green,true);const wordWidth=doc.getTextWidth('Ulbra');text('flow',43+wordWidth,18,20,[218,157,49],true);
       doc.addImage(ulbra,'PNG',145,9,49,14.1);
       text('GESTÃO DO TEMPO',16,38,8,green,true); text(range,130,38,8,muted);
     }
@@ -101,9 +105,9 @@
     const note=lines('Somente tempo trabalhado; pausas não entram nos totais. Sessões que atravessam a meia-noite são divididas entre os dias. Fuso: '+Intl.DateTimeFormat().resolvedOptions().timeZone+'. Áreas correspondem à classificação atual das tarefas.',178,7);
     space(note.length*3.5+2);wrappedText(note,16,y,7,muted);
     const total=doc.getNumberOfPages(), generated=new Date().toLocaleString('pt-BR');
-    for(let page=1;page<=total;page++){doc.setPage(page);doc.setDrawColor(222,228,226);doc.line(16,282,194,282);text('Flow • Gerado em '+generated,16,288,7,muted);text(page+' / '+total,182,288,7,muted);}
-    doc.setProperties({title:'Flow - Gestão do Tempo - '+range,subject:'Tempo trabalhado por área e tarefa',creator:'Flow',author:'Flow'});
-    doc.save('flow-tempo-'+period+'-'+report.start.getFullYear()+'-'+String(report.start.getMonth()+1).padStart(2,'0')+'-'+String(report.start.getDate()).padStart(2,'0')+'.pdf');
+    for(let page=1;page<=total;page++){doc.setPage(page);doc.setDrawColor(222,228,226);doc.line(16,282,194,282);text('Ulbraflow • Gerado em '+generated,16,288,7,muted);text(page+' / '+total,182,288,7,muted);}
+    doc.setProperties({title:'Ulbraflow - Gestão do Tempo - '+range,subject:'Tempo trabalhado por área e tarefa',creator:'Ulbraflow',author:'Ulbraflow'});
+    doc.save('ulbraflow-tempo-'+period+'-'+report.start.getFullYear()+'-'+String(report.start.getMonth()+1).padStart(2,'0')+'-'+String(report.start.getDate()).padStart(2,'0')+'.pdf');
   }
   globalThis.FlowPDF={download};
 })();

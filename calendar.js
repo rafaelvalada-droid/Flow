@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   let getDatabase, persist, timer, running, status = 'disconnected', error = '';
-  let visibleRange = null, imported = [], reading = false, readError = '', generation = 0;
+  let visibleRange = null, imported = [], reading = false, readError = '', generation = 0, syncedInput='';
   const info = () => ({connected: !!FlowCloud.calendarToken(), status, error, reading, readError, events: FlowCloud.calendarToken() ? imported : []});
   const emit = () => window.dispatchEvent(new CustomEvent('flow:calendar-status'));
   const state = (next, message = '') => { status = next; error = message; emit(); };
@@ -82,16 +82,22 @@
       start, end, visibility: 'private', extendedProperties: {private: {flowUserId: owner, flowTaskId: task.id}}};
   }
   const owned = (event, owner, taskId) => event?.extendedProperties?.private?.flowUserId === owner && event?.extendedProperties?.private?.flowTaskId === taskId;
+  function inputSignature(){
+    const db=getDatabase();return JSON.stringify({owner:FlowCloud.info().user?.id,minutes:db.preferences?.focusMinutes||25,
+      areas:[...(db.projects||[]),...(db.archivedProjects||[])].map(p=>[p.id,p.name]),
+      tasks:db.tasks.filter(t=>t.plannedDate).map(t=>[t.id,t.title,t.project,t.plannedDate,t.plannedTime,t.dueDate,t.description])});
+  }
   async function synchronize() {
     clearTimeout(timer);
     if (running) return running;
     if (!FlowCloud.calendarToken()) return;
     running = (async () => {
+      const signature=inputSignature();
       state('syncing');
       const db = getDatabase(), owner = FlowCloud.info().user.id;
       db.calendar ||= {events: {}};
       db.calendar.events ||= {};
-      // Remove only Flow-owned events that no longer have an execution date.
+      // Remove only Ulbraflow-owned events that no longer have an execution date.
       for (const taskId of Object.keys(db.calendar.events)) {
         if (db.tasks.some(t => t.id === taskId && t.plannedDate)) continue;
         const id = await eventId(owner, taskId);
@@ -112,20 +118,20 @@
         catch (err) {
           if (err.status !== 409) throw err;
           const existing = await api('/' + id);
-          if (!owned(existing, owner, task.id)) throw new Error('O evento existente não pertence a esta tarefa do Flow.');
+          if (!owned(existing, owner, task.id)) throw new Error('O evento existente não pertence a esta tarefa do Ulbraflow.');
           event = await api('/' + id, 'PATCH', body);
         }
         // Keep the signature of the snapshot sent, even if the task changed during the request.
         db.calendar.events[task.id] = {owner, id, signature, url: event?.htmlLink || ''};
         persist();
       }
-      state('synced');
+      syncedInput=signature;state('synced');
       await refresh();
-    })().catch(err => { state('error', err.message); throw err; }).finally(() => { running = null; });
+    })().catch(err => { state('error', err.message); throw err; }).finally(() => { running = null;if(status==='synced')schedule(); });
     return running;
   }
   function schedule() {
-    if (!FlowCloud.calendarToken()) return;
+    if (!FlowCloud.calendarToken()||(status==='synced'&&inputSignature()===syncedInput)) return;
     clearTimeout(timer);
     timer = setTimeout(() => synchronize().catch(() => {}), 900);
   }
@@ -133,5 +139,5 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && visibleRange && !reading && FlowCloud.calendarToken()) refresh(); });
   globalThis.FlowCalendar = {info, synchronize, schedule, showRange, refresh,
     initialize: (read, save) => { getDatabase = read; persist = save; if (FlowCloud.calendarToken()) {status = 'connected'; schedule();} },
-    connect: () => FlowCloud.signIn(true), disconnect: () => { clearTimeout(timer); generation++; imported = []; reading = false; readError = ''; visibleRange = null; FlowCloud.disconnectCalendar(); state('disconnected'); }};
+    connect: () => FlowCloud.signIn(true), disconnect: () => { clearTimeout(timer); generation++; imported = []; reading = false; readError = ''; visibleRange = null; syncedInput='';FlowCloud.disconnectCalendar(); state('disconnected'); }};
 })();
