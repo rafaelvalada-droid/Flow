@@ -152,11 +152,52 @@
     </section>`;
     return pageHead('Detalhe da tarefa','Área e data classificam a demanda. A execução acontece na esteira comum.',button('← Esteira','show-pipeline'))+`<div class="task-detail-only">${detail}</div>`;
   }
+  const projectModels={
+    simple:{name:'Projeto simples',fields:['Objetivo','Entregas','Responsáveis','Cronograma','Critérios de sucesso']},
+    pdca:{name:'PDCA',fields:['Planejar: problema, objetivo e plano','Executar: ações e responsáveis','Verificar: indicadores e resultados','Agir: ajustes e padronização']},
+    fivew:{name:'5W2H',fields:['O quê será feito?','Por quê?','Onde?','Quando?','Quem?','Como?','Quanto custa?']},
+    action:{name:'Plano de ação',fields:['Objetivo','Ações','Responsáveis','Prazos','Recursos','Acompanhamento']},
+    process:{name:'Melhoria de processo',fields:['Problema','Processo atual','Causas','Melhorias propostas','Indicadores','Plano de implantação']},
+    academic:{name:'Projeto acadêmico',fields:['Justificativa','Objetivo geral','Objetivos específicos','Metodologia','Cronograma','Resultados esperados']},
+    scrum:{name:'Scrum',fields:['Objetivo do produto','Equipe e papéis','Backlog','Sprints','Critérios de conclusão','Revisão e retrospectiva']},
+    okr:{name:'OKR',fields:['Objetivo','Resultados-chave mensuráveis','Iniciativas','Responsáveis','Período','Acompanhamento']},
+    lean:{name:'A3 / Lean',fields:['Contexto','Situação atual','Meta','Análise de causas','Contramedidas','Plano de ação','Verificação dos resultados']},
+    design:{name:'Design Thinking',fields:['Problema e público','Empatia: necessidades','Definição do desafio','Ideias','Protótipo','Testes e aprendizados']}
+  };
+  $('#project-template-menu').innerHTML='<button type="button" data-page="meus-projetos">Todos os meus projetos</button>'+Object.entries(projectModels).map(([key,model])=>`<button type="button" data-project-model="${key}">+ ${model.name}</button>`).join('');
+  function renderMyProjects(){
+    const projects=db.initiatives||[];
+    return pageHead('Meus projetos','Projetos de todas as áreas, com modelos para organizar a execução.',button('+ Criar projeto','create-model-project',true))+`<div class="area-projects">${projects.map(p=>{const area=findProject(p.areaId),model=projectModels[p.model]||projectModels.simple;return `<section class="card"><div class="between"><div><h3 class="sectiontitle">${html(p.name)}</h3><p class="smalltext muted">${html(area?.name||'Área indisponível')} · ${html(model.name)}</p></div><div class="row">${button('Abrir projeto','edit-model-project',false,`data-id="${html(p.id)}"`)}${area?button('+ Nova tarefa','project-library-task',false,`data-id="${html(p.id)}"`):''}</div></div>${p.description?`<p class="project-description">${html(p.description)}</p>`:''}<p class="smalltext">${db.tasks.filter(t=>t.initiativeId===p.id).length} tarefas vinculadas</p></section>`;}).join('')||'<section class="card"><p>Você ainda não criou projetos. Escolha um modelo no menu para começar.</p></section>'}</div>`;
+  }
+  function modelProject(modelKey='simple',existing=null){
+    if(!projectModels[modelKey])modelKey='simple';const model=projectModels[modelKey];let busy=false;
+    const sections=existing?.sections||{};
+    promptModal({title:existing?'Editar projeto':'Novo projeto · '+model.name,subtitle:'Preencha as partes do projeto e revise antes de salvar.',content:`<label class="field">Nome do projeto<input name="name" required maxlength="100" value="${html(existing?.name||'')}"></label><label class="field">Área<select name="areaId" required>${projOption(existing?.areaId||view.areaId||'',false)}</select></label><label class="field">Modelo<select name="model">${Object.entries(projectModels).map(([key,item])=>`<option value="${key}" ${key===modelKey?'selected':''}>${item.name}</option>`).join('')}</select></label><label class="field">Descrição<textarea name="description" maxlength="2000">${html(existing?.description||'')}</textarea></label><div id="project-model-fields"></div><p id="project-model-status" class="smalltext" role="status"></p>`,onSubmit:data=>{
+      if(busy)return false;const name=String(data.get('name')||'').trim(),areaId=String(data.get('areaId')||'');if(!name||!findProject(areaId))return false;
+      collect();const selected=String(data.get('model'));const update={name,areaId,model:selected,description:String(data.get('description')||''),sections:drafts[selected]||{},updatedAt:Date.now()};
+      if(existing)Object.assign(existing,update);else db.initiatives.push({id:uuid(),createdAt:Date.now(),...update});
+      // Keep existing tasks in the same area as their project.
+      if(existing)db.tasks.filter(t=>t.initiativeId===existing.id).forEach(t=>{t.project=areaId;});
+      persist();openPage('meus-projetos');return true;
+    },ok:existing?'Salvar projeto':'Criar projeto'});
+    const form=$('#active-modal-form'),drafts={[modelKey]:{...sections}};let current=modelKey;
+    function collect(){drafts[current]={};form.querySelectorAll('[data-project-section]').forEach(field=>drafts[current][field.dataset.projectSection]=field.value);}
+    function paint(){form.querySelector('#project-model-fields').innerHTML=projectModels[current].fields.map((label,index)=>`<label class="field">${html(label)}<textarea rows="3" maxlength="4000" data-project-section="${index}">${html(drafts[current]?.[index]||'')}</textarea><button type="button" class="button small" data-improve-project-section="${index}"><img src="./assets/gemini.svg" alt="" width="16" height="16"> Melhorar com Gemini</button></label>`).join('');}
+    paint();form.elements.model.addEventListener('change',()=>{collect();current=form.elements.model.value;paint();});
+    form.addEventListener('click',async event=>{
+      const button=event.target.closest('[data-improve-project-section]');if(!button||busy)return;
+      const field=form.querySelector(`[data-project-section="${button.dataset.improveProjectSection}"]`),text=field.value.trim(),status=form.querySelector('#project-model-status');
+      if(!text){status.textContent='Escreva sua ideia neste campo primeiro.';field.focus();return;}
+      busy=true;const controls=[...form.querySelectorAll('input,select,textarea,button')].filter(control=>control.dataset.action!=='close-modal');controls.forEach(control=>control.disabled=true);status.textContent='Gemini está melhorando o texto…';
+      try{const result=await cloud.analyzeGmail({mode:'rewrite',subject:(projectModels[current].name+' · '+projectModels[current].fields[Number(button.dataset.improveProjectSection)]).slice(0,300),text,areas:[]});if(form.isConnected){if(!result.reply?.trim())throw new Error('O Gemini não retornou um texto.');field.value=result.reply.slice(0,4000);status.textContent='Texto melhorado. Revise antes de salvar.';}}
+      catch(error){if(form.isConnected)status.textContent=error.message;}finally{busy=false;if(form.isConnected)controls.forEach(control=>control.disabled=false);}
+    });
+  }
   function renderArea(){
     const area=findProject(view.areaId);if(!area)return pageHead('Área não encontrada','Volte às áreas.',button('← Áreas','show-areas'));
     const tasks=db.tasks.filter(t=>t.project===area.id),projects=(db.initiatives||[]).filter(p=>p.areaId===area.id);
     const taskRows=list=>list.map(t=>`<button class="task-list-item" data-task="${html(t.id)}"><strong>${html(t.title)}</strong><div class="status-line">${badge(workflow.stage(db,t))}${urgencyBadge(t)}</div></button>`).join('')||'<p class="smalltext muted">Nenhuma tarefa aqui ainda.</p>';
-    return pageHead(area.name,'Tarefas e projetos desta área. Todas as demandas seguem pela esteira.',`<div class="row">${button('← Áreas','show-areas')}${button('+ Criar projeto','new-initiative')}${button('+ Nova tarefa','area-new-task',true)}</div>`)+`<section class="card"><h3 class="sectiontitle">Tarefas da área</h3>${taskRows(tasks.filter(t=>!projects.some(p=>p.id===t.initiativeId)))}</section><div class="area-projects">${projects.map(p=>`<section class="card"><div class="between"><h3 class="sectiontitle">${html(p.name)}</h3><div class="row">${button('Renomear','rename-initiative',false,`data-id="${html(p.id)}"`)}${button('+ Nova tarefa','initiative-new-task',false,`data-id="${html(p.id)}"`)}</div></div>${p.description?`<p class="smalltext muted">${html(p.description)}</p>`:''}${taskRows(tasks.filter(t=>t.initiativeId===p.id))}</section>`).join('')}</div>`;
+    return pageHead(area.name,'Tarefas e projetos desta área. Todas as demandas seguem pela esteira.',`<div class="row">${button('← Áreas','show-areas')}${button('+ Criar projeto','new-initiative')}${button('+ Nova tarefa','area-new-task',true)}</div>`)+`<section class="card"><h3 class="sectiontitle">Tarefas da área</h3>${taskRows(tasks.filter(t=>!projects.some(p=>p.id===t.initiativeId)))}</section><div class="area-projects">${projects.map(p=>`<section class="card"><div class="between"><h3 class="sectiontitle">${html(p.name)}</h3><div class="row">${button('Abrir projeto','edit-model-project',false,`data-id="${html(p.id)}"`)}${button('Renomear','rename-initiative',false,`data-id="${html(p.id)}"`)}${button('+ Nova tarefa','initiative-new-task',false,`data-id="${html(p.id)}"`)}</div></div>${p.description?`<p class="smalltext muted">${html(p.description)}</p>`:''}${taskRows(tasks.filter(t=>t.initiativeId===p.id))}</section>`).join('')}</div>`;
   }
   function newInitiative(){
     const areaId=view.areaId;if(!findProject(areaId))return;let improving=false;
@@ -297,12 +338,12 @@
     cancelPipelineDrag();
     const screen=$('#screen'),scroll=$('.screen'),focused=document.activeElement,focusForm=focused?.closest?.('form[data-email-review]'),focusData=focusForm?{id:focusForm.dataset.emailReview,name:focused.name,start:focused.selectionStart,end:focused.selectionEnd,top:focused.getBoundingClientRect().top}:null;
     const anchor=view.page==='entrada'?[...screen.querySelectorAll('[data-email-card]')].find(card=>card.getBoundingClientRect().bottom>scroll.getBoundingClientRect().top):null,anchorData=anchor?{id:anchor.dataset.emailCard,top:anchor.getBoundingClientRect().top}:null,previousScroll=scroll.scrollTop;
-    const names={entrada:'Entrada',esteira:'Esteira',foco:'Foco',tarefas:'Tarefa',projetos:'Áreas',agenda:'Agenda',gmail:'Gmail',alertas:'Alertas',tempo:'Gestão do Tempo',area:'Área'};
+    const names={entrada:'Entrada',esteira:'Esteira',foco:'Foco',tarefas:'Tarefa',projetos:'Áreas',agenda:'Agenda',gmail:'Gmail',alertas:'Alertas',tempo:'Gestão do Tempo','meus-projetos':'Meus projetos',area:'Área'};
     $('#location-label').textContent=names[view.page];document.title=`Ulbraflow — ${names[view.page]}`;
     document.querySelectorAll('#sidebar-nav [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===view.page));
     const inbox=db.tasks.filter(t=>workflow.stage(db,t)==='inbox').length;
     const count=$('#inbox-count');if(count){count.textContent=inbox;count.hidden=!inbox}
-    if(!(gmailOnly&&view.page==='entrada'&&patchGmailReview())){screen.innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,area:renderArea,agenda:renderCalendar,gmail:renderInbox,alertas:renderAlerts,tempo:renderTime})[view.page]();for(const card of screen.querySelectorAll('[data-email-card],[data-entry-card]'))card._renderedHTML=card.outerHTML;}tick();if(view.page==='entrada'){restoreEmailDrafts();scroll.scrollTop=previousScroll;let target;if(focusData){const form=screen.querySelector(`form[data-email-review="${CSS.escape(focusData.id)}"]`);target=form?.elements.namedItem(focusData.name);if(target){target.focus({preventScroll:true});try{if(focusData.start!==null)target.setSelectionRange(focusData.start,focusData.end);}catch{}scroll.scrollTop+=target.getBoundingClientRect().top-focusData.top;}}if(!target&&anchorData){const card=screen.querySelector(`[data-email-card="${CSS.escape(anchorData.id)}"]`);if(card)scroll.scrollTop+=card.getBoundingClientRect().top-anchorData.top;}}
+    if(!(gmailOnly&&view.page==='entrada'&&patchGmailReview())){screen.innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,area:renderArea,'meus-projetos':renderMyProjects,agenda:renderCalendar,gmail:renderInbox,alertas:renderAlerts,tempo:renderTime})[view.page]();for(const card of screen.querySelectorAll('[data-email-card],[data-entry-card]'))card._renderedHTML=card.outerHTML;}tick();if(view.page==='entrada'){restoreEmailDrafts();scroll.scrollTop=previousScroll;let target;if(focusData){const form=screen.querySelector(`form[data-email-review="${CSS.escape(focusData.id)}"]`);target=form?.elements.namedItem(focusData.name);if(target){target.focus({preventScroll:true});try{if(focusData.start!==null)target.setSelectionRange(focusData.start,focusData.end);}catch{}scroll.scrollTop+=target.getBoundingClientRect().top-focusData.top;}}if(!target&&anchorData){const card=screen.querySelector(`[data-email-card="${CSS.escape(anchorData.id)}"]`);if(card)scroll.scrollTop+=card.getBoundingClientRect().top-anchorData.top;}}
   }
   function stop(t){if(!t)return;if(db.focus?.taskId===t.id)workflow.pause(db);else workflow.cancel(db,t.id)}
   function start(t){
@@ -406,7 +447,7 @@
   document.addEventListener('lostpointercapture',event=>{if(pipelineDrag?.pointerId===event.pointerId)cancelPipelineDrag();});
   window.addEventListener('blur',cancelPipelineDrag);
   document.addEventListener('click',event=>{if(Date.now()<suppressDragClickUntil&&event.target.closest?.('.pipeline-board')){event.preventDefault();event.stopImmediatePropagation();}},true);
-  function openPage(page){if(page==='gmail')page='entrada';if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0);if(page==='entrada'&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))}
+  function openPage(page){if(page==='gmail')page='entrada';if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area','meus-projetos'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0);if(page==='entrada'&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))}
   function selectTask(id){if(view.page!=='tarefas')view.detailReturnPage=view.page;view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
   function openGmail(t){const url=validGmailUrl(t?.gmailUrl);if(!url){notice('Não há um link válido do Gmail nesta tarefa.');return}window.open(url,'_blank','noopener,noreferrer')}
   function download(filename, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
@@ -503,6 +544,7 @@
   document.addEventListener('toggle',e=>{const details=e.target;if(details.matches?.('.demand-accordion')){if(details.open){expandedDemands.add(details.dataset.demand);const task=findTask(details.dataset.demand);if(task&&!details.querySelector('.demand-body'))details.insertAdjacentHTML('beforeend',renderPipelineBody(task,workflow.stage(db,task)));}else expandedDemands.delete(details.dataset.demand)}},true);
   document.addEventListener('click',async e=>{
     const element=e.target.closest('button');if(!element)return;
+    if(element.dataset.projectModel){modelProject(element.dataset.projectModel);return;}
     if(element.dataset.dragTask){chooseTaskStage(element.dataset.dragTask);return;}
     const areaId=element.dataset.areaUp||element.dataset.areaDown;
     if(areaId){const index=db.projects.findIndex(p=>p.id===areaId),target=index+(element.dataset.areaUp?-1:1);if(index>=0&&target>=0&&target<db.projects.length){[db.projects[index],db.projects[target]]=[db.projects[target],db.projects[index]];persistAndRender();document.querySelector(`[data-area-${element.dataset.areaUp?'up':'down'}="${CSS.escape(areaId)}"]`)?.focus()}return}
@@ -520,6 +562,9 @@
     const t=selectedTask();try{switch(element.dataset.action){
       case 'toggle-done':view.hideDone=!view.hideDone;render();break;
       case 'show-areas':openPage('projetos');break;
+      case 'create-model-project':modelProject();break;
+      case 'edit-model-project':{const project=db.initiatives.find(p=>p.id===element.dataset.id);if(project)modelProject(project.model||'simple',project);break;}
+      case 'project-library-task':{const project=db.initiatives.find(p=>p.id===element.dataset.id);if(project)newTask({project:project.areaId,initiativeId:project.id});break;}
       case 'new-initiative':newInitiative();break;
       case 'rename-initiative':{
         const project=(db.initiatives||[]).find(p=>p.id===element.dataset.id&&p.areaId===view.areaId);if(!project)break;

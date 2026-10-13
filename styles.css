@@ -263,3 +263,5 @@ body.pipeline-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing
 .pipeline-task .demand-accordion{padding-left:27px}
 .task-complete-check{position:absolute;z-index:2;top:16px;left:12px;width:17px;height:17px;margin:0;accent-color:var(--accent);cursor:pointer}
 .task-complete-check:disabled{cursor:default}
+
+.project-nav-menu summary{display:flex;align-items:center;gap:10px;padding:14px 16px;color:#e2edff;cursor:pointer;border-radius:9px;list-style:none;font-size:13px;font-weight:600}.project-nav-menu summary::after{content:'⌄';margin-left:auto}.project-nav-menu[open] summary::after{content:'⌃'}.project-nav-menu summary:hover{background:#ffffff14}#project-template-menu{padding:4px 0 6px 18px}#sidebar-nav #project-template-menu button{font-size:11px;padding:9px 12px}.project-description{white-space:pre-wrap;font-size:13px;line-height:1.6}#project-model-fields .field{margin-top:18px}#project-model-fields .button{align-self:flex-start}@media(max-width:760px){.project-nav-menu{min-width:150px}.project-nav-menu summary{padding:9px 11px;font-size:11px}#project-template-menu{padding-left:0}}
