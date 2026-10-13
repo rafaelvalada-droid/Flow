@@ -1,30 +1,30 @@
 (() => {
   'use strict';
   const stamp = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  // Limites por partes da data: em fusos com horário de verão à meia-noite (America/Santiago, Havana,
+  // regras antigas de Sao_Paulo) o dia começa às 01:00, e copiar a hora do início deslocaria os dias seguintes.
   function range(period = 'week', offset = 0, now = new Date()) {
-    const start = new Date(now); start.setHours(0,0,0,0);
-    if (period === 'month') {start.setDate(1);start.setMonth(start.getMonth()+offset);}
-    else if (period === 'week') start.setDate(start.getDate()-(start.getDay()+6)%7+offset*7);
-    else start.setDate(start.getDate()+offset);
-    const end = new Date(start);
-    if (period === 'month') end.setMonth(end.getMonth()+1);
-    else end.setDate(end.getDate()+(period === 'week'?7:1));
-    return {start, end};
+    const year = now.getFullYear(), month = now.getMonth();
+    if (period === 'month') return {start: new Date(year, month+offset, 1), end: new Date(year, month+offset+1, 1)};
+    const day = now.getDate() + (period === 'week' ? 7*offset - (now.getDay()+6)%7 : offset);
+    return {start: new Date(year, month, day), end: new Date(year, month, day + (period === 'week' ? 7 : 1))};
   }
   function summarize(db, period = 'week', offset = 0, now = Date.now()) {
     const {start,end} = range(period, offset, new Date(now)), buckets = [];
-    let cursor = new Date(start);
-    while (cursor < end) {
-      const from = new Date(cursor), until = new Date(cursor);
-      if (period === 'day') until.setHours(until.getHours()+1); else until.setDate(until.getDate()+1);
+    const year = start.getFullYear(), month = start.getMonth(), day = start.getDate();
+    const edge = index => period === 'day' ? new Date(year, month, day, index) : new Date(year, month, day+index);
+    for (let index = 0; edge(index) < end; index++) {
+      const from = edge(index), until = new Date(Math.min(+edge(index+1), +end));
+      if (until <= from) continue; // Hora inexistente no início do horário de verão.
       buckets.push({start: +from, end: +until, label: period==='day'?`${String(from.getHours()).padStart(2,'0')}h`:period==='week'?from.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.',''):String(from.getDate()), ms: 0});
-      cursor = until;
     }
     const areas = new Map(), tasks = [];
+    const catalog = [...(Array.isArray(db.projects) ? db.projects : []), ...(Array.isArray(db.archivedProjects) ? db.archivedProjects : [])];
     let totalMs = 0, sessionCount = 0;
-    for (const task of db.tasks) {
+    for (const task of Array.isArray(db.tasks) ? db.tasks : []) {
       let ms = 0, count = 0;
-      for (const session of task.sessions || []) {
+      for (const session of Array.isArray(task?.sessions) ? task.sessions : []) {
+        if (!session || typeof session !== 'object') continue;
         const from = Number(session.start);
         const until = session.end == null ? Math.min(now, db.focus?.taskId===task.id && db.focus?.phase==='work' && db.focus.endsAt ? db.focus.endsAt : now) : Math.min(Number(session.end), now);
         if (!Number.isFinite(from) || !Number.isFinite(until) || until <= from) continue;
@@ -34,7 +34,7 @@
         for (const bucket of buckets) bucket.ms += Math.max(0, Math.min(clippedEnd,bucket.end)-Math.max(clippedStart,bucket.start));
       }
       if (!ms) continue;
-      const project = [...db.projects, ...(db.archivedProjects || [])].find(p=>p.id===task.project);
+      const project = catalog.find(p=>p?.id===task.project);
       const area = project?.name || 'Sem área', areaId = project?.id || '';
       const row = areas.get(areaId) || {id:areaId, name:area, color:project?.color || '#8998ae', ms:0, tasks:0};
       row.ms += ms; row.tasks++; areas.set(areaId, row);
@@ -52,7 +52,7 @@
     return '"'+text.replace(/"/g,'""')+'"';
   };
   function csv(report) {
-    const end=new Date(report.end);end.setDate(end.getDate()-1);
+    const end=new Date(+report.end-1); // Último instante do período, mesmo sem meia-noite local.
     const rows=[['Relatório UlbraFlow','Gestão do Tempo'],['Período',stamp(report.start),stamp(end)],
       ['Tempo total',duration(report.totalMs),'Segundos',Math.floor(report.totalMs/1000)],[],
       ['Área','Tempo trabalhado','Segundos','Tarefas com tempo']];

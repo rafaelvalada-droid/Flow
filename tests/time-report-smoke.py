@@ -89,6 +89,34 @@ async def main(folder):
         await page.screenshot(path='/tmp/flow-time-mobile.png', full_page=True)
         passed('Time dashboard fits mobile, tablet and desktop without page overflow')
         await context.close()
+        # Chile, 06/09/2026: o relógio passa de 00:00 para 01:00. Nenhum trabalho pode ser contado em dois dias.
+        context = await browser.new_context(viewport={'width': 1280, 'height': 900}, timezone_id='America/Santiago')
+        page = await context.new_page()
+        await page.clock.install(time=datetime(2026, 9, 7, 15, tzinfo=timezone.utc))
+        await page.goto(BASE)
+        await page.wait_for_function("localStorage.getItem('flow.workspace.v1')")
+        await page.evaluate("""() => {
+            const key='flow.workspace.v1', db=JSON.parse(localStorage.getItem(key));
+            db.tasks.forEach(task=>{task.sessions=[]});
+            db.tasks[0].sessions=[{start:+new Date('2026-09-06T01:00:00-03:00'),end:+new Date('2026-09-06T02:00:00-03:00')},
+                {start:+new Date('2026-09-06T23:30:00-03:00'),end:+new Date('2026-09-07T00:30:00-03:00')}];
+            localStorage.setItem(key,JSON.stringify(db));
+            window.dispatchEvent(new StorageEvent('storage',{key}));
+        }""")
+        await page.locator('#sidebar-nav [data-page="tempo"]').click()
+        await page.locator('[data-time-period="day"]').click()
+        await expect(page.locator('#time-total')).to_have_text('00:30:00')
+        await expect(page.locator('.time-bar')).to_have_count(24)
+        await page.locator('[data-action="time-previous"]').click()
+        await expect(page.locator('#time-total')).to_have_text('01:30:00')
+        await expect(page.locator('.time-bar')).to_have_count(23)
+        await page.locator('[data-time-period="week"]').click()
+        await expect(page.locator('#time-total')).to_have_text('00:30:00')
+        await page.locator('[data-action="time-previous"]').click()
+        await expect(page.locator('#time-total')).to_have_text('01:30:00')
+        await expect(page.locator('.time-bar')).to_have_count(7)
+        passed('A day without local midnight (America/Santiago) starts at 01:00 and never double-counts work')
+        await context.close()
         await browser.close()
     print(f'{checks} time-report browser checks passed.', flush=True)
 

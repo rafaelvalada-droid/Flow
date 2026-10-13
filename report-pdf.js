@@ -31,7 +31,7 @@
     const primary = [49,102,220], ink = [24,43,73], muted = [91,111,140], pale = [228,237,251];
     const duration = FlowTime.duration;
     const date = value => new Date(value).toLocaleDateString('pt-BR');
-    const last = new Date(report.end); last.setDate(last.getDate()-1);
+    const last = new Date(+report.end-1); // Último instante do período, mesmo em dia sem meia-noite local.
     const range = date(report.start) + (period === 'day' ? '' : ' a ' + date(last));
     const clean = value => String(value ?? '').replace(/[\u0000-\u001f]/g,' ').replace(/[–—]/g,'-');
     let y = 44;

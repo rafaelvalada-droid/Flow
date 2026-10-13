@@ -18,8 +18,24 @@
   ].map(area => Object.freeze({...area, aliases:Object.freeze(area.aliases||[])}));
   const nameKey = name => String(name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
   const defaults = () => catalog.map(({id,name,color})=>({id,name,color}));
+  const isArea = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  // Dados malformados não derrubam a abertura nem somem: o que não é área vai para db.recovered.
+  function keep(db, key) {
+    const value = db[key];
+    if (key === 'archivedProjects' && value == null) return;
+    if (Array.isArray(value) && value.every(isArea)) return;
+    const recover = record => {
+      if (!Array.isArray(db.recovered)) db.recovered = db.recovered == null ? [] : [{from:'recovered', value:db.recovered}];
+      db.recovered.push(record);
+    };
+    if (Array.isArray(value)) value.forEach((item,index)=>{if(!isArea(item))recover({from:key,index,value:item})});
+    else if (value != null) recover({from:key,value});
+    db[key] = Array.isArray(value) ? value.filter(isArea) : [];
+  }
 
   function migrate(db) {
+    if (!isArea(db)) return db;
+    keep(db,'projects'); keep(db,'archivedProjects');
     if (db.classificationCatalogVersion >= version) return db;
     const retired = db.projects.filter(area=>['ubra s.a.','ubracis'].includes(nameKey(area.name)));
     if(retired.length){
