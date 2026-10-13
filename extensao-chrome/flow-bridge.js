@@ -6,14 +6,14 @@
   const opening=()=>document.querySelector('.app-shell')?.hidden||document.querySelector('.sidebar')?.inert;
 
   function read() {
-    if(opening())throw new Error('Aguarde a abertura do Ulbraflow ou entre com Google antes de capturar.');
+    if(opening())throw new Error('Aguarde a abertura do UlbraFlow ou entre com Google antes de capturar.');
     let active;
     try {active=JSON.parse(localStorage.getItem('flow.active-workspace.v1'));}catch{}
     cloudMode=active?.mode==='cloud';
     if (localStorage.getItem('flow.cloud-required.v1')) {
       if (!cloudMode || !/^[a-f0-9-]{36}$/i.test(active.userId||'') ||
           active.key !== `flow.workspace.v1:${active.userId}` || document.querySelector('.app-shell')?.hidden !== false) {
-        throw new Error('Entre com Google no Ulbraflow neste perfil do Chrome e tente novamente.');
+        throw new Error('Entre com Google no UlbraFlow neste perfil do Chrome e tente novamente.');
       }
     }
     key=cloudMode?active.key:'flow.workspace.v1';
@@ -21,7 +21,7 @@
     let db;
     try { db = JSON.parse(raw); } catch {}
     if (db?.version !== 1 || !Array.isArray(db.projects) || !Array.isArray(db.tasks)) {
-      throw new Error('Abra o Ulbraflow uma vez neste perfil do Chrome e tente novamente.');
+      throw new Error('Abra o UlbraFlow uma vez neste perfil do Chrome e tente novamente.');
     }
     return {db, raw};
   }
@@ -34,7 +34,7 @@
         clearTimeout(timeout);window.removeEventListener('flow:cloud-save-result',finish);
         if(event.detail.ok)resolve();else reject(new Error(event.detail.error||'Não foi possível salvar na nuvem. Tente novamente.'));
       };
-      const timeout=setTimeout(()=>{window.removeEventListener('flow:cloud-save-result',finish);reject(new Error('A nuvem ainda não confirmou o salvamento. Abra o Ulbraflow e tente novamente.'));},15000);
+      const timeout=setTimeout(()=>{window.removeEventListener('flow:cloud-save-result',finish);reject(new Error('A nuvem ainda não confirmou o salvamento. Abra o UlbraFlow e tente novamente.'));},15000);
       window.addEventListener('flow:cloud-save-result',finish);
       window.dispatchEvent(new CustomEvent('flow:cloud-save',{detail:{requestId,key}}));
     });
@@ -55,7 +55,7 @@
     try { gmail = new URL(data.gmailUrl); } catch {}
     if (!gmail || gmail.protocol !== 'https:' || gmail.hostname !== 'mail.google.com' ||
         gmail.username || gmail.password || !/\/[a-zA-Z0-9_-]{8,}$/.test(gmail.hash.split('?')[0])) {
-      throw new Error('Abra uma conversa válida no Gmail para incluir no Ulbraflow.');
+      throw new Error('Abra uma conversa válida no Gmail para incluir no UlbraFlow.');
     }
     const text = (value, limit) => typeof value === 'string' ? value.slice(0, limit) : '';
     const dueDate = data.dueDate || '';
@@ -84,10 +84,10 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.id !== chrome.runtime.id || !['FLOW_BRIDGE_LISTS', 'FLOW_BRIDGE_SAVE', 'FLOW_BRIDGE_OPEN'].includes(message?.type)) return;
     (async()=>{try {
-      // A freshly opened Ulbraflow tab may still be checking OAuth and loading its data.
+      // A freshly opened UlbraFlow tab may still be checking OAuth and loading its data.
       const started=Date.now();
       while(opening() && document.querySelector('#google-login')?.hidden && Date.now()-started<12000)await new Promise(resolve=>setTimeout(resolve,50));
-      if(message.type==='FLOW_BRIDGE_OPEN'){const task=read().db.tasks.find(t=>t.gmailCaptureId===message.data?.requestId);if(!task)throw new Error('A demanda não está neste Ulbraflow. Confira o endereço configurado na extensão.');window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{requestId:message.data.requestId}}));sendResponse({ok:true});return;}
+      if(message.type==='FLOW_BRIDGE_OPEN'){const task=read().db.tasks.find(t=>t.gmailCaptureId===message.data?.requestId);if(!task)throw new Error('A demanda não está neste UlbraFlow. Confira o endereço configurado na extensão.');window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{requestId:message.data.requestId}}));sendResponse({ok:true});return;}
       const result = message.type === 'FLOW_BRIDGE_SAVE' ? await save(message.data) : {
         projects: read().db.projects.filter(p => typeof p.id === 'string' && typeof p.name === 'string')
           .map(p => ({id: p.id, name: p.name}))
@@ -95,7 +95,7 @@
       sendResponse({ok: true, ...result});
     } catch (error) {
       sendResponse({ok: false, error: error.name === 'QuotaExceededError' ?
-        'O navegador está sem espaço para salvar. Faça um backup do Ulbraflow e libere espaço.' : error.message});
+        'O navegador está sem espaço para salvar. Faça um backup do UlbraFlow e libere espaço.' : error.message});
     }})();
     return true;
   });

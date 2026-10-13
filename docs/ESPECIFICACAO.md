@@ -1,4 +1,4 @@
-# Ulbraflow — especificação funcional 1.3
+# UlbraFlow — especificação funcional 1.3
 
 ## Propósito
 
@@ -41,9 +41,9 @@ A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de 
 
 ## Gmail
 
-A extensão Chrome 1.3 adiciona **Incluir no Ulbraflow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa.
+A extensão Chrome 1.3 adiciona **Incluir no UlbraFlow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa.
 
-A extensão usa uma aba do Ulbraflow no mesmo perfil e domínio configurado, preservando a navegação no Gmail. Não lê o corpo da mensagem nem envia respostas. Retentativas da mesma captura não duplicam tarefas. Áreas removidas e datas inválidas são recusadas. Capturas de versões anteriores sem data permanecem compatíveis e ficam a classificar.
+A extensão usa uma aba do UlbraFlow no mesmo perfil e domínio configurado, preservando a navegação no Gmail. Não lê o corpo da mensagem nem envia respostas. Retentativas da mesma captura não duplicam tarefas. Áreas removidas e datas inválidas são recusadas. Capturas de versões anteriores sem data permanecem compatíveis e ficam a classificar.
 
 A instalação real é feita pelo usuário no Chrome desktop. O teste automatizado na nuvem usa Gmail simulado e adaptador para `chrome.*`, pois o Chromium gerenciado bloqueia extensões sem compactação.
 
@@ -61,8 +61,8 @@ Dia, semana e mês, com navegação de períodos. Totais de trabalho efetivo, ta
 
 Entrar com Google usa OAuth PKCE e identidade verificada pelo Supabase. O SQL em `supabase/flow.sql` contém RLS e uma função que deriva o dono da sessão. Revisões impedem sobreposição silenciosa entre dispositivos; falhas mantêm dados pendentes. A configuração está em [ATIVACAO-GOOGLE.md](ATIVACAO-GOOGLE.md). Esses serviços exigem ativação externa, não são simulados na aplicação.
 
-Google Agenda pede consentimento separado. Cria/atualiza eventos privados no calendário principal pela data de execução; prazo final separado na descrição. Sem horário é dia inteiro; com horário usa a duração do foco. Retirar data ou excluir remove somente eventos próprios do Ulbraflow. Sincroniza com a aba aberta; expiração exige reconexão. A exportação .ics continua disponível.
+Google Agenda pede consentimento separado. Cria/atualiza eventos privados no calendário principal pela data de execução; prazo final separado na descrição. Sem horário é dia inteiro; com horário usa a duração do foco. Retirar data ou excluir remove somente eventos próprios do UlbraFlow. Sincroniza com a aba aberta; expiração exige reconexão. A exportação .ics continua disponível.
 
-A extensão 1.3 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no Ulbraflow.
+A extensão 1.3 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no UlbraFlow.
 
 Gemini permanece opcional, com chave no servidor, acionamento por clique e revisão. Alertas salvam preferências sem envio ativo. A interface usa cinza claro no conjunto e destaques verdes Ulbra S.A. (#045A52) com letras brancas, inclusive no acesso, na esteira, no foco, na agenda e na Gestão do Tempo. As cores das áreas ficam preservadas nos dados; a apresentação usa indicadores verdes. A impressão/PDF usa fundo claro e texto escuro. O slogan foi retirado, e a marca verde Ulbra S.A. enviada está no acesso e na barra superior.

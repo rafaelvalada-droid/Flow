@@ -1,6 +1,6 @@
 # Renovação automática do Gmail e da Agenda
 
-O Ulbraflow solicita acesso offline e renova o token Google antes de expirar ou após uma resposta HTTP 401. Gmail e Agenda compartilham a renovação, mas mantêm suas conexões separadas. Falhas temporárias não apagam as conexões. O servidor verifica a sessão Supabase e a identidade Google antes de devolver o novo acesso.
+O UlbraFlow solicita acesso offline e renova o token Google antes de expirar ou após uma resposta HTTP 401. Gmail e Agenda compartilham a renovação, mas mantêm suas conexões separadas. Falhas temporárias não apagam as conexões. O servidor verifica a sessão Supabase e a identidade Google antes de devolver o novo acesso.
 
 ## Configuração na Vercel
 

@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Ulbraflow - Capturar e-mail como tarefa",
-  "description": "Classifique o e-mail por área e data e inclua na esteira do Ulbraflow sem sair do Gmail.",
-  "version": "1.4.1",
+  "name": "UlbraFlow - Capturar e-mail como tarefa",
+  "description": "Classifique o e-mail por área e data e inclua na esteira do UlbraFlow sem sair do Gmail.",
+  "version": "1.4.2",
   "action": {
-    "default_title": "Configurar conexão com o Ulbraflow",
+    "default_title": "Configurar conexão com o UlbraFlow",
     "default_popup": "popup.html",
     "default_icon": {
       "128": "flow-mark.png"

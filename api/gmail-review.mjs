@@ -40,9 +40,9 @@ export async function POST(request){
  const deadline=AbortSignal.timeout(50000);
  const signal=ms=>AbortSignal.any([deadline,AbortSignal.timeout(ms)]);
  if(!process.env.GEMINI_API_KEY)return json(503,{error:'Configure GEMINI_API_KEY na Vercel para analisar os e-mails.'});
- let config;try{config=publicConfig();if(!config.configured)throw new Error();}catch{return json(503,{error:'O acesso Google do Ulbraflow não está configurado.'});}
+ let config;try{config=publicConfig();if(!config.configured)throw new Error();}catch{return json(503,{error:'O acesso Google do UlbraFlow não está configurado.'});}
  const authorization=request.headers.get('authorization')||'';
- if(!/^Bearer [A-Za-z0-9._-]{20,5000}$/.test(authorization))return json(401,{error:'Entre com Google no Ulbraflow.'});
+ if(!/^Bearer [A-Za-z0-9._-]{20,5000}$/.test(authorization))return json(401,{error:'Entre com Google no UlbraFlow.'});
  try{
   const auth=await fetch(config.url+'/auth/v1/user',{headers:{apikey:config.key,authorization},signal:signal(12000)});
   if(!auth.ok)return json(401,{error:'Sua sessão expirou. Entre novamente.'});

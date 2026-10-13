@@ -40,4 +40,4 @@ const server = createServer(async (req, res) => {
     res.writeHead(200,{'content-type':contentTypes[extname(filename)]||'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff'});res.end(body);
   } catch(err){res.writeHead(500,{'content-type':'application/json'});res.end(JSON.stringify({error:'Erro interno no servidor local.'}));}
 });
-server.listen(port,'127.0.0.1',()=>console.log(`Ulbraflow disponível em http://localhost:${port}`));
+server.listen(port,'127.0.0.1',()=>console.log(`UlbraFlow disponível em http://localhost:${port}`));

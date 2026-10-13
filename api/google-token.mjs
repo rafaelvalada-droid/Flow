@@ -6,10 +6,10 @@ export function googleCredentials(env=process.env){
 }
 export async function POST(request){
   const authorization=request.headers.get('authorization')||'';
-  if(!/^Bearer [A-Za-z0-9._-]{20,5000}$/.test(authorization))return json(401,{error:'Entre com Google no Ulbraflow.'});
+  if(!/^Bearer [A-Za-z0-9._-]{20,5000}$/.test(authorization))return json(401,{error:'Entre com Google no UlbraFlow.'});
   if(!(request.headers.get('content-type')||'').includes('application/json'))return json(415,{error:'Envie JSON.'});
   let config;
-  try{config=publicConfig();if(!config.configured)throw new Error();}catch{return json(503,{error:'O acesso Google do Ulbraflow não está configurado.'});}
+  try{config=publicConfig();if(!config.configured)throw new Error();}catch{return json(503,{error:'O acesso Google do UlbraFlow não está configurado.'});}
   const signal=AbortSignal.timeout(30000);
   try{
     const raw=await request.text();if(raw.length>10000)return json(413,{error:'Solicitação maior que o limite.'});
@@ -35,7 +35,7 @@ export async function POST(request){
     const googleIdentities=(user.identities||[]).filter(identity=>identity.provider==='google');
     const subjects=googleIdentities.map(identity=>identity.identity_data?.sub||identity.identity_id).filter(Boolean);
     const matches=subjects.length?subjects.includes(profile.sub):typeof user.email==='string'&&profile.email_verified===true&&user.email.toLowerCase()===String(profile.email||'').toLowerCase();
-    if(!matches)return json(409,{code:'GOOGLE_RECONNECT_REQUIRED',error:'Conecte Gmail e Agenda com a mesma conta Google do Ulbraflow.'});
+    if(!matches)return json(409,{code:'GOOGLE_RECONNECT_REQUIRED',error:'Conecte Gmail e Agenda com a mesma conta Google do UlbraFlow.'});
     return json(200,{accessToken:data.access_token,expiresIn:Math.min(data.expires_in,86400),...(typeof data.refresh_token==='string'&&data.refresh_token?{refreshToken:data.refresh_token}:{}),...(typeof data.scope==='string'?{scope:data.scope}:{})});
   }catch{return json(502,{error:'A renovação do Google demorou ou perdeu a conexão. Tente novamente; suas conexões foram mantidas.'});}
 }

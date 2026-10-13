@@ -15,7 +15,7 @@ form.addEventListener('submit', async event => {
     const granted = await chrome.permissions.request({origins: [FlowExtension.permissionPattern(url)]});
     if (!granted) throw new Error('O endereço precisa ser autorizado para acessar suas listas.');
     await chrome.storage.local.set({flowUrl: url.href});
-    status.textContent = 'Conexão salva. Abra uma conversa no Gmail e clique em Incluir no Ulbraflow.';
+    status.textContent = 'Conexão salva. Abra uma conversa no Gmail e clique em Incluir no UlbraFlow.';
   } catch (error) { status.textContent = error.message || 'Não foi possível salvar a conexão.'; }
   finally { save.disabled = false; }
 });

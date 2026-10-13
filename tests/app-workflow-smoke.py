@@ -29,8 +29,8 @@ async def run(profile):
         await expect(page.locator('.pipeline-board')).to_be_visible()
         assert await page.locator('.pipeline-lane').count()==5
         assert await page.locator('.pipeline-task').count()==4
-        await expect(page.locator('.brand')).to_have_text('Ulbraflow')
-        passed('Default screen opens Entrada; Esteira shows one shared pipeline and the Ulbraflow name')
+        await expect(page.locator('.brand')).to_have_text('UlbraFlow')
+        passed('Default screen opens Entrada; Esteira shows one shared pipeline and the UlbraFlow name')
 
         await page.locator('.top-actions [data-action="new-task"]').click()
         form=page.locator('#active-modal-form')

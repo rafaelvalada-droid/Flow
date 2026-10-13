@@ -98,7 +98,7 @@
       const next = await request('/auth/v1/token?grant_type=pkce', {
         method: 'POST', body: JSON.stringify({auth_code: code, code_verifier: proof.verifier})
       }, false);
-      if (proof.expectedUser && next?.user?.id !== proof.expectedUser) throw new Error('Conecte a Agenda usando a mesma conta Google do Ulbraflow.');
+      if (proof.expectedUser && next?.user?.id !== proof.expectedUser) throw new Error('Conecte a Agenda usando a mesma conta Google do UlbraFlow.');
       if(proof.gmail)resumePage='entrada';
       const previous=session?.user?.id===next.user?.id?session:null;
       remember({...next,provider_refresh_token:next.provider_refresh_token||previous?.provider_refresh_token||null,
@@ -188,7 +188,7 @@
     location.reload();
   }
   async function createGmailToken() {
-    if(!user)throw new Error('Entre com Google no Ulbraflow para conectar o Gmail do celular.');
+    if(!user)throw new Error('Entre com Google no UlbraFlow para conectar o Gmail do celular.');
     await flush();
     const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
     const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token));
@@ -216,7 +216,7 @@
     const fresh=()=>session?.provider_token&&(!session.google_access_expires_at||session.google_access_expires_at>Date.now()/1000+60);
     if((!rejectedToken&&fresh())||(rejectedToken&&session.provider_token!==rejectedToken&&fresh()))return session.provider_token;
     const owner=user?.id;
-    if(!owner)throw new Error('Entre com Google no Ulbraflow.');
+    if(!owner)throw new Error('Entre com Google no UlbraFlow.');
     if(!googleRefresh){
       const renew=async()=>{
         const latest=json(localStorage.getItem(SESSION));
