@@ -104,3 +104,5 @@ O texto recebido fica temporariamente no IndexedDB do aparelho, associado a um i
 ## Revisão de desempenho e confiabilidade
 
 [Revisão de 12/10/2026](docs/REVISAO-PROJETO-2026-10-12.md) documenta as medições, correções e limites restantes. A leitura Gmail reaproveita conversas pelo histórico da caixa; a classificação inicia durante o carregamento e atualiza os cartões sem substituir a tela inteira. Testes de regressão de desempenho estão em `npm run test:gmail-review`.
+
+A [Base de Projetos](docs/BASE-PROJETOS.md) reúne avaliação Gemini, dez modelos guiados e acompanhamento com marcos, riscos, indicadores e tarefas vinculadas.
