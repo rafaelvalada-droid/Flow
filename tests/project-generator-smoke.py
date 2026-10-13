@@ -6,7 +6,8 @@ async def run():
   await page.route('**/api/auth-config',lambda r:r.fulfill(json={'configured':False}));await page.goto(os.environ.get('FLOW_TEST_URL','http://127.0.0.1:3000'))
   await page.evaluate("()=>{localStorage.setItem('flow.workspace.v1',JSON.stringify({version:1,projects:[{id:'area',name:'Area'}],initiatives:[{id:'old',name:'Projeto existente',areaId:'area'}],tasks:[],preferences:{}}))}")
   await page.reload();await page.locator('.project-nav-menu summary').click()
-  labels=await page.locator('#project-template-menu button').all_text_contents();assert labels[-2]=='Meus Projetos'
+  labels=await page.locator('#project-template-menu button').all_text_contents();assert 'Meus Projetos' not in labels
+  assert await page.locator('#sidebar-nav > button[data-page=meus-projetos]').count()==1
   await page.locator('[data-project-model=pdca]').click();assert await page.locator('#project-editor-form').count()==1 and await page.locator('#active-modal-form').count()==0
   assert await page.locator('[data-project-improve]').count()>=6
   assert await page.locator('.project-step-card .field-help').count()==4

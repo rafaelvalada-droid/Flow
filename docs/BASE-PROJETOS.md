@@ -1,6 +1,6 @@
 # Base de Projetos
 
-A barra lateral reúne Avaliação Gemini, dez modelos, Meus Projetos (penúltimo item) e Criar projeto. Meus Projetos inclui os projetos criados anteriormente dentro das Áreas. Projetos existentes preservam seus IDs e tarefas vinculadas.
+Na barra lateral, Meus Projetos fica abaixo de Áreas e reúne os projetos criados. Base de Projetos fica abaixo de Agenda e reúne Avaliação Gemini, dez modelos e Criar projeto. Meus Projetos inclui os projetos criados anteriormente dentro das Áreas. Projetos existentes preservam seus IDs e tarefas vinculadas.
 
 ## Da ideia ao plano
 
