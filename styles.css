@@ -276,3 +276,5 @@ body.pipeline-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing
 .project-method-accordion{margin:16px 0;border:1px solid var(--border);border-radius:10px;background:#ffffffa8}.project-method-accordion summary{cursor:pointer;padding:13px 16px;font-size:13px;font-weight:600;color:var(--accent)}.project-method-accordion>div{padding:0 16px 16px}.project-method-accordion h3{font-size:14px;margin:16px 0 8px}.project-method-accordion p{font-size:13px;line-height:1.8;max-width:900px;margin:0 0 12px}
 
 .project-trash{margin-top:24px}.project-trash summary{cursor:pointer;font-weight:600;color:var(--muted)}.project-trash-row{padding:15px 0;border-top:1px solid var(--border);gap:15px;flex-wrap:wrap}
+
+.method-google-search{display:inline-flex;align-items:center;gap:7px;text-decoration:none;margin-top:4px;max-width:100%;white-space:normal}
