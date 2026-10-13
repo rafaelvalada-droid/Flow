@@ -6,16 +6,36 @@
   let scheduled = false;
 
   const visible = node => node.getClientRects().length > 0;
+  // O ID hexadecimal do assunto aberto é o mesmo da Gmail API: o UlbraFlow reconhece a conversa vinda de qualquer origem.
+  // Só o cabeçalho da conversa é lido; linhas da lista (painel de leitura) têm IDs de outras conversas.
+  function legacyId(heading, names, perm = '') {
+    for (const name of names) {
+      const hex = (heading.getAttribute(name) || '').replace(/^#/, '').toLowerCase();
+      if (/^[a-f0-9]{8,40}$/.test(hex)) return hex;
+    }
+    const decimal = perm && /^#?thread-f:(\d{1,30})$/.exec(heading.getAttribute(perm) || '')?.[1];
+    return decimal ? BigInt(decimal).toString(16) : '';
+  }
+  function account() {
+    return / - ([^\s@<>()"]+@[^\s@<>()"]+\.[^\s@<>()"]+) - [^@]*$/.exec(document.title)?.[1] || '';
+  }
+  function link(threadId) {
+    if (!threadId) return location.href;
+    const email = account(), index = /^\/mail\/u\/(\d{1,2})\//.exec(location.pathname)?.[1];
+    return 'https://mail.google.com/mail/' + (email ? '?authuser=' + encodeURIComponent(email) : index ? 'u/' + index + '/' : '') + '#all/' + threadId;
+  }
   function conversation() {
     const heading = [...document.querySelectorAll('h2.hP, .ha h2')].find(visible);
     const route = location.hash.split('?')[0];
     if (!heading || !/\/[a-zA-Z0-9_-]{8,}$/.test(route)) return null;
     const sender = [...document.querySelectorAll('.gD')].filter(visible).at(-1);
+    const gmailThreadId = legacyId(heading, ['data-legacy-thread-id'], 'data-thread-perm-id');
+    const gmailMessageId = gmailThreadId ? legacyId(heading, ['data-legacy-last-non-draft-message-id', 'data-legacy-last-message-id']) : '';
     return {
       heading,
       gmailSubject: heading.textContent.trim() || 'Conversa sem assunto',
       gmailSender: sender?.getAttribute('email') || sender?.textContent.trim() || '',
-      gmailUrl: location.href
+      gmailUrl: link(gmailThreadId), gmailThreadId, gmailMessageId
     };
   }
 
@@ -66,7 +86,7 @@
       </dialog>`;
     document.body.appendChild(host);
     dialogHost = host;
-    dialogUrl = email.gmailUrl;
+    dialogUrl = location.href;
     const dialog = shadow.querySelector('dialog');
     const form = shadow.querySelector('form');
     const title = form.elements.title;
@@ -76,6 +96,7 @@
     const save = shadow.querySelector('[type="submit"]');
     const cancel = shadow.querySelector('#flow-close');
     const requestId = crypto.randomUUID();
+    let opened = {requestId};
     let saving = false;
     let finished = false;
     title.value = email.gmailSubject.slice(0, 180);
@@ -102,7 +123,7 @@
     dialog.showModal();
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if(finished){try{await send('FLOW_OPEN_EMAIL',{requestId});closeDialog()}catch(error){update(error.message,'error')}return;}
+      if(finished){try{await send('FLOW_OPEN_EMAIL',opened);closeDialog()}catch(error){update(error.message,'error')}return;}
       if (saving || !select.value) return;
       saving = true;
       save.disabled = true;
@@ -112,13 +133,15 @@
       dueDate.disabled = true;
       update('Salvando no UlbraFlow…');
       try {
-        await send('FLOW_SAVE_EMAIL', {
+        const result = await send('FLOW_SAVE_EMAIL', {
           requestId, projectId: select.value, title: title.value.trim(), dueDate: dueDate.value,
-          gmailUrl: email.gmailUrl, gmailSubject: email.gmailSubject, gmailSender: email.gmailSender
+          gmailUrl: email.gmailUrl, gmailSubject: email.gmailSubject, gmailSender: email.gmailSender,
+          gmailThreadId: email.gmailThreadId, gmailMessageId: email.gmailMessageId
         });
         if (dialogHost !== host) return;
         finished = true;
-        update('Salvo no UlbraFlow! Você pode continuar no Gmail.', 'success');
+        opened = {requestId: result.requestId || requestId, taskId: result.taskId};
+        update(result.duplicate ? 'Esta conversa já está no UlbraFlow. Nenhuma tarefa nova foi criada.' : 'Salvo no UlbraFlow! Você pode continuar no Gmail.', 'success');
         save.textContent = 'Ver no UlbraFlow';
         save.disabled = false;
         cancel.textContent = 'Fechar';

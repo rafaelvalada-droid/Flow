@@ -5,7 +5,15 @@ Implementação preparada. A ativação na conta Google exige os passos abaixo. 
 ## 1. Preparar Supabase
 No SQL Editor do mesmo projeto do UlbraFlow, execute `supabase/gmail-addon.sql` depois do `supabase/flow.sql` já instalado. Não use a chave service_role.
 
-O banco guarda apenas SHA-256 da chave de conexão. A conexão dura 90 dias e pode apenas listar as áreas e acrescentar tarefas; não pode ler o conteúdo das tarefas existentes, excluí-las nem sobrescrever o workspace. A gravação trava a linha, incrementa a revisão e evita duplicação da mesma conversa. Um UlbraFlow aberto com alterações antigas verá o conflito existente e deverá carregar a versão da nuvem, preservando seus dados pendentes.
+O banco guarda apenas SHA-256 da chave de conexão. O complemento envia a chave para `flow_gmail_capture_v2`, que calcula o SHA-256 no próprio banco: o hash guardado não serve como credencial. Conexões vencidas são apagadas ao criar uma chave e a cada validação bem-sucedida. A conexão dura 90 dias e pode apenas listar as áreas e acrescentar tarefas; não pode ler o conteúdo das tarefas existentes, excluí-las nem sobrescrever o workspace. A gravação trava a linha, incrementa a revisão e evita duplicação da mesma conversa, venha ela do celular, da extensão Chrome 1.5 ou da revisão da Entrada (`gmailThreadId`). Um UlbraFlow aberto com alterações antigas verá o conflito existente e deverá carregar a versão da nuvem, preservando seus dados pendentes.
+
+### Atualização da chave (v2) e transição
+1. Execute novamente `supabase/gmail-addon.sql` (é re-executável). Ele cria `flow_gmail_capture_v2` e mantém `flow_gmail_capture` (que recebe o hash) para complementos ainda não atualizados.
+2. Substitua o `Code.gs` do projeto Apps Script por esta versão e salve. Em implantação de teste, a próxima abertura já usa o código novo; em publicação do Marketplace, crie uma nova versão em **Implantar → Gerenciar implantações** e atualize a configuração do app no SDK Google Workspace Marketplace.
+3. Confirme no Gmail que Conectar e Salvar no UlbraFlow funcionam. As chaves atuais continuam válidas; não é preciso gerar outra.
+4. Depois que todas as instalações estiverem atualizadas, remova a função antiga no SQL Editor:
+   `drop function if exists public.flow_gmail_capture(text,text,jsonb);`
+   Enquanto ela existir, quem obtiver o hash guardado ainda consegue capturar.
 
 ## 2. Criar projeto Apps Script
 1. Abra https://script.google.com/ com a conta que usa o Gmail.
@@ -30,6 +38,6 @@ A conta @ulbra.br pode exigir aprovação do administrador para instalar ou publ
 **Desconectar celular** no UlbraFlow revoga a chave. Desconectar apenas no complemento apaga a cópia local. A chave fica em User Properties, privada para cada usuário do complemento.
 
 ## Limites e validação
-O complemento lê apenas os metadados da mensagem atual (assunto/remetente/identificação), sem ler o corpo ou enviar mensagens. O link usa authuser para abrir a conversa na conta correta. Não agenda eventos automaticamente: informe a data de execução depois no UlbraFlow.
+O complemento lê apenas os metadados da mensagem atual (assunto/remetente/identificação), sem ler o corpo ou enviar mensagens. Os IDs do evento (`thread-f:<decimal>`, `msg-f:<decimal>`) são convertidos para o hexadecimal minúsculo da Gmail API; IDs hexadecimais são aceitos como estão. O link usa authuser e `#all/<id>` para abrir a conversa na conta correta. Não agenda eventos automaticamente: informe a data de execução depois no UlbraFlow.
 
-Os testes Node usam adaptadores de Apps Script e HTTP. Eles não substituem a execução do SQL em PostgreSQL, a autorização OAuth ou um teste real no Gmail Android. Antes de liberar para a organização, confirme instalação no Android, conta correta, áreas, prazo, idempotência, revogação e conflito com uma aba UlbraFlow aberta.
+Os testes Node usam adaptadores de Apps Script e HTTP (`npm run test:gmail-addon`). `tests/gmail-addon-sql.mjs` executa este SQL em PostgreSQL descartável (PGlite), como descrito em `docs/ATIVACAO-GOOGLE.md`, com `FLOW_PGLITE_MODULE` apontando para o PGlite instalado fora do projeto. Eles não substituem a execução do SQL em PostgreSQL, a autorização OAuth ou um teste real no Gmail Android. Antes de liberar para a organização, confirme instalação no Android, conta correta, áreas, prazo, idempotência, revogação e conflito com uma aba UlbraFlow aberta.
