@@ -259,3 +259,7 @@ body.pipeline-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing
 .startup-access .actionbar:not(:has(button:not([hidden]))){display:none}
 @media(max-width:760px){.startup-heading{margin-bottom:15px}.startup-heading h1{font-size:25px}.startup-heading p{font-size:12px}}
 @media(max-width:420px){.startup-heading h1{font-size:21px}}
+
+.pipeline-task .demand-accordion{padding-left:27px}
+.task-complete-check{position:absolute;z-index:2;top:16px;left:12px;width:17px;height:17px;margin:0;accent-color:var(--accent);cursor:pointer}
+.task-complete-check:disabled{cursor:default}
