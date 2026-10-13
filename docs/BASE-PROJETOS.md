@@ -30,3 +30,9 @@ Salvar usa a sincronização já existente do workspace. Campos não salvos fica
 Avaliação e geração usam a chave Gemini existente no servidor e verificam a sessão Supabase. Só aceitam recomendações de modelos conhecidos e etapas solicitadas. Datas sugeridas para os marcos precisam constar no texto enviado; datas não informadas ficam vazias. Responsáveis e fatos novos devem ser tratados como hipóteses para revisão. Falhas do Gemini preservam o plano anterior.
 
 `npm run test:projects` verifica validação do servidor, avaliação, geração e revisão, edição, gráficos, vínculo de tarefas, conclusão, histórico, exportação, reabertura e layout móvel com serviços simulados.
+
+## Exclusão e restauração
+
+Excluir projeto pede a digitação do nome para confirmar. O plano, os campos e o acompanhamento ficam na Lixeira de projetos por trinta dias, no mesmo workspace privado e sincronizado. As tarefas e seus tempos permanecem na área, sem o vínculo. Restaurar recupera o projeto e volta a vincular as tarefas que ainda estão na mesma área e não pertencem a outro projeto. Se a área original não existir, escolha uma área disponível.
+
+Depois do prazo, o projeto não pode ser restaurado. O cache vencido é removido ao abrir o app e durante a limpeza periódica enquanto ele está aberto. Backups exportados anteriormente são independentes dessa retenção.

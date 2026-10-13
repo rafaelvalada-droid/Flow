@@ -56,6 +56,7 @@
   let db=workflow.normalize(workspace.mode === 'cloud' ? workspace.data || {version:1,projects:globalThis.FlowAreas.defaults(),tasks:[],preferences:{}} : load());
   workflow.reconcile(db);
   db.initiatives=Array.isArray(db.initiatives)?db.initiatives:[];
+  db.projectTrash=(Array.isArray(db.projectTrash)?db.projectTrash:[]).filter(entry=>entry?.project?.id&&Number.isFinite(entry.expiresAt)&&entry.expiresAt>Date.now());
   const expandedDemands=new Set();
   let pipelineDrag=null,dragFrame=0,suppressDragClickUntil=0;
   let view={page:'entrada',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',boardDate:'today',boardSpecificDate:'',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
@@ -165,9 +166,25 @@
     design:{name:'Design Thinking',fields:['Problema e público','Empatia: necessidades','Definição do desafio','Ideias','Protótipo','Testes e aprendizados']}
   };
   $('#project-template-menu').innerHTML='<button type="button" data-page="project-assessment"><img src="./assets/gemini.svg" alt="" width="16" height="16"> Avaliação Gemini</button>'+Object.entries(projectModels).map(([key,model])=>`<button type="button" data-project-model="${key}">${model.name}</button>`).join('')+'<button type="button" data-action="create-model-project">+ Criar projeto</button>';
+  function renderProjectTrash(){const entries=(db.projectTrash||[]).filter(entry=>entry.expiresAt>Date.now());return `<details class="card project-trash"><summary>Lixeira de projetos · ${entries.length}</summary><p class="smalltext muted">Projetos excluídos podem ser restaurados por 30 dias. As tarefas permanecem nas áreas.</p>${entries.map(entry=>`<div class="between project-trash-row"><div><strong>${html(entry.project.name)}</strong><p class="smalltext muted">Disponível até ${html(new Date(entry.expiresAt).toLocaleDateString('pt-BR'))}</p></div>${button('Restaurar projeto','restore-initiative',false,`data-id="${html(entry.project.id)}"`)}</div>`).join('')||'<p class="smalltext muted">Nenhum projeto na lixeira.</p>'}</details>`;}
+  function requestProjectDeletion(project){
+    promptModal({title:'Excluir projeto',subtitle:`Quer excluir o projeto “${project.name}”?`,content:`<p>O projeto ficará na lixeira por <strong>30 dias</strong>. As tarefas e seus tempos registrados serão mantidos na área.</p><label class="field">Digite o nome do projeto para confirmar<input name="confirmName" required autocomplete="off" placeholder="${html(project.name)}"></label><p id="delete-project-status" role="status" class="smalltext"></p>`,ok:'Excluir projeto',onSubmit:data=>{
+      const current=db.initiatives.find(p=>p.id===project.id);if(!current){closeModal();return false;}
+      if(String(data.get('confirmName')||'').trim()!==current.name.trim()){$('#delete-project-status').textContent='Digite exatamente o nome do projeto para confirmar.';return false;}
+      const now=Date.now(),tasks=db.tasks.filter(t=>t.initiativeId===current.id);db.projectTrash??=[];db.projectTrash.push({project:structuredClone(current),deletedAt:now,expiresAt:now+30*86400000,taskIds:tasks.map(t=>t.id)});
+      tasks.forEach(t=>{t.initiativeId=null;});db.initiatives=db.initiatives.filter(p=>p.id!==current.id);if(projectDraft?.id===current.id)projectDraft=null;persistAndRender();notice('Projeto na lixeira por 30 dias. Tarefas preservadas.');return true;
+    }});
+  }
+  function restoreProject(entry,areaId=entry.project.areaId){
+    if(entry.expiresAt<=Date.now()){notice('O prazo de restauração deste projeto terminou.');return;}
+    if(db.initiatives.some(p=>p.id===entry.project.id)||!findProject(areaId))return;
+    const project={...structuredClone(entry.project),areaId};db.initiatives.push(project);
+    db.tasks.filter(t=>(entry.taskIds||[]).includes(t.id)&&!t.initiativeId&&t.project===areaId).forEach(t=>{t.initiativeId=project.id;});
+    db.projectTrash=db.projectTrash.filter(item=>item!==entry);persistAndRender();notice('Projeto restaurado.');
+  }
   function renderMyProjects(){
     const projects=db.initiatives||[];
-    return pageHead('Meus projetos','Projetos de todas as áreas, com modelos para organizar a execução.',button('+ Criar projeto','create-model-project',true))+`<div class="area-projects">${projects.map(p=>{const area=findProject(p.areaId),model=projectModels[p.model]||projectModels.simple;return `<section class="card"><div class="between"><div><h3 class="sectiontitle">${html(p.name)}</h3><p class="smalltext muted">${html(area?.name||'Área indisponível')} · ${html(model.name)}</p></div><div class="row">${button('Abrir projeto','edit-model-project',false,`data-id="${html(p.id)}"`)}${area?button('+ Nova tarefa','project-library-task',false,`data-id="${html(p.id)}"`):''}</div></div>${p.description?`<p class="project-description">${html(p.description)}</p>`:''}<div class="project-list-progress">${(()=>{const tasks=db.tasks.filter(t=>t.initiativeId===p.id),done=tasks.filter(t=>t.status==='done').length;return `<div class="between"><span class="smalltext">${done}/${tasks.length} tarefas concluídas</span><span class="smalltext">${html(({planning:'Planejamento',active:'Em execução',waiting:'Aguardando',done:'Concluído'})[p.phase]||'Planejamento')}</span></div><div class="progressbar"><i style="width:${tasks.length?Math.round(done/tasks.length*100):0}%;background:var(--accent)"></i></div>${p.owner||p.endDate?`<p class="smalltext muted">${html(p.owner||'Responsável a definir')}${p.endDate?' · Prazo: '+html(dateLabel(p.endDate)):''}</p>`:''}`;})()}</div></section>`;}).join('')||'<section class="card"><p>Você ainda não criou projetos. Escolha um modelo no menu para começar.</p></section>'}</div>`;
+    return pageHead('Meus projetos','Projetos de todas as áreas, com modelos para organizar a execução.',button('+ Criar projeto','create-model-project',true))+`<div class="area-projects">${projects.map(p=>{const area=findProject(p.areaId),model=projectModels[p.model]||projectModels.simple;return `<section class="card"><div class="between"><div><h3 class="sectiontitle">${html(p.name)}</h3><p class="smalltext muted">${html(area?.name||'Área indisponível')} · ${html(model.name)}</p></div><div class="row">${button('Abrir projeto','edit-model-project',false,`data-id="${html(p.id)}"`)}${button('Excluir projeto','delete-initiative',false,`data-id="${html(p.id)}"`)}${area?button('+ Nova tarefa','project-library-task',false,`data-id="${html(p.id)}"`):''}</div></div>${p.description?`<p class="project-description">${html(p.description)}</p>`:''}<div class="project-list-progress">${(()=>{const tasks=db.tasks.filter(t=>t.initiativeId===p.id),done=tasks.filter(t=>t.status==='done').length;return `<div class="between"><span class="smalltext">${done}/${tasks.length} tarefas concluídas</span><span class="smalltext">${html(({planning:'Planejamento',active:'Em execução',waiting:'Aguardando',done:'Concluído'})[p.phase]||'Planejamento')}</span></div><div class="progressbar"><i style="width:${tasks.length?Math.round(done/tasks.length*100):0}%;background:var(--accent)"></i></div>${p.owner||p.endDate?`<p class="smalltext muted">${html(p.owner||'Responsável a definir')}${p.endDate?' · Prazo: '+html(dateLabel(p.endDate)):''}</p>`:''}`;})()}</div></section>`;}).join('')||'<section class="card"><p>Você ainda não criou projetos. Escolha um modelo no menu para começar.</p></section>'}</div>`+renderProjectTrash();
   }
   const projectGuides={
     simple:['Organize um projeto com objetivo claro, entregas e acompanhamento.',['Defina o resultado que quer alcançar e o problema que será resolvido.','Liste produtos ou serviços que deverão ser entregues.','Indique quem executa, decide e acompanha cada entrega.','Distribua as entregas no tempo, com marcos e dependências.','Defina evidências objetivas para saber se o projeto foi bem-sucedido.']],
@@ -277,7 +294,7 @@
     const area=findProject(view.areaId);if(!area)return pageHead('Área não encontrada','Volte às áreas.',button('← Áreas','show-areas'));
     const tasks=db.tasks.filter(t=>t.project===area.id),projects=(db.initiatives||[]).filter(p=>p.areaId===area.id);
     const taskRows=list=>list.map(t=>`<button class="task-list-item" data-task="${html(t.id)}"><strong>${html(t.title)}</strong><div class="status-line">${badge(workflow.stage(db,t))}${urgencyBadge(t)}</div></button>`).join('')||'<p class="smalltext muted">Nenhuma tarefa aqui ainda.</p>';
-    return pageHead(area.name,'Tarefas e projetos desta área. Todas as demandas seguem pela esteira.',`<div class="row">${button('← Áreas','show-areas')}${button('+ Criar projeto','new-initiative')}${button('+ Nova tarefa','area-new-task',true)}</div>`)+`<section class="card"><h3 class="sectiontitle">Tarefas da área</h3>${taskRows(tasks.filter(t=>!projects.some(p=>p.id===t.initiativeId)))}</section><div class="area-projects">${projects.map(p=>`<section class="card"><div class="between"><h3 class="sectiontitle">${html(p.name)}</h3><div class="row">${button('Abrir projeto','edit-model-project',false,`data-id="${html(p.id)}"`)}${button('Renomear','rename-initiative',false,`data-id="${html(p.id)}"`)}${button('+ Nova tarefa','initiative-new-task',false,`data-id="${html(p.id)}"`)}</div></div>${p.description?`<p class="smalltext muted">${html(p.description)}</p>`:''}${taskRows(tasks.filter(t=>t.initiativeId===p.id))}</section>`).join('')}</div>`;
+    return pageHead(area.name,'Tarefas e projetos desta área. Todas as demandas seguem pela esteira.',`<div class="row">${button('← Áreas','show-areas')}${button('+ Criar projeto','new-initiative')}${button('+ Nova tarefa','area-new-task',true)}</div>`)+`<section class="card"><h3 class="sectiontitle">Tarefas da área</h3>${taskRows(tasks.filter(t=>!projects.some(p=>p.id===t.initiativeId)))}</section><div class="area-projects">${projects.map(p=>`<section class="card"><div class="between"><h3 class="sectiontitle">${html(p.name)}</h3><div class="row">${button('Abrir projeto','edit-model-project',false,`data-id="${html(p.id)}"`)}${button('Excluir projeto','delete-initiative',false,`data-id="${html(p.id)}"`)}${button('Renomear','rename-initiative',false,`data-id="${html(p.id)}"`)}${button('+ Nova tarefa','initiative-new-task',false,`data-id="${html(p.id)}"`)}</div></div>${p.description?`<p class="smalltext muted">${html(p.description)}</p>`:''}${taskRows(tasks.filter(t=>t.initiativeId===p.id))}</section>`).join('')}</div>`;
   }
   function newInitiative(){if(findProject(view.areaId))modelProject('simple');}
   function renderProjects(){
@@ -653,6 +670,13 @@
       case 'project-editor-back':openPage('meus-projetos');break;
       case 'create-model-project':modelProject();break;
       case 'edit-model-project':{const project=db.initiatives.find(p=>p.id===element.dataset.id);if(project)modelProject(project.model||'simple',project);break;}
+      case 'delete-initiative':{const project=db.initiatives.find(p=>p.id===element.dataset.id);if(project)requestProjectDeletion(project);break;}
+      case 'restore-initiative':{
+        const entry=db.projectTrash?.find(entry=>entry.project.id===element.dataset.id);if(!entry)break;
+        if(findProject(entry.project.areaId))restoreProject(entry);
+        else promptModal({title:'Restaurar projeto',subtitle:'Escolha uma área disponível para restaurar este projeto.',content:`<label class="field">Área<select name="areaId" required>${projOption('',false)}</select></label>`,ok:'Restaurar',onSubmit:data=>{const areaId=String(data.get('areaId')||'');if(!findProject(areaId))return false;restoreProject(entry,areaId);return true;}});
+        break;
+      }
       case 'project-library-task':{const project=db.initiatives.find(p=>p.id===element.dataset.id);if(project)newTask({project:project.areaId,initiativeId:project.id});break;}
       case 'new-initiative':newInitiative();break;
       case 'rename-initiative':{
@@ -782,6 +806,7 @@
   $('.brand').addEventListener('click',e=>{e.preventDefault();openPage('esteira')});
   // Atualiza os rótulos; a contagem decorre dos timestamps, não da frequência do setInterval.
   setInterval(tick,1000);
+  setInterval(()=>{const previous=db.projectTrash?.length||0;db.projectTrash=(db.projectTrash||[]).filter(entry=>entry.expiresAt>Date.now());if(db.projectTrash.length!==previous){persist();if(view.page==='meus-projetos')render();}},3600000);
   // Botão de backup facilmente acessível sem ocupar uma sexta tela.
   const nav=document.querySelector('.sidebar-foot');const backup=document.createElement('button');backup.className='button small workspace-settings';backup.type='button';backup.dataset.action='settings';backup.title='Exportar ou importar os dados';backup.textContent='⚙';nav.appendChild(backup);
   globalThis.FlowCalendar.initialize(()=>db,persist);
