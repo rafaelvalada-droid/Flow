@@ -17,7 +17,7 @@
     "test:extension": "python3 tests/gmail-extension-smoke.py",
     "test:projects": "node --test tests/project-generator.test.mjs && python3 tests/project-generator-smoke.py",
     "test:workflow": "node --test tests/workflow.test.mjs tests/areas.test.mjs tests/time-report.test.mjs tests/cloud-config.test.mjs tests/calendar-read.test.mjs tests/calendar-write.test.mjs tests/cloud-integrations.test.mjs tests/gemini-task.test.mjs",
-    "test:cloud": "node --test tests/cloud-sync.test.mjs tests/cloud-api-access.test.mjs tests/cloud-deploy.test.mjs tests/server-paths.test.mjs && python3 scripts/run-browser-tests.py cloud cloud-csp app-cloud-data",
+    "test:cloud": "node --test tests/cloud-sync.test.mjs tests/cloud-api-access.test.mjs tests/cloud-deploy.test.mjs tests/server-paths.test.mjs && python3 scripts/run-browser-tests.py cloud cloud-csp app-cloud-data cloud-device-sync",
     "test:google-refresh": "node --test tests/google-refresh.test.mjs && python3 scripts/run-browser-tests.py google-refresh",
     "test:time": "python3 tests/time-report-smoke.py",
     "test:app": "python3 tests/app-workflow-smoke.py",

@@ -169,13 +169,26 @@
       const cached = json(localStorage.getItem(key));
       if (cached?.version === 1) {
         data = cached;
-        if (Number(localStorage.getItem(key + '.revision')) !== revision) conflict = true;
-        else pending = JSON.stringify(cached);
+        if (Number(localStorage.getItem(key + '.revision')) !== revision) {
+          // Alterações não enviadas e outro aparelho salvou depois: com a base guardada, mescla como num 409.
+          const baseText = localStorage.getItem(key + '.base');
+          const result = remote && baseText !== null ? merge(baseText ? json(baseText) : undefined, cached, remote.data) : null;
+          if (result && !result.conflicts.length) {
+            data = result.value;
+            const text = JSON.stringify(data);
+            pending = text === saved ? null : text;
+            store(key, text);
+            if (!pending) try { localStorage.removeItem(key + '.pending'); } catch {}
+          } else conflict = true;
+        } else pending = JSON.stringify(cached);
       }
     }
     if (!conflict) store(key + '.revision', String(revision));
+    keepBase();
     store(ACTIVE, JSON.stringify({mode: 'cloud', userId: user.id, key}));
     setStatus(conflict ? 'conflict' : pending ? 'pending' : 'saved', conflict ? 'Há alterações locais e uma versão nova na nuvem. Exporte um backup antes de carregar a nuvem.' : '');
+    // O que ficou pendente na sessão anterior (aba fechada logo após editar) é enviado agora, sem esperar outra edição.
+    if (pending && !conflict) schedule();
     return {mode: 'cloud', key, data, user,resumePage};
   }
 
@@ -223,16 +236,25 @@
       }
       return out;
     }
+    // Análises do Gmail e eventos da Agenda são refeitos por qualquer aparelho: vale a nuvem, sem travar a sincronização.
+    if (/^\/(gmailReviews|calendar)\//.test(path)) return remote;
     conflicts.push(path || '/');
     return remote;
   }
   function merge(base, local, remote) { const conflicts = []; const value = merge3(base, local, remote, '', conflicts); return {value, conflicts}; }
 
   const schedule = () => { clearTimeout(timer); timer = setTimeout(() => { if (!saving) flush().catch(() => {}); }, 500); };
+  // Enquanto há alterações não enviadas, a base (último conteúdo confirmado na nuvem) fica guardada para mesclar depois de recarregar.
+  function keepBase() {
+    if (pending && !conflict) store(key + '.base', saved);
+    else if (!localStorage.getItem(key + '.pending')) try { localStorage.removeItem(key + '.base'); } catch {}
+  }
   function queue(data, serialized = JSON.stringify(data)) {
     if (!user) return;
     if ((serialized === saved && !pending)||serialized===pending) return;
+    const first = !pending;
     pending = serialized;
+    if (first && !conflict) store(key + '.base', saved);
     store(key + '.pending', '1');
     if (conflict) { setStatus('conflict', error); return; }
     setStatus('pending');
@@ -243,6 +265,7 @@
     store(key + '.revision', String(revision));
     saved = snapshot;
     if (pending === snapshot) pending = null;
+    if (pending) store(key + '.base', saved); else try { localStorage.removeItem(key + '.base'); } catch {}
   };
   // 409: a resposta pode ter se perdido depois do commit, ou outra aba/dispositivo salvou antes.
   async function settle(snapshot) {
@@ -310,6 +333,7 @@
     localStorage.setItem(key, JSON.stringify(remote.data));
     localStorage.setItem(key + '.revision', String(remote.revision));
     localStorage.removeItem(key + '.pending');
+    localStorage.removeItem(key + '.base');
     location.reload();
   }
   async function signOut() {
@@ -351,6 +375,46 @@
     revision = next;
     saved = localStorage.getItem(key) || saved;
   });
+  // Novidades de outro aparelho: sem isso, um app que ficou aberto em segundo plano (celular) mostraria dados antigos
+  // até ser recarregado. Primeiro só a revisão; os dados vêm apenas quando a nuvem tem algo mais novo.
+  let pulling = null, pulledAt = 0;
+  function pull(force = false) {
+    if (!user || conflict || saving || pulling || (!force && Date.now() - pulledAt < 15000)) return pulling || Promise.resolve(false);
+    pulledAt = Date.now();
+    const select = fields => request(`/rest/v1/flow_workspaces?user_id=eq.${user.id}&select=${fields}`).then(rows => rows?.[0]);
+    pulling = (async () => {
+      const head = await select('revision');
+      if (!Number.isInteger(head?.revision) || head.revision <= revision) return false;
+      const remote = await select('data,revision');
+      if (!remote || !Number.isInteger(remote.revision) || remote.revision <= revision || saving || conflict) return false;
+      // A interface grava agora o que ainda está só na memória, para que entre na mesclagem.
+      window.dispatchEvent(new CustomEvent('flow:persist-flush'));
+      const remoteText = JSON.stringify(remote.data);
+      let value = remote.data, next = null;
+      if (pending) {
+        if (!saved) return false;
+        const result = merge(JSON.parse(saved), JSON.parse(pending), remote.data);
+        // Mudança divergente no mesmo campo: o próximo envio recebe o 409 e mostra o conflito, como antes.
+        if (result.conflicts.length) return false;
+        value = result.value;
+        const text = JSON.stringify(value);
+        next = text === remoteText ? null : text;
+      }
+      pending = next;
+      commit(remote.revision, remoteText);
+      store(key, next || remoteText);
+      if (pending) { setStatus('pending'); schedule(); }
+      else { try { localStorage.removeItem(key + '.pending'); } catch {} setStatus('saved'); }
+      window.dispatchEvent(new CustomEvent('flow:cloud-remote-merged', {detail: {data: value}}));
+      return true;
+    })().catch(() => false).finally(() => { pulling = null; });
+    return pulling;
+  }
+  const wake = () => { if (globalThis.document?.visibilityState !== 'hidden') pull(); };
+  window.addEventListener('focus', wake);
+  window.addEventListener('online', wake);
+  globalThis.document?.addEventListener?.('visibilitychange', wake);
+  if (typeof setInterval === 'function') setInterval(wake, 60000);
   async function analyzeGmail(body){
     await ensureToken();const response=await fetch('/api/gmail-review',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});const result=await response.json().catch(()=>({}));if(!response.ok){const failure=new Error(result.error||`Falha na análise (HTTP ${response.status}).`);failure.upstreamStatus=result.upstreamStatus;failure.status=response.status;throw failure;}return result;
   }
@@ -397,7 +461,7 @@
     const renewed=await obtain(token);
     return send(renewed);
   }
-  globalThis.FlowCloud = {googleFetch,ensureGoogleToken,analyzeGmail,gmailToken:()=>session?.gmailConnected?session.provider_token:null,disconnectGmail:()=>disconnect('gmailConnected'),createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
+  globalThis.FlowCloud = {pull,googleFetch,ensureGoogleToken,analyzeGmail,gmailToken:()=>session?.gmailConnected?session.provider_token:null,disconnectGmail:()=>disconnect('gmailConnected'),createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
     info: () => ({mode: user ? 'cloud' : 'local', user, key, status, error, configured: !!config?.configured}),
     calendarToken: () => session?.calendarConnected ? session.provider_token : null,
     disconnectCalendar: () => disconnect('calendarConnected'),
