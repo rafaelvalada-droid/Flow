@@ -1,10 +1,10 @@
-import asyncio
+import asyncio,os
 from playwright.async_api import async_playwright,expect
 async def run():
  async with async_playwright() as p:
   browser=await p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
   page=await browser.new_page()
-  await page.goto('http://127.0.0.1:3000')
+  await page.goto(os.environ.get('FLOW_TEST_URL','http://127.0.0.1:3000'))
   await page.locator('[data-page="projetos"]').click()
   await page.locator('[data-project="oferta"]').click()
   await expect(page.locator('.page-head h1')).to_have_text('Oferta de turmas')

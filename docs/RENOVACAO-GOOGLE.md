@@ -1,6 +1,6 @@
 # Renovação automática do Gmail e da Agenda
 
-O Ulbraflow solicita acesso offline e renova o token Google antes de expirar ou após uma resposta HTTP 401. Gmail e Agenda compartilham a renovação, mas mantêm suas conexões separadas. Falhas temporárias não apagam as conexões. O servidor verifica a sessão Supabase e a identidade Google antes de devolver o novo acesso.
+O UlbraFlow solicita acesso offline e renova o token Google antes de expirar ou após uma resposta HTTP 401. Gmail e Agenda compartilham a renovação, mas mantêm suas conexões separadas. Falhas temporárias não apagam as conexões. O servidor verifica a sessão Supabase e a identidade Google antes de devolver o novo acesso.
 
 ## Configuração na Vercel
 
@@ -13,11 +13,13 @@ Esses valores vêm de **Google Cloud → Google Auth Platform → Clients**. Nã
 
 Não é necessário mudar SQL, criar tabelas ou adicionar uma chave Supabase de serviço. `/api/auth-config` informa apenas `googleRefreshConfigured`, sem expor as credenciais.
 
+`/api/google-token` só renova para contas que entraram com Google e, se `FLOW_ALLOWED_EMAILS` estiver configurada, apenas para os e-mails ou domínios listados (veja [Ativação](ATIVACAO-GOOGLE.md#3-ativar-na-vercel)).
+
 ## Autorizações existentes
 
 Depois da configuração, reconecte uma vez o Gmail e a Agenda que já estavam autorizados para obter o acesso offline. As próximas aberturas reutilizam a sessão e renovam o acesso automaticamente, sem nova tela de consentimento na expiração normal.
 
-Revogação da autorização, regras da organização ou expiração do refresh token podem exigir nova conexão. Em aplicativos OAuth externos no modo Testing, o Google normalmente limita refresh tokens com estes escopos a sete dias; confira o status de publicação no Google Auth Platform.
+Revogação da autorização, regras da organização ou expiração do refresh token podem exigir nova conexão. Desconectar a última integração ou sair do UlbraFlow apaga os tokens do navegador e revoga a autorização no Google, inclusive em outros aparelhos; a próxima conexão pede consentimento. Entrar no UlbraFlow sem conectar Gmail ou Agenda não guarda tokens Google. Em aplicativos OAuth externos no modo Testing, o Google normalmente limita refresh tokens com estes escopos a sete dias; confira o status de publicação no Google Auth Platform.
 
 ## Verificação
 

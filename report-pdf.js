@@ -31,7 +31,7 @@
     const primary = [49,102,220], ink = [24,43,73], muted = [91,111,140], pale = [228,237,251];
     const duration = FlowTime.duration;
     const date = value => new Date(value).toLocaleDateString('pt-BR');
-    const last = new Date(report.end); last.setDate(last.getDate()-1);
+    const last = new Date(+report.end-1); // Último instante do período, mesmo em dia sem meia-noite local.
     const range = date(report.start) + (period === 'day' ? '' : ' a ' + date(last));
     const clean = value => String(value ?? '').replace(/[\u0000-\u001f]/g,' ').replace(/[–—]/g,'-');
     let y = 44;
@@ -105,8 +105,8 @@
     const note=lines('Somente tempo trabalhado; pausas não entram nos totais. Sessões que atravessam a meia-noite são divididas entre os dias. Fuso: '+Intl.DateTimeFormat().resolvedOptions().timeZone+'. Áreas correspondem à classificação atual das tarefas.',178,7);
     space(note.length*3.5+2);wrappedText(note,16,y,7,muted);
     const total=doc.getNumberOfPages(), generated=new Date().toLocaleString('pt-BR');
-    for(let page=1;page<=total;page++){doc.setPage(page);doc.setDrawColor(200,215,238);doc.line(16,282,194,282);text('Ulbraflow • Gerado em '+generated,16,288,7,muted);text(page+' / '+total,182,288,7,muted);}
-    doc.setProperties({title:'Ulbraflow - Gestão do Tempo - '+range,subject:'Tempo trabalhado por área e tarefa',creator:'Ulbraflow',author:'Ulbraflow'});
+    for(let page=1;page<=total;page++){doc.setPage(page);doc.setDrawColor(200,215,238);doc.line(16,282,194,282);text('UlbraFlow • Gerado em '+generated,16,288,7,muted);text(page+' / '+total,182,288,7,muted);}
+    doc.setProperties({title:'UlbraFlow - Gestão do Tempo - '+range,subject:'Tempo trabalhado por área e tarefa',creator:'UlbraFlow',author:'UlbraFlow'});
     doc.save('ulbraflow-tempo-'+period+'-'+report.start.getFullYear()+'-'+String(report.start.getMonth()+1).padStart(2,'0')+'-'+String(report.start.getDate()).padStart(2,'0')+'.pdf');
   }
   globalThis.FlowPDF={download};

@@ -48,11 +48,12 @@ test('A partial Gmail failure does not advance the history cursor and can be ret
 });
 test('Disconnecting and resetting during Gemini analysis prevents stale results from being saved',async()=>{
  const h=inboxHarness();await h.review.refresh();let release,persisted=0;h.context.FlowCloud.analyzeGmail=()=>new Promise(resolve=>{release=resolve});const db={projects:[]};
- const pending=h.review.analyze(db,()=>{persisted++});h.review.reset();release({summary:'Old result'});await pending;assert.equal(persisted,0);assert.equal(h.review.info().analyzing,false);assert.equal(h.review.info().emails.length,0);
+ // The body is fetched before Gemini; wait until the Gemini request is really pending.
+ const pending=h.review.analyze(db,()=>{persisted++});while(!release)await new Promise(r=>setTimeout(r,1));h.review.reset();release({summary:'Old result'});await pending;assert.equal(persisted,0);assert.equal(h.review.info().analyzing,false);assert.equal(h.review.info().emails.length,0);
 });
 test('Approving an email while Gemini is pending cannot be undone by its late result',async()=>{
  const h=inboxHarness();h.ids(['a']);await h.review.refresh();let release;
  h.context.FlowCloud.analyzeGmail=()=>new Promise(resolve=>{release=resolve});const db={projects:[],gmailReviews:{}};
- const pending=h.review.analyze(db,()=>{});db.gmailReviews.a={messageId:'a1',state:'accepted',title:'My manual choice'};
+ const pending=h.review.analyze(db,()=>{});while(!release)await new Promise(r=>setTimeout(r,1));db.gmailReviews.a={messageId:'a1',state:'accepted',title:'My manual choice'};
  release({title:'AI title',summary:'Late result'});await pending;assert.equal(db.gmailReviews.a.state,'accepted');assert.equal(db.gmailReviews.a.title,'My manual choice');
 });

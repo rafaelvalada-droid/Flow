@@ -1,0 +1,19 @@
+# Publica só o que o app usa em produção: páginas e scripts da raiz, assets/, vendor/, downloads/ e api/.
+# package.json fica (define a versão do Node das funções). Arquivos novos da raiz continuam publicados.
+# extensao-chrome/ e gmail-addon/ chegam ao usuário pelos ZIPs de downloads/.
+/.claude
+/.skipper
+/.env*
+/.gitignore
+/.github
+/.vercelignore
+/docs
+/tests
+/supabase
+/scripts
+/gmail-addon
+/extensao-chrome
+/server.mjs
+/README.md
+/preview-desktop.png
+/preview-mobile.png

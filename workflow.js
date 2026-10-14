@@ -8,7 +8,10 @@
     const date = new Date(`${value}T12:00:00`);
     return Number.isFinite(date.getTime()) && localDate(date) === value;
   }
-  const minutes = (value, fallback, max) => Number.isFinite(Number(value)) && Number(value) >= 1 && Number(value) <= max ? Math.round(Number(value)) : fallback;
+  const minutes = (value, fallback, max) => {
+    const number = typeof value === 'number' || (typeof value === 'string' && value.trim()) ? Number(value) : NaN;
+    return Number.isFinite(number) && number >= 1 && number <= max ? Math.round(number) : fallback;
+  };
   const classified = (db, task) => [...db.projects,...(db.archivedProjects||[])].some(area => area.id === task.project) && validDate(task.dueDate);
   const stage = (db, task) => task.status === 'done' ? 'done' : !classified(db, task) ? 'inbox' : ['todo','doing','waiting'].includes(task.status) ? task.status : 'todo';
   const byDue = (a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || (a.createdAt || 0) - (b.createdAt || 0);
@@ -23,29 +26,69 @@
   }
   function stopTask(task, now = Date.now()) {
     if (!task?.startedAt) return;
+    if (!Array.isArray(task.sessions)) task.sessions = [];
     const latest = task.sessions.at(-1);
     if (latest && latest.start === task.startedAt && !latest.end) latest.end = Math.max(latest.start, now);
     else task.sessions.push({start: task.startedAt, end: Math.max(task.startedAt, now)});
     task.startedAt = null;
   }
-  function normalize(db, now = Date.now()) {
-    globalThis.FlowAreas.migrate(db);
-    db.preferences ??= {};
-    db.preferences.focusMinutes = minutes(db.preferences.focusMinutes, defaults.focusMinutes, 180);
-    db.preferences.breakMinutes = minutes(db.preferences.breakMinutes, defaults.breakMinutes, 60);
-    db.preferences.alerts ??= [true,true,true,false];
-    db.preferences.reminderDays ??= 1;
-    for (const task of db.tasks) {
-      task.sessions ??= []; task.subtasks ??= []; task.description ??= '';
-      task.focusCycles ??= 0;
+  const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  // Normalização total: dados malformados (backup antigo, nuvem, edição manual) nunca impedem a abertura.
+  // Nada é descartado em silêncio; o que não pode ser usado fica em db.recovered. IDs e históricos válidos não mudam.
+  function recover(db, record) {
+    if (!Array.isArray(db.recovered)) db.recovered = db.recovered == null ? [] : [{from: 'recovered', value: db.recovered}];
+    db.recovered.push(record);
+  }
+  function objects(db, owner, key, from, extra = {}) {
+    const value = owner[key];
+    if (Array.isArray(value)) {
+      if (value.every(isObject)) return;
+      value.forEach((item, index) => { if (!isObject(item)) recover(db, {from, ...extra, index, value: item}); });
+      owner[key] = value.filter(isObject);
+    } else {
+      if (value != null) recover(db, {from, ...extra, value});
+      owner[key] = [];
     }
-    // Uma sessão antiga continua sendo preservada; o primeiro ciclo novo começa agora.
+  }
+  function normalize(db, now = Date.now()) {
+    if (!isObject(db)) db = db == null ? {} : {recovered: [{from: 'workspace', value: db}]};
+    db.version ??= 1;
+    globalThis.FlowAreas.migrate(db);
+    objects(db, db, 'tasks', 'tasks');
+    if (!isObject(db.preferences)) {
+      if (db.preferences != null) recover(db, {from: 'preferences', value: db.preferences});
+      db.preferences = {};
+    }
+    const preferences = db.preferences;
+    preferences.focusMinutes = minutes(preferences.focusMinutes, defaults.focusMinutes, 180);
+    preferences.breakMinutes = minutes(preferences.breakMinutes, defaults.breakMinutes, 60);
+    const alerts = Array.isArray(preferences.alerts) ? preferences.alerts : [];
+    preferences.alerts = [true,true,true,false].map((fallback, i) => typeof alerts[i] === 'boolean' ? alerts[i] : fallback);
+    preferences.reminderDays = [1,2,3,7].includes(Number(preferences.reminderDays)) ? Number(preferences.reminderDays) : 1;
+    if (db.focus != null && !isObject(db.focus)) { recover(db, {from: 'focus', value: db.focus}); db.focus = null; }
+    for (const task of db.tasks) {
+      objects(db, task, 'sessions', 'task.sessions', {taskId: task.id});
+      objects(db, task, 'subtasks', 'task.subtasks', {taskId: task.id});
+      if (task.description == null) task.description = '';
+      else if (typeof task.description !== 'string') {
+        if (typeof task.description === 'object') { recover(db, {from: 'task.description', taskId: task.id, value: task.description}); task.description = ''; }
+        else task.description = String(task.description);
+      }
+      if (task.title != null && typeof task.title !== 'string' && typeof task.title !== 'object') task.title = String(task.title);
+      const cycles = Math.floor(Number(task.focusCycles));
+      task.focusCycles = Number.isFinite(cycles) && cycles > 0 ? cycles : 0;
+      if (task.startedAt && !Number.isFinite(task.startedAt)) { recover(db, {from: 'task.startedAt', taskId: task.id, value: task.startedAt}); task.startedAt = null; }
+    }
+    // Cronômetro anterior ao Pomodoro (startedAt sem focus): o intervalo até a migração não é verificável
+    // (aba esquecida, backup antigo importado meses depois) e ausência não conta como trabalho. Opção mais
+    // segura: tratá-lo como um ciclo iniciado em startedAt, limitado a um foco. Dentro do ciclo, continua
+    // ativo com o tempo restante; encerrado, a sessão termina no fim previsto e nada começa sem o usuário.
     if (!db.focus) {
-      const running = db.tasks.filter(task => task.startedAt);
-      if (running.length) {
-        const durationMs = db.preferences.focusMinutes * 60000;
-        db.focus = {taskId: running[0].id, phase: 'work', endsAt: now + durationMs, remainingMs: durationMs, durationMs};
-        running.slice(1).forEach(task => stopTask(task, now));
+      const durationMs = preferences.focusMinutes * 60000;
+      for (const task of db.tasks.filter(task => task.startedAt)) {
+        const endsAt = Math.min(task.startedAt, now) + durationMs;
+        if (!db.focus && endsAt > now) db.focus = {taskId: task.id, phase: 'work', endsAt, remainingMs: endsAt - now, durationMs};
+        else stopTask(task, Math.min(now, endsAt));
       }
     }
     return db;

@@ -1,12 +1,14 @@
 /* Raw message bodies remain in memory; only reviews are saved. */
 (() => {
  'use strict';
- let emails=[],nextPage='',loading=false,analyzing=false,analysisBlocked=false,error='',analysisError='',owner='',generation=0,verifiedHistory='',analysisEpoch=0,completed=0;
+ let emails=[],nextPage='',loading=false,analyzing=false,analysisBlocked=false,error='',analysisError='',owner='',generation=0,verifiedHistory='',analysisEpoch=0,completed=0,source=null,listed=false;
  const emit=(emailsChanged=false)=>window.dispatchEvent(new CustomEvent('flow:gmail-review',{detail:{emailsChanged}}));
- const decode=value=>{try{return new TextDecoder().decode(Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0)));}catch{return '';}};
+ // Gmail entrega os bytes da parte; o charset declarado (ISO-8859-1, Windows-1252…) define a leitura, com UTF-8 como reserva.
+ const charsetOf=part=>/charset\s*=\s*"?([^";\s]+)/i.exec((part?.headers||[]).find(h=>h.name.toLowerCase()==='content-type')?.value||'')?.[1]||'utf-8';
+ const decode=(value,charset='utf-8')=>{let bytes,decoder;try{bytes=Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));}catch{return '';}try{decoder=new TextDecoder(charset);}catch{decoder=new TextDecoder();}return decoder.decode(bytes);};
  function bodyText(part){
   const plain=[],html=[];
-  function walk(p){if(p.filename)return;if(p.body?.data){if(p.mimeType==='text/plain')plain.push(decode(p.body.data));if(p.mimeType==='text/html')html.push(decode(p.body.data));}for(const child of p.parts||[])walk(child);}
+  function walk(p){if(p.filename)return;if(p.body?.data){if(p.mimeType==='text/plain')plain.push(decode(p.body.data,charsetOf(p)));if(p.mimeType==='text/html')html.push(decode(p.body.data,charsetOf(p)));}for(const child of p.parts||[])walk(child);}
   walk(part);if(plain.length)return plain.join('\n');
   const parsed=new DOMParser().parseFromString(html.join('\n').replace(/<(img|iframe|link|video|audio|source|object|embed)\b[^>]*>/gi,''),'text/html');parsed.querySelectorAll('script,style').forEach(n=>n.remove());return parsed.body.textContent||'';
  }
@@ -21,7 +23,7 @@
    if(reasons.some(r=>['SERVICE_DISABLED','accessNotConfigured','API_DISABLED'].includes(r))||/has not been used|is disabled|not enabled/i.test(result.error?.message||''))throw new Error('O acesso foi autorizado, mas a Gmail API está desativada. No Google Cloud do projeto Flow, abra APIs e serviços → Biblioteca → Gmail API → Ativar. Depois clique em Atualizar e-mails.');
    if(reasons.includes('insufficientPermissions')||reasons.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT')){FlowCloud.disconnectGmail();throw new Error('O Google não liberou a leitura da caixa de entrada. Conecte o Gmail novamente e autorize as permissões solicitadas.');}
    const reason=reasons.filter(r=>typeof r==='string'&&/^[a-zA-Z0-9_.-]{1,80}$/.test(r)).join(', ')||String(result.error?.status||'PERMISSION_DENIED').replace(/[^a-zA-Z0-9_]/g,'').slice(0,80);
-   if(reasons.some(r=>['domainPolicy','DOMAIN_POLICY_VIOLATION','ORG_RESTRICTION_VIOLATION'].includes(r))||/administrator|admin policy|domain policy|organization policy/i.test(result.error?.message||''))throw new Error('A política da conta Google bloqueou o Gmail no Ulbraflow (HTTP 403; '+reason+'). Peça ao administrador da conta @ulbra.br para verificar o acesso OAuth do Ulbraflow ao Gmail.');
+   if(reasons.some(r=>['domainPolicy','DOMAIN_POLICY_VIOLATION','ORG_RESTRICTION_VIOLATION'].includes(r))||/administrator|admin policy|domain policy|organization policy/i.test(result.error?.message||''))throw new Error('A política da conta Google bloqueou o Gmail no UlbraFlow (HTTP 403; '+reason+'). Peça ao administrador da conta @ulbra.br para verificar o acesso OAuth do UlbraFlow ao Gmail.');
    throw new Error('O Google bloqueou a leitura do Gmail (HTTP 403; '+reason+'). Conecte novamente e confira se todas as permissões solicitadas foram autorizadas.');
   }
   if(response.status===429)throw new Error('O Gmail atingiu o limite de consultas. Aguarde um momento e tente novamente.');
@@ -40,13 +42,29 @@
   }
   return null; // A large or expired history falls back to a complete refresh.
  }
+ // A lista usa só metadados (remetente, assunto, data e trecho); o corpo é baixado quando a análise ou a resposta precisa dele.
+ const METADATA='format=metadata'+['From','To','Subject','Date','Message-ID','References'].map(name=>'&metadataHeaders='+name).join('');
+ const inbound=m=>!m.labelIds?.includes('SENT')||m.labelIds?.includes('INBOX');
+ function summarize(id,messages,account){
+  const latest=messages.filter(inbound).at(-1);if(!latest)return null;
+  return {id,messageId:latest.id,subject:header(latest,'Subject')||'(Sem assunto)',sender:header(latest,'From'),recipient:header(latest,'To'),rfcMessageId:header(latest,'Message-ID'),references:header(latest,'References'),snippet:latest.snippet||'',truncated:messages.length>3,date:Number(latest.internalDate),gmailUrl:'https://mail.google.com/mail/?authuser='+encodeURIComponent(account)+'#all/'+id};
+ }
+ const bodies=new WeakMap();
+ function loadText(email){
+  if(typeof email.text==='string')return Promise.resolve(email.text);
+  if(!bodies.has(email))bodies.set(email,api('threads/'+encodeURIComponent(email.id)+'?format=full').then(result=>{
+   const messages=result.messages||[],text=messages.slice(-3).map(m=>'De: '+header(m,'From')+'\nAssunto: '+header(m,'Subject')+'\n'+bodyText(m.payload)).join('\n\n');
+   email.text=text.slice(-12000);email.truncated=text.length>12000||messages.length>3;return email.text;
+  }).finally(()=>bodies.delete(email)));
+  return bodies.get(email);
+ }
  async function refresh(more=false){
   if(loading)return;const id=++generation,currentOwner=FlowCloud.info().user?.id||'';
-  if(owner!==currentOwner){emails=[];nextPage='';verifiedHistory='';}
+  if(owner!==currentOwner){emails=[];nextPage='';verifiedHistory='';listed=false;}
   owner=currentOwner;loading=true;error='';emit();
   const valid=()=>id===generation&&currentOwner===FlowCloud.info().user?.id&&!!FlowCloud.gmailToken();
   try{
-   const profile=await api('profile');if(profile.emailAddress?.toLowerCase()!==FlowCloud.info().user?.email?.toLowerCase())throw new Error('Conecte o Gmail da mesma conta usada no Ulbraflow.');
+   const profile=await api('profile');if(profile.emailAddress?.toLowerCase()!==FlowCloud.info().user?.email?.toLowerCase())throw new Error('Conecte o Gmail da mesma conta usada no UlbraFlow.');
    if(!valid())return;
    if(!more&&verifiedHistory&&profile.historyId===verifiedHistory)return;
    let changed=null;
@@ -60,10 +78,10 @@
      if(!valid())return;
      let item=cached.get(thread.id);
      if(!item||changed===null||changed.has(thread.id)){
-      const result=await api('threads/'+encodeURIComponent(thread.id)+'?format=full');if(!valid())return;
-      const messages=result.messages||[],latest=messages.filter(m=>!m.labelIds?.includes('SENT')||m.labelIds?.includes('INBOX')).at(-1);if(!latest)continue;
-      const text=messages.slice(-3).map(m=>'De: '+header(m,'From')+'\nAssunto: '+header(m,'Subject')+'\n'+bodyText(m.payload)).join('\n\n');
-      item={id:thread.id,messageId:latest.id,subject:header(latest,'Subject')||'(Sem assunto)',sender:header(latest,'From'),recipient:header(latest,'To'),rfcMessageId:header(latest,'Message-ID'),references:header(latest,'References'),snippet:latest.snippet||'',text:text.slice(-12000),truncated:text.length>12000||messages.length>3,date:Number(latest.internalDate),gmailUrl:'https://mail.google.com/mail/?authuser='+encodeURIComponent(profile.emailAddress)+'#all/'+thread.id};
+      const result=await api('threads/'+encodeURIComponent(thread.id)+'?'+METADATA);if(!valid())return;
+      const previous=item;item=summarize(thread.id,result.messages||[],profile.emailAddress);if(!item)continue;
+      // Mudança só de rótulos mantém o texto já baixado da mesma mensagem.
+      if(previous?.messageId===item.messageId&&typeof previous.text==='string'){item.text=previous.text;item.truncated=previous.truncated;}
      }
      collected.push(item);
      if(valid()){const index=emails.findIndex(e=>e.id===item.id),updated=index<0||emails[index].messageId!==item.messageId;if(index<0)emails.push(item);else emails[index]=item;if(updated)emit(true);}
@@ -73,34 +91,82 @@
    if(!valid())return;
    emails=(more?[...emails.filter(e=>!collected.some(n=>n.id===e.id)),...collected]:collected).sort((a,b)=>b.date-a.date);nextPage=page;
    // Loading another page does not prove older cached pages were refreshed.
-   if(!more){verifiedHistory=profile.historyId||'';}
+   if(!more){verifiedHistory=profile.historyId||'';listed=true;}
   }catch(e){if(id===generation&&currentOwner===FlowCloud.info().user?.id)error=e.message;}finally{if(id===generation){loading=false;emit();}}
  }
+ // Revisões ocupam o workspace salvo na nuvem (limite de 2 MB): decisões viram {messageId,state,at}, pendentes expiram em 30 dias e o mapa guarda as ~500 mais recentes.
+ const REVIEW_LIMIT=500,PENDING_TTL=30*864e5,COMPACT=['messageId','state','at'];
+ function prune(db,now=Date.now()){
+  const reviews=db?.gmailReviews;if(!reviews||typeof reviews!=='object'||Array.isArray(reviews))return false;
+  // Sem `at`, uma pendente só é antiga se a conversa não estiver na lista completa já carregada da caixa de entrada.
+  const loaded=listed&&owner&&owner===globalThis.FlowCloud?.info?.().user?.id?new Set(emails.map(e=>e.id)):null;
+  let changed=false;const kept=[];
+  for(const [id,entry] of Object.entries(reviews)){
+   if(!entry||typeof entry!=='object'||typeof entry.messageId!=='string'){delete reviews[id];changed=true;continue;}
+   const at=Number.isFinite(entry.at)&&entry.at>0?entry.at:0;
+   if(['accepted','ignored'].includes(entry.state)){
+    // O selo "Analisado com Gemini" passa para a tarefa antes de o resumo ser descartado.
+    if(entry.state==='accepted'&&entry.summary)for(const t of Array.isArray(db.tasks)?db.tasks:[])if(t?.gmailThreadId===id&&t.gmailMessageId===entry.messageId&&!t.geminiAnalyzed){t.geminiAnalyzed=true;t.geminiClassified=!!(t.geminiClassified||entry.areaId);t.geminiModel??=entry.modelUsed||null;}
+    if(!at||Object.keys(entry).some(key=>!COMPACT.includes(key))){reviews[id]={messageId:entry.messageId,state:entry.state,at:at||now};changed=true;}
+   }else if(!entry.summary||(at?at<now-PENDING_TTL:loaded&&!loaded.has(id))){delete reviews[id];changed=true;continue;}
+   kept.push(id);
+  }
+  if(kept.length>REVIEW_LIMIT){
+   const visible=id=>loaded?.has(id)?1:0;
+   kept.sort((a,b)=>visible(b)-visible(a)||(reviews[b].at||0)-(reviews[a].at||0));
+   for(const id of kept.slice(REVIEW_LIMIT))delete reviews[id];changed=true;
+  }
+  return changed;
+ }
+ // Já resolvido: revisão desta mensagem ou tarefa capturada (extensão, celular, Entrada) na mesma mensagem.
+ const handled=(db,email)=>db?.gmailReviews?.[email.id]?.messageId===email.messageId||(Array.isArray(db?.tasks)&&db.tasks.some(t=>t?.gmailThreadId===email.id&&t.gmailMessageId===email.messageId));
+ // db pode ser o workspace ou uma função que devolve o atual: capturas e outras abas substituem o objeto durante a análise.
  async function analyze(db,persist,force=false){
-  if(analyzing||(!force&&analysisBlocked)||!FlowCloud.gmailToken()||!emails.length)return;
-  if(!emails.some(email=>db.gmailReviews?.[email.id]?.messageId!==email.messageId))return;
+  const workspace=()=>typeof db==='function'?db():db;source=workspace;
+  if(analyzing||!FlowCloud.gmailToken()||!emails.length||!workspace())return;
+  if(prune(workspace()))persist();
+  if(!force&&analysisBlocked)return;
+  const skipped=new Set(),needed=email=>!skipped.has(email.id)&&!handled(workspace(),email);
+  if(!emails.some(needed))return;
   analysisBlocked=false;const currentOwner=FlowCloud.info().user?.id,epoch=analysisEpoch;
-  const valid=()=>epoch===analysisEpoch&&currentOwner===FlowCloud.info().user?.id&&!!FlowCloud.gmailToken();
+  const valid=()=>epoch===analysisEpoch&&currentOwner===FlowCloud.info().user?.id&&!!FlowCloud.gmailToken()&&!!workspace();
   analyzing=true;completed=0;analysisError='';emit();
   try{
-   db.gmailReviews??={};
    // Pick the next pending message after each result so newly arrived messages join this queue.
    while(valid()){
-    const email=emails.find(email=>db.gmailReviews[email.id]?.messageId!==email.messageId);if(!email)break;
-    const review=await FlowCloud.analyzeGmail({subject:email.subject.slice(0,300),text:email.text||email.snippet,areas:db.projects.map(p=>({id:p.id,name:p.name}))});
+    const email=emails.find(needed);if(!email)break;
+    try{await loadText(email);}catch(e){if(e.status!==404)throw e;skipped.add(email.id);continue;}
     if(!valid())return;
-    if(emails.find(e=>e.id===email.id)?.messageId!==email.messageId||db.gmailReviews[email.id]?.messageId===email.messageId)continue;
-    db.gmailReviews[email.id]={...review,messageId:email.messageId,state:'pending'};completed++;persist();emit();
+    if(emails.find(e=>e.id===email.id)?.messageId!==email.messageId||!needed(email))continue;
+    const review=await FlowCloud.analyzeGmail({subject:email.subject.slice(0,300),text:email.text||email.snippet,areas:(workspace().projects||[]).map(p=>({id:p.id,name:p.name}))});
+    if(!valid())return;
+    const current=workspace();
+    if(emails.find(e=>e.id===email.id)?.messageId!==email.messageId||handled(current,email))continue;
+    current.gmailReviews??={};current.gmailReviews[email.id]={...review,messageId:email.messageId,state:'pending',at:Date.now()};completed++;persist();emit();
    }
   }catch(e){if(valid()){analysisError=e.message;analysisBlocked=true;}}finally{if(epoch===analysisEpoch){analyzing=false;emit();}}
  }
  function base64(bytes){let value='';for(let i=0;i<bytes.length;i+=8192)value+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(value);}
  function address(value){const match=String(value||'').match(/[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9.-]+/);return match?.[0]||'';}
  async function replyContext(threadId){
-  const cached=emails.find(e=>e.id===threadId);if(cached)return cached;
-  const thread=await api('threads/'+encodeURIComponent(threadId)+'?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Message-ID&metadataHeaders=References');const m=thread.messages?.at(-1);if(!m)throw new Error('Conversa não encontrada.');return {id:threadId,subject:header(m,'Subject'),sender:header(m,'From'),recipient:header(m,'To'),rfcMessageId:header(m,'Message-ID'),references:header(m,'References')};
+  // Responder precisa do texto: baixa o corpo só agora; sem ele, o app usa resumo ou trecho.
+  const cached=emails.find(e=>e.id===threadId);if(cached){await loadText(cached).catch(()=>{});return cached;}
+  const thread=await api('threads/'+encodeURIComponent(threadId)+'?format=full'),messages=thread.messages||[],m=messages.at(-1);if(!m)throw new Error('Conversa não encontrada.');
+  const text=messages.slice(-3).map(x=>'De: '+header(x,'From')+'\nAssunto: '+header(x,'Subject')+'\n'+bodyText(x.payload)).join('\n\n');
+  return {id:threadId,subject:header(m,'Subject'),sender:header(m,'From'),recipient:header(m,'To'),rfcMessageId:header(m,'Message-ID'),references:header(m,'References'),snippet:m.snippet||'',text:text.slice(-12000)};
  }
- async function archive(threadId){await api('threads/'+encodeURIComponent(threadId)+'/modify','POST',{removeLabelIds:['INBOX']});emails=emails.filter(e=>e.id!==threadId);emit();}
+ // Arquiva somente as mensagens que existiam até a revisada; uma resposta nova mantém a conversa na caixa de entrada.
+ async function archive(threadId,messageId){
+  const accepted=source?.()?.gmailReviews?.[threadId];
+  messageId||=(accepted?.state==='accepted'?accepted.messageId:'')||emails.find(e=>e.id===threadId)?.messageId||'';
+  const thread=await api('threads/'+encodeURIComponent(threadId)+'?format=minimal'),messages=thread.messages||[],index=messages.findIndex(m=>m.id===messageId);
+  if(!messageId||index<0){refresh().catch(()=>{});throw new Error('A conversa mudou no Gmail depois da revisão. Atualize a Entrada e confira a conversa antes de arquivar.');}
+  if(messages.slice(index+1).some(inbound)){refresh().catch(()=>{});throw new Error('Chegou uma nova mensagem nesta conversa depois da revisão; ela continua na caixa de entrada para você revisar a resposta.');}
+  // Lista explícita de IDs: uma mensagem que chegue entre a conferência e a gravação não é arquivada.
+  const ids=messages.filter(m=>m.labelIds?.includes('INBOX')).map(m=>m.id);
+  if(ids.length)await api('messages/batchModify','POST',{ids,removeLabelIds:['INBOX']});
+  emails=emails.filter(e=>e.id!==threadId);emit();
+ }
  async function reply(email,to,text,files=[]){
   const recipient=address(to);if(recipient!==to.trim()||/[\r\n]/.test(to))throw new Error('Informe um endereço de destinatário válido.');
   if(!text.trim())throw new Error('Escreva a resposta.');
@@ -115,6 +181,6 @@
   parts.push('--'+boundary+'--','');
   return api('messages/send','POST',{threadId:email.id,raw:base64(new TextEncoder().encode(parts.join(line))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')});
  }
- function reset(){generation++;analysisEpoch++;emails=[];nextPage='';loading=false;analyzing=false;completed=0;error='';analysisError='';analysisBlocked=false;owner='';verifiedHistory='';emit();}
- globalThis.FlowGmailReview={refresh,analyze,reset,bodyText,address,archive,replyContext,reply,info:()=>({emails:FlowCloud.gmailToken()&&owner===FlowCloud.info().user?.id?emails:[],nextPage,loading,analyzing,completed,error:error||analysisError})};
+ function reset(){generation++;analysisEpoch++;emails=[];nextPage='';loading=false;analyzing=false;completed=0;error='';analysisError='';analysisBlocked=false;owner='';verifiedHistory='';listed=false;source=null;emit();}
+ globalThis.FlowGmailReview={refresh,analyze,prune,reset,bodyText,address,archive,replyContext,reply,info:()=>({emails:FlowCloud.gmailToken()&&owner===FlowCloud.info().user?.id?emails:[],nextPage,loading,analyzing,completed,error:error||analysisError})};
 })();

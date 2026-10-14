@@ -4,12 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#3166dc" />
-  <meta name="description" content="Ulbraflow — classifique por área e data, organize todas as demandas em uma esteira e trabalhe com foco." />
-  <title>Ulbraflow — Workspace</title>
+  <meta name="description" content="UlbraFlow — classifique por área e data, organize todas as demandas em uma esteira e trabalhe com foco." />
+  <title>UlbraFlow — Workspace</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/assets/icons/ulbraflow-blue-192.png" />
+  <script src="./opening.js"></script>
   <script defer src="./install-app.js"></script>
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./opening.css" />
   <link rel="icon" type="image/png" href="./assets/icons/ulbraflow-blue-192.png" />
   <script defer src="./areas.js"></script>
   <script defer src="./workflow.js"></script>
@@ -22,9 +24,52 @@
   <script defer src="./app.js"></script>
 </head>
 <body>
+  <div id="flow-opening" class="fo" role="dialog" aria-modal="true" aria-labelledby="fo-title" aria-describedby="fo-lede" hidden>
+    <div class="fo-bg" aria-hidden="true">
+      <svg class="fo-streams" viewBox="0 0 1600 900" preserveAspectRatio="none" focusable="false"><path d="M0 210C200 150 600 270 800 210S1400 270 1600 210"/><path d="M0 520C200 610 600 430 800 520S1400 430 1600 520"/><path d="M0 770C200 710 600 830 800 770S1400 830 1600 770"/></svg>
+      <svg class="fo-streams fo-streams-b" viewBox="0 0 1600 900" preserveAspectRatio="none" focusable="false"><path d="M0 340C200 390 600 290 800 340S1400 290 1600 340"/><path d="M0 640C200 570 600 710 800 640S1400 710 1600 640"/><path d="M0 860C200 890 600 830 800 860S1400 830 1600 860"/></svg>
+    </div>
+    <div class="fo-frame">
+      <header class="fo-top fo-fade"><span class="fo-brand"><img src="./assets/icons/ulbraflow-blue-64.png" alt="" width="32" height="32" /><span>Ulbra<b>Flow</b></span></span><button type="button" class="fo-skip" data-fo-skip>Pular abertura</button></header>
+      <section class="fo-copy" data-fo-beat="1">
+        <h1 id="fo-title" class="fo-fade">Entre em Fluxo<span class="fo-period">.</span></h1>
+        <p id="fo-lede" class="fo-lede fo-fade">Foco em uma demanda por vez, em ciclos de 25 minutos com 5 de pausa.</p>
+        <div class="fo-actions fo-fade"><button type="button" class="fo-cta" data-fo-enter><span class="fo-cta-mark" aria-hidden="true"></span>Entrar em Fluxo</button><span class="fo-hint">ou pressione <kbd>Enter</kbd></span></div>
+      </section>
+      <div class="fo-orbit" aria-hidden="true">
+        <svg class="fo-track" viewBox="0 0 200 200" focusable="false"><circle cx="100" cy="100" r="84"/></svg>
+        <svg class="fo-dots" viewBox="0 0 200 200" focusable="false"></svg>
+        <span class="fo-head"><i></i></span>
+        <svg class="fo-uf fo-fade" viewBox="0 0 200 200" focusable="false"><path class="fo-u" d="M61.3 55.4V101.5A22.75 22.75 0 0 0 106.8 101.5V55.4"/><path class="fo-f" d="M132.6 134.3V94M128.6 98H155.4M128.6 114.5H150.5"/></svg>
+        <span class="fo-phase fo-fade"><span>Foco 25 min</span><span>Pausa 5 min</span></span>
+      </div>
+      <section class="fo-beat fo-beat-board fo-fade" data-fo-beat="2" aria-labelledby="fo-b2">
+        <h2 id="fo-b2">Cada demanda percorre a esteira</h2>
+        <p>Classifique, prepare, execute, aguarde e entregue, com todas as áreas na mesma fila.</p>
+        <div class="fo-board" aria-hidden="true">
+          <ol class="fo-stages"><li><b>01</b>Classificar</li><li><b>02</b>Preparar</li><li><b>03</b>Executar</li><li><b>04</b>Aguardar</li><li><b>05</b>Entregar</li></ol>
+          <div class="fo-lanes"><i></i><i></i><i></i><i></i><i></i>
+            <div class="fo-card" style="--r:0;--x:0;--c:#418d9d;--d:.6s"><div class="fo-card-in"><span class="fo-chk"></span><strong>Conferir folha docente</strong><span class="fo-live"></span></div></div>
+            <div class="fo-card is-focus" style="--r:1;--x:2;--c:#507ee9;--d:-2.9s"><div class="fo-card-in"><span class="fo-chk"></span><strong>Revisar oferta de turmas</strong><span class="fo-live"></span></div></div>
+            <div class="fo-card is-done" style="--r:2;--x:4;--c:#ca8265;--d:-6.4s"><div class="fo-card-in"><span class="fo-chk"></span><strong>Validar contratos PJ</strong><span class="fo-live"></span></div></div>
+          </div>
+        </div>
+      </section>
+      <section class="fo-beat fo-beat-proj fo-fade" data-fo-beat="3" aria-labelledby="fo-b3">
+        <h2 id="fo-b3">Projetos do modelo à entrega</h2>
+        <p>Escolha uma metodologia e acompanhe etapas, marcos e progresso.</p>
+        <div class="fo-proj" aria-hidden="true"><div class="fo-proj-in">
+          <div class="fo-models"><span class="fo-pick"></span><span>5W2H</span><span>Scrum</span><span>OKR</span><span class="fo-pdca">PDCA</span><span>Lean</span></div>
+          <div class="fo-ptitle"><strong>Reduzir erros na folha docente</strong><small>Folha docente</small></div>
+          <ol class="fo-steps"><li><b></b><span>Planejar</span><i></i></li><li><b></b><span>Executar</span><i></i></li><li><b></b><span>Verificar</span><i></i></li><li><b></b><span>Agir</span><i></i></li></ol>
+          <div class="fo-progress"><div class="fo-prow"><span>Progresso</span><span class="fo-pct"></span></div><div class="fo-bar"><span></span><i style="--n:30"></i><i style="--n:60"></i><i style="--n:100"></i></div><div class="fo-marks"><span>Diagnóstico</span><span>Piloto</span><span>Padronização</span></div></div>
+        </div></div>
+      </section>
+    </div>
+  </div>
   <div class="app-shell" aria-busy="true">
     <aside class="sidebar" aria-label="Menu principal" inert>
-      <a class="brand" href="#esteira" aria-label="Ulbraflow, início"><span class="brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">flow</span></span></a>
+      <a class="brand" href="#esteira" aria-label="UlbraFlow, início"><span class="brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span></span></a>
       <div class="sidebar-caption">PRINCIPAL</div>
       <nav id="sidebar-nav">
         <button type="button" data-page="entrada" class="active"><span class="nav-icon">↘</span><span>Entrada</span><span id="inbox-count" class="nav-count" hidden></span></button>
@@ -37,11 +82,11 @@
         <button type="button" data-page="alertas"><span class="nav-icon">♧</span><span>Alertas</span></button>
         <button type="button" data-page="tempo" class="time-nav"><span class="nav-icon">◷</span><span>Gestão do Tempo</span></button>
       </nav>
-      <div class="sidebar-foot"><div class="avatar">UF</div><div><strong>Meu workspace</strong><small>Ulbraflow · versão local</small></div></div>
+      <div class="sidebar-foot"><div class="avatar">UF</div><div><strong>Meu workspace</strong><small>UlbraFlow · versão local</small></div></div>
     </aside>
     <div class="workspace">
       <header class="topbar">
-        <div class="topbar-identity"><div class="header-brand" aria-label="Ulbraflow"><img src="./assets/ulbraflow-blue-logo.png" alt="" width="32" height="32" /><span class="header-brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></div><div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Entrada</strong></div></div>
+        <div class="topbar-identity"><div class="header-brand" aria-label="UlbraFlow"><img src="./assets/icons/ulbraflow-blue-64.png" srcset="./assets/icons/ulbraflow-blue-64.png 1x, ./assets/icons/ulbraflow-blue-128.png 2x" alt="" width="32" height="32" /><span class="header-brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></div><div class="breadcrumb">Meu workspace <span>/</span> <strong id="location-label">Entrada</strong></div></div>
         <div class="top-actions" inert><button id="account-button" type="button" class="button" data-action="account">Entrar com Google</button><button id="active-clock" type="button" class="active-clock" data-action="open-active">◉ Entrar em foco</button><button type="button" class="button primary" data-action="new-task">+ Nova demanda</button></div>
       </header>
       <main id="screen" class="screen" aria-live="polite" aria-busy="true">

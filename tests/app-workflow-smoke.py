@@ -11,6 +11,18 @@ ROOT=Path(__file__).resolve().parents[1]
 BASE=os.environ.get('FLOW_TEST_URL','http://127.0.0.1:3000')
 KEY='flow.workspace.v1'
 
+async def stored(page):
+    # O app agrupa gravações; o mesmo evento usado pela extensão grava antes da leitura.
+    return await page.evaluate("(key)=>{window.dispatchEvent(new Event('flow:persist-flush'));return JSON.parse(localStorage.getItem(key))}",KEY)
+
+async def ready(page):
+    # A abertura é assíncrona (configuração da conta); só depois dela o workspace é normalizado e gravado.
+    await expect(page.locator('.app-shell')).not_to_have_attribute('aria-busy','true')
+
+async def board_all(page):
+    # A esteira abre no prazo Hoje; estes cenários precisam de todas as datas.
+    await page.locator('#board-date-filter').select_option('all')
+
 async def run(profile):
     checks=0
     def passed(message):
@@ -27,10 +39,13 @@ async def run(profile):
         await expect(page.locator('.page-head h1')).to_have_text('Entrada')
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-board')).to_be_visible()
+        await expect(page.locator('#board-date-filter')).to_have_value('today')
+        assert await page.locator('.pipeline-task').count()==0
+        await board_all(page)
         assert await page.locator('.pipeline-lane').count()==5
         assert await page.locator('.pipeline-task').count()==4
-        await expect(page.locator('.brand')).to_have_text('Ulbraflow')
-        passed('Default screen opens Entrada; Esteira shows one shared pipeline and the Ulbraflow name')
+        await expect(page.locator('.brand')).to_have_text('UlbraFlow')
+        passed('Default screen opens Entrada; Esteira defaults to Hoje and shows one shared pipeline and the UlbraFlow name')
 
         await page.locator('.top-actions [data-action="new-task"]').click()
         form=page.locator('#active-modal-form')
@@ -84,11 +99,11 @@ async def run(profile):
         await expect(page.locator('[data-countdown]')).to_have_text('01:00')
         passed('Focus survives reload; pause freezes the cycle; rhythm edits preserve the current cycle')
 
-        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        state=await stored(page)
         deadline=state['focus']['endsAt']
         await page.clock.fast_forward(61000)
         await expect(page.locator('.focus-main .eyebrow')).to_have_text('PAUSA')
-        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        state=await stored(page)
         focused=next(t for t in state['tasks'] if t['title']=='Conferir folha de outubro')
         assert focused['startedAt'] is None
         assert focused['sessions'][-1]['end']==deadline
@@ -96,7 +111,7 @@ async def run(profile):
         worked=sum((s['end']-s['start']) for s in focused['sessions'])
         await page.clock.fast_forward(400000)
         await expect(page.locator('.focus-main .eyebrow')).to_have_text('CICLO CONCLUÍDO')
-        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        state=await stored(page)
         focused=next(t for t in state['tasks'] if t['id']==focused['id'])
         assert sum(s['end']-s['start'] for s in focused['sessions'])==worked
         assert not any(t['startedAt'] for t in state['tasks'])
@@ -104,16 +119,17 @@ async def run(profile):
 
         await page.locator('[data-action="focus-start"]').click()
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await board_all(page)
         await page.locator('.pipeline-task').filter(has_text='Conferir carga horária docente').locator('summary').click()
         await page.locator('.pipeline-task').filter(has_text='Conferir carga horária docente').locator('[data-action="focus-task"]').click()
-        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        state=await stored(page)
         assert len([t for t in state['tasks'] if t['startedAt']])==1
         assert state['focus']['taskId']=='t1'
         await page.locator('[data-focus-sub]').first.check()
-        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        state=await stored(page)
         assert next(t for t in state['tasks'] if t['id']=='t1')['subtasks'][0]['done']
         await page.locator('[data-action="focus-complete"]').click()
-        state=await page.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        state=await stored(page)
         assert state['focus'] is None and not any(t['startedAt'] for t in state['tasks'])
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
         await expect(page.locator('.pipeline-lane[data-stage="done"] .pipeline-task')).to_have_count(1)
@@ -138,7 +154,8 @@ async def run(profile):
         old={'version':1,'projects':[{'id':'old','name':'Área antiga','color':'#3268dc'}],'tasks':[{'id':'legacy','title':'Meu trabalho existente','project':'old','status':'todo','priority':'high','dueDate':'2026-10-11','description':'Notas preservadas','subtasks':[{'id':'s','text':'Passo antigo','done':True}],'sessions':[{'start':10000,'end':15000}],'startedAt':None}],'preferences':{'reminderDays':7,'alerts':[False,True,False,True]}}
         await legacy.evaluate('(data)=>localStorage.setItem("flow.workspace.v1",JSON.stringify(data))',old)
         await legacy.reload()
-        migrated=await legacy.evaluate(f"JSON.parse(localStorage.getItem('{KEY}'))")
+        await ready(legacy)
+        migrated=await stored(legacy)
         assert old['projects'][0] in migrated['projects']
         assert len(migrated['projects'])==13
         for k,v in old['tasks'][0].items(): assert migrated['tasks'][0][k]==v
@@ -205,7 +222,8 @@ async def run(profile):
             ai_started.set();await ai_gate.wait();await route.fulfill(json={'text':'Sugestão destinada à primeira tarefa'})
         await page.route('**/api/gemini',ai_response)
         await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        ids=await page.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.filter(t=>t.dueDate&&t.project).slice(0,2).map(t=>t.id)")
+        await board_all(page)
+        ids=[t['id'] for t in (await stored(page))['tasks'] if t.get('dueDate') and t.get('project')][:2]
         async def detail(task_id):
             demand=page.locator(f'details[data-demand="{task_id}"]')
             if not await demand.evaluate('(node)=>node.open'):await demand.locator('summary').click()

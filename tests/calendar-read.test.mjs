@@ -41,7 +41,8 @@ test('Unrelated saves do not synchronize Agenda; edits during a request receive 
  const timers=new Map();let timerId=0,release,hold=true;const writes=[];
  const db={projects:[{id:'area',name:'Área'}],preferences:{focusMinutes:25},tasks:[{id:'task',title:'Antes',project:'area',plannedDate:'2026-10-13',description:''}]};
  const context={TextEncoder,FlowCloud:{calendarToken:()=> 'provider',info:()=>({user:{id:'owner'}}),disconnectCalendar(){}},crypto:globalThis.crypto,AbortSignal,URLSearchParams,queueMicrotask,setInterval(){},setTimeout:fn=>{const id=++timerId;timers.set(id,fn);return id},clearTimeout:id=>timers.delete(id),window:{dispatchEvent(){}},document:{addEventListener(){}},CustomEvent:class{},FlowWorkflow:{validDate:()=>true},fetch:async(url,options)=>{
-  if(options.method==='POST'){const body=JSON.parse(options.body);writes.push(body.summary);if(hold){hold=false;await new Promise(resolve=>{release=resolve});}return Response.json(body);}
+  if(['POST','PUT'].includes(options.method)){const body=JSON.parse(options.body);writes.push(body.summary);if(hold){hold=false;await new Promise(resolve=>{release=resolve});}return Response.json(body);}
+  if(options.method==='GET'&&url.includes('privateExtendedProperty='))return Response.json({items:[]}); // Limpeza de órfãos.
   throw new Error('Unexpected calendar request');
  }};
  vm.createContext(context);vm.runInContext(source,context);const calendar=context.FlowCalendar;calendar.initialize(()=>db,()=>calendar.schedule());

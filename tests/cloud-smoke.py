@@ -1,7 +1,8 @@
 """Real browser UI with mocked Supabase/Google HTTP. No real accounts or secrets.
 
-Checks PKCE, private cache selection, cloud acknowledgments, conflicts and calendar
-event semantics. SQL policies are validated separately, not by these HTTP mocks.
+Checks PKCE, private cache selection, cloud acknowledgments, automatic merges, conflicts,
+calendar event semantics and Google token revocation, all under the real Content-Security-Policy
+served by server.mjs. SQL policies are validated separately, not by these HTTP mocks.
 """
 import asyncio
 import copy
@@ -33,6 +34,8 @@ class Services:
         self.exchanges = []
         self.events = {}
         self.calendar_calls = []
+        self.revoked = []
+        self.conflicts = 0
 
     def session(self, uid):
         return {'project': AUTH, 'access_token': 'test-access-' + uid, 'refresh_token': 'test-refresh', 'expires_at': 2100000000,
@@ -82,6 +85,7 @@ class Services:
                 if self.fail_save:
                     await respond({'message': 'Simulated service failure'}, 500)
                 elif body['expected_revision'] != self.rows.get(uid, {}).get('revision', 0):
+                    self.conflicts += 1
                     await respond({'message': 'Workspace revision conflict'}, 409)
                 else:
                     revision = body['expected_revision'] + 1
@@ -90,13 +94,21 @@ class Services:
             else:
                 raise AssertionError('Unexpected Supabase request: ' + req.url)
             return
+        if url.hostname == 'oauth2.googleapis.com' and url.path == '/revoke':
+            self.revoked.append(parse_qs(req.post_data or '').get('token', [''])[0])
+            await route.fulfill(status=200, body='')
+            return
         if url.hostname == 'www.googleapis.com':
             assert req.headers['authorization'] == 'Bearer test-google-provider-token'
             prefix = '/calendar/v3/calendars/primary/events'
             assert url.path.startswith(prefix)
             event_id = url.path[len(prefix):].strip('/')
             self.calendar_calls.append((req.method, event_id))
-            if req.method == 'GET' and not event_id:
+            if req.method == 'GET' and not event_id and 'privateExtendedProperty' in parse_qs(url.query):
+                rules = [rule.split('=', 1) for rule in parse_qs(url.query)['privateExtendedProperty']]
+                await respond({'items': [event for event in self.events.values() if event.get('status') != 'cancelled'
+                    and all(event.get('extendedProperties', {}).get('private', {}).get(key) == value for key, value in rules)]})
+            elif req.method == 'GET' and not event_id:
                 query = parse_qs(url.query)
                 start = query['timeMin'][0][:10]
                 await respond({'items': list(self.events.values()) + [
@@ -115,6 +127,9 @@ class Services:
                 await respond({'error': 'missing'}, 404)
             elif req.method == 'GET':
                 await respond(self.events[event_id])
+            elif req.method == 'PUT':
+                self.events[event_id] = {**req.post_data_json, 'id': event_id}
+                await respond(self.events[event_id])
             elif req.method == 'PATCH':
                 self.events[event_id].update(req.post_data_json)
                 await respond(self.events[event_id])
@@ -125,6 +140,27 @@ class Services:
                 raise AssertionError(req.method)
             return
         await route.continue_()
+
+
+async def until(page, expression, timeout=15):
+    """page.wait_for_function compiles strings with eval, which the production CSP blocks; poll with evaluate()."""
+    deadline, last = asyncio.get_running_loop().time() + timeout, None
+    while True:
+        try:
+            if await page.evaluate(expression):
+                return
+        except Exception as error:  # navigation in progress or a not-yet-defined value
+            last = error
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError(f'Timed out waiting for {expression} ({last})')
+        await asyncio.sleep(0.05)
+
+
+async def board(page):
+    """Opens the pipeline with every date visible (the default filter only shows today)."""
+    await page.locator('#sidebar-nav [data-page="esteira"]').click()
+    await expect(page.locator('.pipeline-board')).to_be_visible()
+    await page.locator('#board-date-filter').select_option('all')
 
 
 async def capture(page, title):
@@ -147,16 +183,21 @@ async def main():
         services = Services()
         context = await browser.new_context(viewport={'width': 1440, 'height': 1100}, timezone_id='America/Sao_Paulo')
         await context.route('**/*', services.route)
+        violations = []
+        await context.expose_function('__flowCspViolation', lambda text: violations.append(text))
+        await context.add_init_script("document.addEventListener('securitypolicyviolation',e=>window.__flowCspViolation(e.effectiveDirective+' '+e.blockedURI+' '+e.sourceFile+':'+e.lineNumber))")
         page = await context.new_page()
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
+        page.on('console', lambda message: violations.append(message.text) if 'Content Security Policy' in message.text else None)
         boot_requested, boot_release = asyncio.Event(), asyncio.Event()
         async def hold_config(route):
             boot_requested.set()
             await boot_release.wait()
             await services.route(route)
         await page.route('**/api/auth-config', hold_config)
-        await page.goto(BASE)
+        response = await page.goto(BASE)
+        assert "script-src 'self'" in (await response.all_headers()).get('content-security-policy', ''), 'Tests run under the production CSP'
         await boot_requested.wait()
         await expect(page.locator('.app-shell')).to_be_visible()
         await expect(page.locator('.startup-heading h1')).to_have_text('Entrada')
@@ -170,10 +211,10 @@ async def main():
         passed('Entrada opens during initialization; sign-in stays inline and private tasks remain protected')
         await page.evaluate('data=>localStorage.setItem("flow.workspace.v1",JSON.stringify(data))', LEGACY)
         await page.locator('#google-login').click()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(page.locator('.pipeline-board')).to_be_visible()
+        await board(page)
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert len(services.authorizations) == len(services.exchanges) == 1
+        assert 'provider_token' not in await page.evaluate('JSON.parse(localStorage.getItem("flow.auth.session.v1"))'), 'A plain sign-in keeps no Google token' 
         assert await page.locator('.pipeline-task').count() == 0
         assert services.rows[A]['data']['tasks'] == []
         assert await page.evaluate('JSON.parse(localStorage.getItem("flow.workspace.v1")).tasks[0].id') == 'legacy-task'
@@ -186,7 +227,7 @@ async def main():
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert services.rows[A]['data']['tasks'][0]['id'] == 'legacy-task'
         await page.reload()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await board(page)
         await expect(page.locator('.pipeline-task')).to_have_count(1)
         passed('Explicit local import preserves task IDs and survives a cloud reload')
 
@@ -204,7 +245,8 @@ async def main():
         await page.evaluate("""() => {
             window.chrome={runtime:{id:'test-extension',onMessage:{addListener: fn=>window.bridgeListener=fn}}};
         }""")
-        await page.add_script_tag(content=(ROOT / 'extensao-chrome/flow-bridge.js').read_text())
+        # Content scripts run outside the page CSP; evaluate() injects the bridge the same way.
+        await page.evaluate((ROOT / 'extensao-chrome/flow-bridge.js').read_text())
         services.delay_save = True
         services.started.clear()
         capture_data = {'requestId': 'cloud-capture-123456789', 'title': 'Demanda do Gmail na nuvem', 'projectId': 'carga',
@@ -216,7 +258,7 @@ async def main():
         await services.started.wait()
         assert await page.evaluate('window.bridgeAnswer') is None
         services.gate.set()
-        await page.wait_for_function('window.bridgeAnswer?.ok===true')
+        await until(page, 'window.bridgeAnswer?.ok===true')
         services.delay_save = False
         assert len(services.rows[A]['data']['tasks']) == 3
         duplicate = await page.evaluate("""data=>new Promise(resolve=>window.bridgeListener({type:'FLOW_BRIDGE_SAVE',data},{id:'test-extension'},resolve))""", capture_data)
@@ -235,9 +277,8 @@ async def main():
         await page.evaluate('FlowCloud.flush()')
         await page.locator('#sidebar-nav [data-page="agenda"]').click()
         await page.locator('[data-action="calendar-connect"]').click()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(page.locator('.pipeline-board')).to_be_visible()
-        await page.wait_for_function('FlowCalendar.info().status==="synced"')
+        await board(page)
+        await until(page, 'FlowCalendar.info().status==="synced"')
         assert 'calendar.events' in services.authorizations[-1]['scopes'][0]
         assert len(services.events) == 1
         event = next(iter(services.events.values()))
@@ -246,15 +287,15 @@ async def main():
         assert '2026-10-15' in event['description'] and event['visibility'] == 'private'
         passed('Rightward advance works; Google Agenda uses execution time and keeps the deadline separate')
         await page.locator('#sidebar-nav [data-page="agenda"]').click()
-        await page.wait_for_function('!FlowCalendar.info().reading && FlowCalendar.info().events.length===1')
+        await until(page, '!FlowCalendar.info().reading && FlowCalendar.info().events.length===1')
         await expect(page.locator('.google-calendar-event')).to_have_count(7)
         await expect(page.locator('.google-calendar-event').first).to_contain_text('Reunião do Google <teste>')
         assert await page.locator('.google-calendar-event teste').count() == 0
         await page.locator('[data-action="week-next"]').click()
-        await page.wait_for_function('!FlowCalendar.info().reading && FlowCalendar.info().events.length===1')
+        await until(page, '!FlowCalendar.info().reading && FlowCalendar.info().events.length===1')
         await expect(page.locator('.google-calendar-event')).to_have_count(7)
         passed('Google appointments load for the visible week, span days, escape titles and exclude cancelled/duplicate Flow events')
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await board(page)
 
 
         await page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador').locator('summary').click()
@@ -273,33 +314,84 @@ async def main():
         assert len(services.events) == 0
         passed('Calendar edits update one event; clearing the execution date removes only the Flow-owned event')
 
-        # The remote revision advances elsewhere. Local changes must not overwrite it.
+        # The phone add-on writes a task directly in Supabase and bumps the revision.
+        await page.evaluate('FlowCloud.flush()')
+        phone = copy.deepcopy(services.rows[A]['data']['tasks'][0])
+        phone.update({'id': 'phone-capture', 'title': 'Captura do celular', 'gmailCaptureId': 'gmail-mobile-abcdef12'})
+        services.rows[A]['data']['tasks'].insert(0, phone)
+        services.rows[A]['revision'] += 1
+        await board(page)
+        await capture(page, 'Alteração local durante a captura')
+        await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
+        titles = [task['title'] for task in services.rows[A]['data']['tasks']]
+        assert 'Captura do celular' in titles and 'Alteração local durante a captura' in titles, titles
+        await expect(page.locator('.pipeline-task').filter(has_text='Captura do celular')).to_be_visible()
+        assert await page.evaluate('JSON.parse(localStorage.getItem("flow.workspace.v1:'+A+'")).tasks.some(t=>t.id==="phone-capture")')
+        passed('A 409 from a phone capture merges automatically, saves once and shows both demands without a conflict')
+
+        other = await context.new_page()
+        other.on('pageerror', lambda error: errors.append(str(error)))
+        await other.goto(BASE)
+        await expect(other.locator('#account-button')).to_have_text('Salvo na nuvem')
+        await board(page)
+        await capture(page, 'Salva na primeira aba')
+        await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
+        saved_revision, conflicts = services.rows[A]['revision'], services.conflicts
+        await board(other)
+        await expect(other.locator('.pipeline-task').filter(has_text='Salva na primeira aba')).to_be_visible()
+        await capture(other, 'Salva na segunda aba')
+        await expect(other.locator('#account-button')).to_have_text('Salvo na nuvem')
+        assert services.rows[A]['revision'] == saved_revision + 1 and services.conflicts == conflicts, 'No 409 round trip'
+        titles = [task['title'] for task in services.rows[A]['data']['tasks']]
+        assert 'Salva na primeira aba' in titles and 'Salva na segunda aba' in titles, titles
+        await other.close()
+        await expect(page.locator('.pipeline-task').filter(has_text='Salva na segunda aba')).to_be_visible()
+        passed('A second tab adopts the revision saved by the first and saves without a conflict')
+
+        await page.locator('#sidebar-nav [data-page="agenda"]').click()
+        await page.locator('.calendar-compact-row summary').click()
+        await page.locator('[data-action="calendar-disconnect"]').click()
+        await until(page, '!JSON.parse(localStorage.getItem("flow.auth.session.v1")).provider_token')
+        await until(page, 'FlowCloud.calendarToken()===null')
+        assert services.revoked == ['test-google-provider-token'], services.revoked
+        passed('Disconnecting the last Google integration deletes the token from the browser and revokes it at Google')
+
+        # The same task changes on another device and here: a real conflict must not be merged.
         await page.evaluate('FlowCloud.flush()')
         services.rows[A]['revision'] += 1
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await capture(page, 'Alteração em conflito')
+        remote_tasks = services.rows[A]['data']['tasks']
+        legacy = next(task for task in remote_tasks if task['id'] == 'legacy-task')
+        legacy['title'] = 'Título alterado no celular'
+        await board(page)
+        card = page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador')
+        if not await card.locator('[data-task]').first.is_visible():
+            await card.locator('summary').click()
+        await card.locator('[data-task]').first.click()
+        await page.locator('#edit-title').fill('Título alterado no computador')
+        await page.locator('#edit-title').dispatch_event('change')
         await expect(page.locator('#account-button')).to_have_text('Conflito de alterações')
-        assert len(services.rows[A]['data']['tasks']) == 3
+        assert legacy['title'] == 'Título alterado no celular' and len(services.rows[A]['data']['tasks']) == len(remote_tasks)
         await page.reload()
         await expect(page.locator('#account-button')).to_have_text('Conflito de alterações')
         await page.reload()
         await expect(page.locator('#account-button')).to_have_text('Conflito de alterações')
-        assert len(services.rows[A]['data']['tasks']) == 3
-        passed('Concurrent updates produce a visible conflict without overwriting the other device')
+        assert legacy['title'] == 'Título alterado no celular'
+        passed('Concurrent edits of the same field produce a visible conflict without overwriting the other device')
 
         await page.locator('#account-button').click()
         await page.locator('[data-action="sign-out"]').click()
         await expect(page.locator('#google-login')).to_be_visible()
         services.oauth_user = B
         await page.locator('#google-login').click()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(page.locator('.pipeline-board')).to_be_visible()
+        await board(page)
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert await page.locator('.pipeline-task').count() == 0
         assert services.rows[B]['data']['tasks'] == []
         assert await page.evaluate('localStorage.getItem("flow.workspace.v1:'+A+'.pending")') == '1'
         assert not errors, errors
         passed('Signing into another Google account shows an empty private workspace and preserves first-account pending data')
+        assert not violations, violations
+        passed('No Content-Security-Policy violations during sign-in, sync, Gmail bridge, Agenda and conflicts')
         await context.close()
         await browser.close()
     print(f'{checks} mocked-service browser checks passed.', flush=True)

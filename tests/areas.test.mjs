@@ -69,3 +69,18 @@ test('removed Ubra S.A. area is archived without losing task history',()=>{
 test('CPA spelling changes without modifying the area ID or tasks',()=>{
  const db={classificationCatalogVersion:4,projects:[{id:'custom-cpa',name:'CPA Ubrecia'}],tasks:[{project:'custom-cpa'}]};areas.migrate(db);assert.equal(db.projects[0].name,'CPA Ulbra S.A.');assert.equal(db.tasks[0].project,'custom-cpa');assert.equal(db.projects.length,1);
 });
+
+test('malformed area lists are repaired without silently dropping entries',()=>{
+  assert.equal(areas.migrate(null),null);
+  const missing={tasks:[]};areas.migrate(missing);assert.equal(missing.projects.length,12);assert.equal(missing.recovered,undefined);assert.equal(missing.archivedProjects,undefined);
+  const db={projects:[null,{id:'mine',name:'Minha área',color:'#123456'},'texto'],archivedProjects:{id:'x'},tasks:[{id:'t',project:'mine'}]};
+  areas.migrate(db);
+  assert.ok(db.projects.some(p=>p.id==='mine'&&p.name==='Minha área'));assert.equal(db.projects.length,13);
+  assert.deepEqual(db.archivedProjects,[]);
+  assert.deepEqual(db.recovered,[{from:'projects',index:0,value:null},{from:'projects',index:2,value:'texto'},{from:'archivedProjects',value:{id:'x'}}]);
+  const first=structuredClone(db);areas.migrate(db);assert.deepEqual(db,first);
+  const current={classificationCatalogVersion:5,projects:{a:1},archivedProjects:[{id:'ouv',name:'Ouvidoria'},7],tasks:[]};
+  areas.migrate(current);
+  assert.deepEqual(current.projects,[]);assert.deepEqual(current.archivedProjects,[{id:'ouv',name:'Ouvidoria'}]);
+  assert.deepEqual(current.recovered,[{from:'projects',value:{a:1}},{from:'archivedProjects',index:1,value:7}]);
+});

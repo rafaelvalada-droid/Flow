@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / 'extensao-chrome'
 FLOW = 'https://flow-blue-theta.vercel.app/'
 GMAIL = 'https://mail.google.com/mail/u/0/#inbox/abcdefghijklmnop'
+THREAD = '18b2c3d4e5f6a7b8'
+# Link canônico: conta pelo authuser e conversa pelo ID da Gmail API, não pela posição na caixa.
+CANONICAL = 'https://mail.google.com/mail/?authuser=user%40ulbra.br#all/' + THREAD
 ID = 'flow-test-extension'
 
 
@@ -149,8 +152,8 @@ async def main(profile):
                 await route.fulfill(content_type='application/json', body='{"configured":false}')
                 return
             if url.hostname == 'mail.google.com':
-                await route.fulfill(content_type='text/html', body='''<!doctype html><html><body>
-                  <main><div class="ha"><h2 class="hP">Planejamento da semana</h2></div>
+                await route.fulfill(content_type='text/html', body=f'''<!doctype html><html><head><title>Planejamento da semana - user@ulbra.br - Gmail</title></head><body>
+                  <main><div class="ha"><h2 class="hP" data-thread-perm-id="thread-f:{int(THREAD, 16)}" data-legacy-thread-id="{THREAD}" data-legacy-last-non-draft-message-id="18b2c3d4e5f6a7c0">Planejamento da semana</h2></div>
                   <span class="gD" email="coordenacao@example.test">Coordenação</span>
                   <p>Mensagem simulada, sem acesso a e-mails reais.</p></main></body></html>''')
             elif url.hostname == 'flow-blue-theta.vercel.app':
@@ -196,18 +199,20 @@ async def main(profile):
         await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-10')
         await gmail.locator('#flow-gmail-dialog [name="title"]').fill('Organizar planejamento')
         await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no Ulbraflow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no UlbraFlow')
         flow_id = next(i for i, page in adapter.pages.items() if page.url.startswith(FLOW))
         flow = adapter.pages[flow_id]
         db = await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1'))")
         task = next(t for t in db['tasks'] if t['title'] == 'Organizar planejamento')
         assert task['dueDate'] == '2026-12-10'
         assert task['project'] == 'oferta' and task['gmailSubject'] == 'Planejamento da semana'
-        assert task['gmailSender'] == 'coordenacao@example.test' and task['gmailUrl'] == GMAIL
+        assert task['gmailSender'] == 'coordenacao@example.test' and task['gmailUrl'] == CANONICAL
+        assert task['gmailThreadId'] == THREAD and task['gmailMessageId'] == '18b2c3d4e5f6a7c0'
         assert len(db['tasks']) == 5
         await flow.locator('#sidebar-nav [data-page="esteira"]').click()
+        await flow.locator('#board-date-filter').select_option('all')
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
-        passed('Save writes the chosen project, title, sender and link; Flow updates immediately')
+        passed('Save writes the chosen project, title, sender, Gmail API thread ID and canonical link; Flow updates immediately')
         demand = flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')
         await expect(demand.get_by_role('button', name='Abrir Gmail')).to_be_hidden()
         await demand.locator('summary').click()
@@ -219,11 +224,11 @@ async def main(profile):
         async with flow.expect_popup() as popup_info:
             await flow.locator('.pipeline-task').filter(has_text='Organizar planejamento').get_by_role('button', name='Abrir Gmail').click()
         email_page = await popup_info.value
-        await email_page.wait_for_url(GMAIL)
+        await email_page.wait_for_url(CANONICAL)
         await email_page.close()
         passed('The explicit Abrir Gmail button on the pipeline card opens the original conversation')
 
-        await gmail.get_by_role('button', name='Ver no Ulbraflow').click()
+        await gmail.get_by_role('button', name='Ver no UlbraFlow').click()
         await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
         assert adapter.active_id == flow_id
         passed('Ver no Flow activates the destination tab and closes the Gmail dialog')
@@ -236,13 +241,35 @@ async def main(profile):
         assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 5
         passed('Retrying the same save does not duplicate the task')
 
+        await button.click()
+        await expect(select).to_be_enabled()
+        await select.select_option('oferta')
+        await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-12')
+        await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
+        await expect(gmail.locator('#flow-status')).to_contain_text('já está no UlbraFlow')
+        assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 5
+        await gmail.get_by_role('button', name='Ver no UlbraFlow').click()
+        await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
+        assert adapter.active_id == flow_id
+        mobile = {'requestId': '9b1c4a5e-1111-4222-8333-944455556666', 'projectId': 'oferta', 'title': 'Outra',
+                  'gmailUrl': 'https://mail.google.com/mail/?authuser=user%40ulbra.br#all/18b2c3d4e5f6a7ff',
+                  'gmailThreadId': '18b2c3d4e5f6a7ff'}
+        await flow.evaluate("""() => {const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));db.tasks.push({id:'from-phone',title:'Celular',project:'oferta',status:'todo',gmailCaptureId:'gmail-mobile-18b2c3d4e5f6a7ff'});localStorage.setItem('flow.workspace.v1',JSON.stringify(db));}""")
+        result = await adapter.bridge(flow_id, {'type': 'FLOW_BRIDGE_SAVE', 'data': mobile})
+        assert result['ok'] and result['duplicate'] and result['taskId'] == 'from-phone'
+        assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 6
+        passed('Capturing a conversation already in Flow (extension or phone) returns the existing task instead of a duplicate')
+
         await flow.reload()
         await flow.locator('#sidebar-nav [data-page="esteira"]').click()
+        await flow.locator('#board-date-filter').select_option('all')
         await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
         await flow.locator('#sidebar-nav [data-page="projetos"]').click()
         await flow.locator('[data-action="new-project"]').click()
         await flow.locator('#active-modal-form [name="name"]').fill('Minha nova lista')
         await flow.locator('#active-modal-form [type="submit"]').click()
+        # Outra conversa: a mesma já está no UlbraFlow e seria reconhecida antes da área.
+        await gmail.evaluate("document.querySelector('h2.hP').setAttribute('data-legacy-thread-id','18b2c3d4e5f6a7c1')")
         await button.click()
         await expect(select.locator('option').filter(has_text='Minha nova lista')).to_have_count(1)
         passed('Tasks persist across reload and newly created projects are available on the next capture')
@@ -256,7 +283,7 @@ async def main(profile):
         }""")
         await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
         await expect(gmail.locator('#flow-status')).to_contain_text('Essa área foi removida')
-        assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 5
+        assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 6
         passed('A deleted list is rejected without saving into a wrong project')
         await gmail.locator('#flow-close').click()
 
@@ -270,20 +297,37 @@ async def main(profile):
 
         await gmail.evaluate("location.hash='inbox'")
         await expect(gmail.locator('#flow-gmail-button')).to_have_count(0)
-        await gmail.evaluate("""() => {
-          document.querySelector('h2.hP').textContent='Outro assunto <script>literal</script>';
-          location.hash='inbox/qrstuvwxyzabcdef';
-        }""")
+        decimal = '1781234567890123456'
+        await gmail.evaluate("""decimal => {
+          const heading=document.querySelector('h2.hP');
+          heading.textContent='Outro assunto <script>literal</script>';
+          heading.removeAttribute('data-legacy-thread-id');heading.removeAttribute('data-legacy-last-non-draft-message-id');
+          heading.setAttribute('data-thread-perm-id','thread-f:'+decimal);
+          history.replaceState(null,'','/mail/u/1/#inbox/qrstuvwxyzabcdef');document.title='Gmail';
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        }""", decimal)
         await expect(button).to_have_count(1)
         await button.click()
         await expect(gmail.locator('#flow-gmail-dialog [name="title"]')).to_have_value('Outro assunto <script>literal</script>')
         await expect(select).to_be_enabled()
         passed('Gmail navigation removes/recreates one button and safely captures the current subject')
+        await select.select_option('oferta')
+        await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-13')
+        await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
+        await expect(gmail.locator('#flow-status')).to_contain_text('Salvo no UlbraFlow')
+        converted = await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks[0]")
+        hexadecimal = format(int(decimal), 'x')
+        assert converted['gmailThreadId'] == hexadecimal and 'gmailMessageId' not in converted
+        assert converted['gmailUrl'] == 'https://mail.google.com/mail/u/1/#all/' + hexadecimal
+        await gmail.locator('#flow-close').click()
+        await button.click()
+        await expect(select).to_be_enabled()
+        passed('thread-f:<decimal> becomes the hex API thread ID; without the account in the title the /u/N/ index is kept')
 
         await flow.evaluate("""() => {const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));db.projects=[];localStorage.setItem('flow.workspace.v1',JSON.stringify(db));}""")
         await gmail.locator('#flow-close').click()
         await button.click()
-        await expect(gmail.locator('#flow-status')).to_contain_text('Crie uma área no Ulbraflow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('Crie uma área no UlbraFlow')
         await expect(gmail.locator('#flow-gmail-dialog [type="submit"]')).to_be_disabled()
         passed('An empty list collection cannot create an orphan task')
 

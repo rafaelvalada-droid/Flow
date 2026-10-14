@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateProjectPlan,validateProjectAssessment} from '../api/project-plan.mjs';
+import {validateProjectPlan,validateProjectAssessment} from '../api/_project-plan.mjs';
 import {POST} from '../api/gmail-review.mjs';
 const fields=[{id:'0',name:'Planejar'},{id:'1',name:'Executar'}];
 const plan=()=>({name:'Melhoria',description:'Melhorar o processo',sections:[{id:'0',text:'Planejar'},{id:'1',text:'Executar'}],milestones:[{name:'Entrega',dueDate:'2026-11-15'}],risks:[{title:'Falta de dados',mitigation:'Levantar dados'}]});
@@ -21,7 +21,7 @@ test('assessment only recommends existing methods, without repeats',()=>{
 test('authenticated Gemini project endpoints use the proper schemas and validate output',async()=>{
  const previous={...process.env},originalFetch=globalThis.fetch;let response=plan(),instruction;
  process.env.SUPABASE_URL='https://test.supabase.co';process.env.SUPABASE_PUBLISHABLE_KEY='sb_publishable_test';process.env.GEMINI_API_KEY='project-generator-test';process.env.GEMINI_REVIEW_MODEL='gemini-2.5-flash';
- globalThis.fetch=async(url,options)=>{if(url.endsWith('/auth/v1/user'))return Response.json({id:'verified-user'});const body=JSON.parse(options.body);instruction=body.systemInstruction.parts[0].text;assert.equal(body.generationConfig.responseMimeType,'application/json');return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(response)}]}}]});};
+ globalThis.fetch=async(url,options)=>{if(url.endsWith('/auth/v1/user'))return Response.json({id:'verified-user',app_metadata:{provider:'google'}});if(url.endsWith('/rpc/flow_ai_quota_hit'))return Response.json({allowed:true});const body=JSON.parse(options.body);instruction=body.systemInstruction.parts[0].text;assert.equal(body.generationConfig.responseMimeType,'application/json');return Response.json({candidates:[{content:{parts:[{text:JSON.stringify(response)}]}}]});};
  const request=(mode,areas)=>new Request('https://flow.test/api/gmail-review',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+'a'.repeat(25)},body:JSON.stringify({mode,subject:'Projeto',text:'Melhorar o processo',areas})});
  try{
   const generated=await POST(request('project-plan',fields));assert.equal(generated.status,200);assert.equal((await generated.json()).projectPlan.sections.length,2);assert.match(instruction,/Não invente responsáveis/);

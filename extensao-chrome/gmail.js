@@ -6,16 +6,36 @@
   let scheduled = false;
 
   const visible = node => node.getClientRects().length > 0;
+  // O ID hexadecimal do assunto aberto é o mesmo da Gmail API: o UlbraFlow reconhece a conversa vinda de qualquer origem.
+  // Só o cabeçalho da conversa é lido; linhas da lista (painel de leitura) têm IDs de outras conversas.
+  function legacyId(heading, names, perm = '') {
+    for (const name of names) {
+      const hex = (heading.getAttribute(name) || '').replace(/^#/, '').toLowerCase();
+      if (/^[a-f0-9]{8,40}$/.test(hex)) return hex;
+    }
+    const decimal = perm && /^#?thread-f:(\d{1,30})$/.exec(heading.getAttribute(perm) || '')?.[1];
+    return decimal ? BigInt(decimal).toString(16) : '';
+  }
+  function account() {
+    return / - ([^\s@<>()"]+@[^\s@<>()"]+\.[^\s@<>()"]+) - [^@]*$/.exec(document.title)?.[1] || '';
+  }
+  function link(threadId) {
+    if (!threadId) return location.href;
+    const email = account(), index = /^\/mail\/u\/(\d{1,2})\//.exec(location.pathname)?.[1];
+    return 'https://mail.google.com/mail/' + (email ? '?authuser=' + encodeURIComponent(email) : index ? 'u/' + index + '/' : '') + '#all/' + threadId;
+  }
   function conversation() {
     const heading = [...document.querySelectorAll('h2.hP, .ha h2')].find(visible);
     const route = location.hash.split('?')[0];
     if (!heading || !/\/[a-zA-Z0-9_-]{8,}$/.test(route)) return null;
     const sender = [...document.querySelectorAll('.gD')].filter(visible).at(-1);
+    const gmailThreadId = legacyId(heading, ['data-legacy-thread-id'], 'data-thread-perm-id');
+    const gmailMessageId = gmailThreadId ? legacyId(heading, ['data-legacy-last-non-draft-message-id', 'data-legacy-last-message-id']) : '';
     return {
       heading,
       gmailSubject: heading.textContent.trim() || 'Conversa sem assunto',
       gmailSender: sender?.getAttribute('email') || sender?.textContent.trim() || '',
-      gmailUrl: location.href
+      gmailUrl: link(gmailThreadId), gmailThreadId, gmailMessageId
     };
   }
 
@@ -31,7 +51,7 @@
     let result;
     try { result = await chrome.runtime.sendMessage({type, data}); }
     catch { throw new Error('A extensão foi atualizada. Recarregue o Gmail e tente novamente.'); }
-    if (!result?.ok) throw new Error(result?.error || 'Não foi possível conectar ao Ulbraflow.');
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível conectar ao UlbraFlow.');
     return result;
   }
 
@@ -52,21 +72,21 @@
       </style>
       <dialog aria-labelledby="flow-dialog-title">
         <div class="brand">ULBRAFLOW · GMAIL</div>
-        <h2 id="flow-dialog-title">Incluir no Ulbraflow</h2>
+        <h2 id="flow-dialog-title">Incluir no UlbraFlow</h2>
         <p>Classifique a demanda e inclua na esteira comum.</p>
         <form>
           <label>Título da tarefa<input name="title" maxlength="180" required></label>
           <div class="sender"></div>
           <label>1. Para onde vai? (área)<select name="project" required disabled><option value="">Carregando áreas…</option></select></label>
           <label>2. Para quando?<input name="dueDate" type="date" required></label>
-          <div id="flow-status" role="status" aria-live="polite">Conectando ao Ulbraflow…</div>
-          <div class="actions"><button type="button" id="flow-close">Cancelar</button><button class="primary" type="submit" disabled>Salvar no Ulbraflow</button></div>
+          <div id="flow-status" role="status" aria-live="polite">Conectando ao UlbraFlow…</div>
+          <div class="actions"><button type="button" id="flow-close">Cancelar</button><button class="primary" type="submit" disabled>Salvar no UlbraFlow</button></div>
           <p class="footnote">Área e data determinam a classificação. Todas as tarefas seguem pela mesma esteira.</p>
         </form>
       </dialog>`;
     document.body.appendChild(host);
     dialogHost = host;
-    dialogUrl = email.gmailUrl;
+    dialogUrl = location.href;
     const dialog = shadow.querySelector('dialog');
     const form = shadow.querySelector('form');
     const title = form.elements.title;
@@ -76,6 +96,7 @@
     const save = shadow.querySelector('[type="submit"]');
     const cancel = shadow.querySelector('#flow-close');
     const requestId = crypto.randomUUID();
+    let opened = {requestId};
     let saving = false;
     let finished = false;
     title.value = email.gmailSubject.slice(0, 180);
@@ -102,7 +123,7 @@
     dialog.showModal();
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if(finished){try{await send('FLOW_OPEN_EMAIL',{requestId});closeDialog()}catch(error){update(error.message,'error')}return;}
+      if(finished){try{await send('FLOW_OPEN_EMAIL',opened);closeDialog()}catch(error){update(error.message,'error')}return;}
       if (saving || !select.value) return;
       saving = true;
       save.disabled = true;
@@ -110,16 +131,18 @@
       title.disabled = true;
       select.disabled = true;
       dueDate.disabled = true;
-      update('Salvando no Ulbraflow…');
+      update('Salvando no UlbraFlow…');
       try {
-        await send('FLOW_SAVE_EMAIL', {
+        const result = await send('FLOW_SAVE_EMAIL', {
           requestId, projectId: select.value, title: title.value.trim(), dueDate: dueDate.value,
-          gmailUrl: email.gmailUrl, gmailSubject: email.gmailSubject, gmailSender: email.gmailSender
+          gmailUrl: email.gmailUrl, gmailSubject: email.gmailSubject, gmailSender: email.gmailSender,
+          gmailThreadId: email.gmailThreadId, gmailMessageId: email.gmailMessageId
         });
         if (dialogHost !== host) return;
         finished = true;
-        update('Salvo no Ulbraflow! Você pode continuar no Gmail.', 'success');
-        save.textContent = 'Ver no Ulbraflow';
+        opened = {requestId: result.requestId || requestId, taskId: result.taskId};
+        update(result.duplicate ? 'Esta conversa já está no UlbraFlow. Nenhuma tarefa nova foi criada.' : 'Salvo no UlbraFlow! Você pode continuar no Gmail.', 'success');
+        save.textContent = 'Ver no UlbraFlow';
         save.disabled = false;
         cancel.textContent = 'Fechar';
       } catch (error) {
@@ -140,7 +163,7 @@
       select.replaceChildren(new Option('Escolha uma área', ''));
       for (const project of result.projects) select.add(new Option(project.name, project.id));
       if (!result.projects.length) {
-        update('Crie uma área no Ulbraflow para que ela apareça aqui.', 'error');
+        update('Crie uma área no UlbraFlow para que ela apareça aqui.', 'error');
         return;
       }
       select.disabled = false;
@@ -166,7 +189,7 @@
     buttonHost = document.createElement('span');
     buttonHost.id = 'flow-gmail-button';
     const shadow = buttonHost.attachShadow({mode: 'open'});
-    shadow.innerHTML = `<style>:host{display:inline-flex;vertical-align:middle;margin:6px 0 6px 12px}button{font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:#3166dc;color:#fff;border:0;border-radius:18px;padding:9px 16px;cursor:pointer;white-space:nowrap}button:hover{background:#2554be}button:focus-visible{outline:3px solid #3166dc;outline-offset:3px}</style><button type="button">+ Incluir no Ulbraflow</button>`;
+    shadow.innerHTML = `<style>:host{display:inline-flex;vertical-align:middle;margin:6px 0 6px 12px}button{font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:#3166dc;color:#fff;border:0;border-radius:18px;padding:9px 16px;cursor:pointer;white-space:nowrap}button:hover{background:#2554be}button:focus-visible{outline:3px solid #3166dc;outline-offset:3px}</style><button type="button">+ Incluir no UlbraFlow</button>`;
     shadow.querySelector('button').addEventListener('click', openDialog);
     headingAnchor = email.heading;
     headingAnchor.insertAdjacentElement('afterend', buttonHost);

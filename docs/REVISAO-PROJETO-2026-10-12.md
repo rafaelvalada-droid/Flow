@@ -1,4 +1,4 @@
-# Revisão do Ulbraflow — 12 de outubro de 2026
+# Revisão do UlbraFlow — 12 de outubro de 2026
 
 Foram revisados Entrada/Gmail, classificação e rascunhos Gemini, tarefas, áreas/projetos, esteira, foco, Agenda, sincronização, PDF, instalação no Android e captura pelas extensões. Esta revisão inclui correções no código e testes de regressão. Não usa e-mails reais nem credenciais de produção.
 
@@ -35,7 +35,7 @@ Cenário da esteira: mil tarefas locais, desktop 1440 × 1000. Elementos da pág
 - Esteira agrupa tarefas em uma passagem e monta detalhes dos cartões sob demanda.
 - O favicon usa o ícone pequeno já preparado, em vez de carregar novamente a imagem grande da marca.
 - Node está fixado na linha 24, validada neste ambiente, para evitar mudanças automáticas de versão principal.
-- Nome Ulbraflow e destaques dourados foram concluídos no site, manifesto, PDF e pacotes de captura; identificadores de dados, domínios e funções internas continuam compatíveis.
+- Nome UlbraFlow e destaques dourados foram concluídos no site, manifesto, PDF e pacotes de captura; identificadores de dados, domínios e funções internas continuam compatíveis.
 
 ## Pontos para a próxima evolução
 
