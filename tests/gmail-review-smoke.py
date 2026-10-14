@@ -99,8 +99,19 @@ async def run():
   await expect(page.get_by_text('Chegou uma nova mensagem nesta conversa',exact=False)).to_be_visible()
   assert state['archived']==1
   assert await page.evaluate("JSON.parse(localStorage.getItem('test-workspace')).tasks.length")==2
+  # Arquivar no Gmail sem criar demanda (ex.: notificação): só as mensagens revisadas saem da caixa de entrada.
+  state['late']=None;state['message']='fourth123456789';await page.locator('[data-action="gmail-refresh"]').click()
+  await expect(page.locator('form[data-email-review] [data-archive-email]')).to_have_text('Arquivar no Gmail')
+  await page.set_viewport_size({'width':390,'height':844})
+  assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'The card buttons wrap on a phone'
+  await page.set_viewport_size({'width':1440,'height':1000})
+  await page.locator('form[data-email-review] [data-archive-email]').click()
+  await expect(page.get_by_text('E-mail arquivado no Gmail. Nenhuma demanda foi criada.')).to_be_visible()
+  await expect(page.locator('form[data-email-review]')).to_have_count(0)
+  assert state['archived']==2 and state['archive_ids']==['fourth123456789']
+  assert await page.evaluate("JSON.parse(localStorage.getItem('test-workspace')).tasks.length")==2
   await page.set_viewport_size({'width':390,'height':844})
   assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-  print('PASS Unified inbox accepts manual input, reads Gmail metadata first, caches analysis, decodes Windows-1252, confirms tasks, updates replies without duplicates and refuses to archive a newer reply; mobile fits')
+  print('PASS Unified inbox accepts manual input, reads Gmail metadata first, caches analysis, decodes Windows-1252, confirms tasks, updates replies without duplicates, refuses to archive a newer reply and archives without a demand; mobile fits')
   await browser.close()
 asyncio.run(run())
