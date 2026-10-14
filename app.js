@@ -52,26 +52,65 @@
     ts[0].priority='high';ts[1].status='doing';ts[1].priority='high';ts[3].status='waiting';
     return {version:1,projects:ps,tasks:ts,preferences:{reminderDays:1,alerts:[true,true,true,false]}};
   }
-  function load(){try{const raw=JSON.parse(localStorage.getItem(STORAGE_KEY));if(raw?.version===1 && Array.isArray(raw.projects)&&Array.isArray(raw.tasks))return raw}catch{}return seed()}
-  let db=workflow.normalize(workspace.mode === 'cloud' ? workspace.data || {version:1,projects:globalThis.FlowAreas.defaults(),tasks:[],preferences:{}} : load());
+  const record=value=>!!value&&typeof value==='object'&&!Array.isArray(value);
+  // Backup importado precisa ter a estrutura do UlbraFlow; o restante é completado pela normalização.
+  const validBackup=value=>{const list=(items,optional=false)=>optional&&items==null||Array.isArray(items)&&items.every(record);return record(value)&&value.version===1&&list(value.projects)&&list(value.tasks)&&list(value.archivedProjects,true)&&list(value.initiatives,true)&&list(value.projectTrash,true)&&(value.preferences==null||record(value.preferences))};
+  // Única entrada de dados: abertura, importação, outra aba, captura da extensão e mescla da nuvem.
+  function normalizeWorkspace(data){
+    data=workflow.normalize(data);
+    if(!record(data)||!Array.isArray(data.projects)||!Array.isArray(data.tasks))throw new Error('Dados do UlbraFlow inválidos ou incompatíveis.');
+    data.initiatives=Array.isArray(data.initiatives)?data.initiatives.filter(record):[];
+    for(const project of data.initiatives)for(const key of ['milestones','risks','indicators','notes','history'])if(project[key]!=null)project[key]=Array.isArray(project[key])?project[key].filter(record):[];
+    data.projectTrash=(Array.isArray(data.projectTrash)?data.projectTrash:[]).filter(entry=>entry?.project?.id&&Number.isFinite(entry.expiresAt)&&entry.expiresAt>Date.now());
+    const preferences=record(data.preferences)?data.preferences:(data.preferences={}),alerts=Array.isArray(preferences.alerts)?preferences.alerts:[];
+    preferences.alerts=[true,true,true,false].map((fallback,i)=>typeof alerts[i]==='boolean'?alerts[i]:fallback);
+    preferences.reminderDays=[1,2,3,7].includes(Number(preferences.reminderDays))?Number(preferences.reminderDays):1;
+    for(const task of data.tasks){const cycles=Math.floor(Number(task.focusCycles));task.focusCycles=Number.isFinite(cycles)&&cycles>0?cycles:0}
+    if(!record(data.gmailReviews))data.gmailReviews={};
+    if(data.gmailSenderColors!=null&&!record(data.gmailSenderColors))data.gmailSenderColors={};
+    globalThis.FlowGmailReview?.prune?.(data);
+    return data;
+  }
+  // null: nada salvo. JSON ilegível lança erro para não ser trocado pelo exemplo.
+  function readStored(){const raw=localStorage.getItem(STORAGE_KEY);return raw==null?null:JSON.parse(raw)}
+  let db,startupError=null;
+  try{const stored=workspace.mode==='cloud'?workspace.data:readStored();db=normalizeWorkspace(stored??(workspace.mode==='cloud'?{version:1,projects:globalThis.FlowAreas.defaults(),tasks:[],preferences:{}}:seed()))}
+  catch(error){console.error(error);startupError=error;db=normalizeWorkspace({version:1,projects:globalThis.FlowAreas.defaults(),tasks:[],preferences:{}})}
   workflow.reconcile(db);
-  db.initiatives=Array.isArray(db.initiatives)?db.initiatives:[];
-  db.projectTrash=(Array.isArray(db.projectTrash)?db.projectTrash:[]).filter(entry=>entry?.project?.id&&Number.isFinite(entry.expiresAt)&&entry.expiresAt>Date.now());
   const expandedDemands=new Set();
   let pipelineDrag=null,dragFrame=0,suppressDragClickUntil=0;
   let view={page:'entrada',focusId:null,selectedId:db.tasks[0]?.id||null,projectFilter:'all',statusFilter:'open',projectBoard:'all',boardDate:'today',boardSpecificDate:'',hideDone:false,mailSelected:null,weekOffset:0,timePeriod:'week',timeOffset:0,aiMode:'improve',aiSuggestion:null,aiLoading:false};
   let activeDictation=null;
   let accessToken='';
   let toastTimeout;
-  const persist=()=>{try{const serialized=JSON.stringify(db);localStorage.setItem(STORAGE_KEY,serialized);cloud.queue(db,serialized);globalThis.FlowCalendar.schedule()}catch(e){notice('Não foi possível salvar os dados. Verifique o espaço disponível no navegador.')}};
+  // Gravar serializa o workspace inteiro. Digitação, análises e cronômetro usam persist() e viram uma gravação;
+  // ações do usuário usam persistNow(). Saída da aba, foco perdido e 'flow:persist-flush' gravam na hora.
+  let persistTimer=0,persistDirty=false,recovering=!!startupError,reloading=false;
+  function writeLocal(serialized){
+    try{localStorage.setItem(STORAGE_KEY,serialized);return true}
+    catch(error){notice(error?.name==='QuotaExceededError'||error?.code===22?(workspace.mode==='cloud'?'O armazenamento deste navegador está cheio; as alterações continuam sendo enviadas para a nuvem. Exporte um backup e libere espaço no navegador.':'O armazenamento deste navegador está cheio e as últimas alterações não foram salvas. Exporte um backup e libere espaço no navegador.'):'Não foi possível salvar os dados neste navegador.');return false}
+  }
+  function flushPersist(){
+    clearTimeout(persistTimer);persistTimer=0;if(!persistDirty)return true;persistDirty=false;
+    if(recovering){queueMicrotask(()=>notice('Seus dados salvos não puderam ser abertos e foram preservados. Importe um backup em ⚙ Dados do UlbraFlow para voltar a salvar.'));return false}
+    if(reloading)return false;
+    let serialized;try{serialized=JSON.stringify(db)}catch{notice('Não foi possível salvar os dados.');return false}
+    // A cópia local pode falhar por falta de espaço; a nuvem continua recebendo a alteração.
+    const stored=writeLocal(serialized);
+    try{cloud.queue(db,serialized)}catch{cloud.flush().catch(()=>{})}
+    try{globalThis.FlowCalendar.schedule()}catch{}
+    return stored;
+  }
+  const persist=()=>{persistDirty=true;clearTimeout(persistTimer);persistTimer=setTimeout(flushPersist,350)};
+  const persistNow=()=>{persistDirty=true;return flushPersist()};
   const findTask=id=>db.tasks.find(t=>t.id===id);
   const selectedTask=()=>findTask(view.selectedId)||db.tasks[0];
   const findProject=id=>[...db.projects,...(db.archivedProjects||[])].find(p=>p.id===id);
   const projectName=id=>findProject(id)?.name||'Sem área';
-  const persistAndRender=()=>{persist();render()};
+  const persistAndRender=()=>{persistNow();render()};
   const badge=(s)=>`<span class="pill ${s==='done'?'green':s==='doing'?'blue':s==='waiting'?'gold':''}">${html(nameOfStatus[s]||s)}</span>`;
   const button=(label,action,primary=false,extra='')=>`<button type="button" class="button ${primary?'primary':''} ${action==='advance-task'?'lane-advance':''}" data-action="${action}" ${extra}>${label}</button>`;
-  const pageHead=(title,subtitle,right='')=>`<div class="page-head"><div><div class="eyebrow">ULBRAFLOW / WORKSPACE</div><h1>${title}</h1><p>${subtitle}</p></div>${right}</div>`;
+  const pageHead=(title,subtitle,right='')=>`<div class="page-head"><div><div class="eyebrow">ULBRAFLOW / WORKSPACE</div><h1>${html(title)}</h1><p>${html(subtitle)}</p></div>${right}</div>`;
   const selectedFilterTasks=()=>db.tasks.filter(t=>(view.projectFilter==='all'||t.project===view.projectFilter)&&(view.statusFilter==='all'||(view.statusFilter==='open'?t.status!=='done':workflow.stage(db,t)===view.statusFilter)));
   const projOption=(current='all',all=true,legacy=false)=>`${all?'<option value="all">Todas as áreas</option>':`<option value="" ${!current?'selected':''}>Escolha uma área</option>`}${db.projects.map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''}>${html(p.name)}</option>`).join('')}${(all?(db.archivedProjects||[]):legacy?(db.archivedProjects||[]).filter(p=>p.id===current):[]).map(p=>`<option value="${html(p.id)}" ${current===p.id?'selected':''} ${!all?'disabled':''}>${html(p.name)} (anterior)</option>`).join('')}`;
   const statusOption=(s,includeInbox=false)=>Object.entries(nameOfStatus).filter(([key])=>includeInbox||key!=='inbox').map(([key,name])=>`<option value="${key}" ${s===key?'selected':''}>${name}</option>`).join('');
@@ -119,7 +158,7 @@
     const options=candidates.map(x=>`<option value="${html(x.id)}" ${x.id===t?.id?'selected':''}>${html(x.title)} · ${html(projectName(x.project))}</option>`).join('');
     const title=f?.phase==='break'?'Hora de respirar.':f?.phase==='ready'?'Pronto para continuar?':'Agora, só esta tarefa.';
     const controls=!t?button('Capturar demanda','new-task',true):working&&f.endsAt?button('Ⅱ Pausar foco','focus-pause',true):f?.phase==='break'?`${f.endsAt?button('Ⅱ Pausar descanso','focus-pause'):button('Retomar descanso','break-resume',true)}${button('Começar próximo ciclo','focus-start')}`:button(paused?'Retomar foco':'Começar ciclo','focus-start',true);
-    return pageHead('Foco','Uma tarefa por vez. Tempo para trabalhar, tempo para descansar.')+`<div class="focus-layout"><section class="card focus-main ${f?.phase==='break'?'on-break':''}"><div class="eyebrow">${f?.phase==='break'?'PAUSA':f?.phase==='ready'?'CICLO CONCLUÍDO':paused?'FOCO PAUSADO':'SEU ESPAÇO DE CONCENTRAÇÃO'}</div><h2>${title}</h2>${t?`<div class="focus-task-title">${html(t.title)}</div><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}</div>`:'<p class="muted">Classifique uma demanda por área e data para começar.</p>'}<div class="focus-ring"><div><span class="focus-countdown" data-countdown>${countdown(workflow.remaining(db))}</span><small>${f?.phase==='break'?'descanso':f?.phase==='ready'?'comece quando estiver pronto':paused?'ciclo pausado':'minutos de foco'}</small></div></div><div class="focus-controls">${controls}</div>${t?`<div class="focus-secondary">${button('✓ Concluir tarefa','focus-complete')}${f?button('Trocar tarefa','focus-change'):button('Ver detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div><div class="focus-total"><span>Tempo trabalhado <b data-time="${html(t.id)}">${secondsLabel(sessionSeconds(t))}</b></span><span><b>${t.focusCycles||0}</b> ciclos completos</span></div>`:''}<p class="focus-caption">Ao terminar o foco, o descanso começa. O próximo ciclo de trabalho depende de você.</p></section><aside class="focus-aside"><section class="card"><h3 class="sectiontitle">Sua tarefa</h3><label class="field">Escolher demanda<select id="focus-task-select" ${f?'disabled':''}>${options||'<option>Nenhuma demanda classificada</option>'}</select></label>${t?.subtasks.length?`<div class="focus-subtasks">${t.subtasks.map(s=>`<label class="subtask ${s.done?'done':''}"><input type="checkbox" data-focus-sub="${html(s.id)}" ${s.done?'checked':''}><span>${html(s.text)}</span></label>`).join('')}</div>`:'<p class="muted smalltext">O detalhe da tarefa reúne anotações, e-mail e histórico.</p>'}${t?button('Abrir detalhes','task-detail',false,`data-task="${html(t.id)}"`):button('Classificar entrada','show-inbox')}</section><section class="card"><h3 class="sectiontitle">Seu ritmo</h3><div class="rhythm-fields"><label class="field">Foco (min)<input id="focus-minutes" type="number" min="1" max="180" step="1" value="${db.preferences.focusMinutes}" /></label><label class="field">Pausa (min)<input id="break-minutes" type="number" min="1" max="60" step="1" value="${db.preferences.breakMinutes}" /></label></div><p class="muted smalltext">Alterações valem para o próximo período. O tempo atual é preservado.</p></section><div class="focus-principle"><span>◉</span><p>As demandas são muitas.<br><b>A sua atenção é uma.</b></p></div></aside></div>`;
+    return pageHead('Foco','Uma tarefa por vez. Tempo para trabalhar, tempo para descansar.')+`<div class="focus-layout"><section class="card focus-main ${f?.phase==='break'?'on-break':''}"><div class="eyebrow">${f?.phase==='break'?'PAUSA':f?.phase==='ready'?'CICLO CONCLUÍDO':paused?'FOCO PAUSADO':'SEU ESPAÇO DE CONCENTRAÇÃO'}</div><h2>${title}</h2>${t?`<div class="focus-task-title">${html(t.title)}</div><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}</div>`:'<p class="muted">Classifique uma demanda por área e data para começar.</p>'}<div class="focus-ring"><div><span class="focus-countdown" data-countdown>${countdown(workflow.remaining(db))}</span><small>${f?.phase==='break'?'descanso':f?.phase==='ready'?'comece quando estiver pronto':paused?'ciclo pausado':'minutos de foco'}</small></div></div><div class="focus-controls">${controls}</div>${t?`<div class="focus-secondary">${button('✓ Concluir tarefa','focus-complete')}${f?button('Trocar tarefa','focus-change'):button('Ver detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div><div class="focus-total"><span>Tempo trabalhado <b data-time="${html(t.id)}">${secondsLabel(sessionSeconds(t))}</b></span><span><b>${Number(t.focusCycles)||0}</b> ciclos completos</span></div>`:''}<p class="focus-caption">Ao terminar o foco, o descanso começa. O próximo ciclo de trabalho depende de você.</p></section><aside class="focus-aside"><section class="card"><h3 class="sectiontitle">Sua tarefa</h3><label class="field">Escolher demanda<select id="focus-task-select" ${f?'disabled':''}>${options||'<option>Nenhuma demanda classificada</option>'}</select></label>${t?.subtasks.length?`<div class="focus-subtasks">${t.subtasks.map(s=>`<label class="subtask ${s.done?'done':''}"><input type="checkbox" data-focus-sub="${html(s.id)}" ${s.done?'checked':''}><span>${html(s.text)}</span></label>`).join('')}</div>`:'<p class="muted smalltext">O detalhe da tarefa reúne anotações, e-mail e histórico.</p>'}${t?button('Abrir detalhes','task-detail',false,`data-task="${html(t.id)}"`):button('Classificar entrada','show-inbox')}</section><section class="card"><h3 class="sectiontitle">Seu ritmo</h3><div class="rhythm-fields"><label class="field">Foco (min)<input id="focus-minutes" type="number" min="1" max="180" step="1" value="${Number(db.preferences.focusMinutes)||25}" /></label><label class="field">Pausa (min)<input id="break-minutes" type="number" min="1" max="60" step="1" value="${Number(db.preferences.breakMinutes)||5}" /></label></div><p class="muted smalltext">Alterações valem para o próximo período. O tempo atual é preservado.</p></section><div class="focus-principle"><span>◉</span><p>As demandas são muitas.<br><b>A sua atenção é uma.</b></p></div></aside></div>`;
   }
 
   function renderTasks(){
@@ -211,7 +250,7 @@
     design:['Design Thinking desenvolve soluções a partir das necessidades das pessoas. Investigue o público com empatia, defina o desafio, explore ideias, construa protótipos e teste com usuários. As etapas podem ser revisitadas conforme os testes revelam novos aprendizados.','Melhorar a solicitação de ajustes de carga horária: conversar com docentes e coordenadores, identificar dificuldades, desenhar um formulário simples, testar um protótipo com alguns usuários e ajustar a solução antes de ampliá-la.']
   };
   const projectAssessment={problem:'',people:'',constraints:'',startDate:'',endDate:'',areaId:'',busy:false,result:null};
-  function renderProjectAssessment(){const a=projectAssessment;return pageHead('Avaliação Gemini','Descreva o desafio. O Gemini ajuda a escolher o método e montar o projeto.')+`<form id="project-assessment-form" class="project-editor"><section class="card project-method-intro"><span class="gemini-status"><img src="./assets/gemini.svg" alt="" width="24" height="24">Seu ponto de partida</span><h2>Qual problema vamos resolver?</h2><p>Você não precisa escolher a metodologia antes de começar. Informe o que acontece hoje, o resultado desejado e as condições de execução.</p></section><section class="card">${assessmentTextField('problem','Problema e resultado esperado',a.problem,6000,6)}<div class="project-editor-basics"><label class="field">Área<select name="areaId">${projOption(a.areaId,false)}</select></label><label class="field">Início previsto<input type="date" name="startDate" value="${html(a.startDate)}"></label><label class="field">Prazo final<input type="date" name="endDate" value="${html(a.endDate)}"></label></div>${assessmentTextField('people','Pessoas e equipes envolvidas',a.people,1500,3)}${assessmentTextField('constraints','Recursos, limitações e informações importantes',a.constraints,2500,3)}<p id="assessment-status" role="status" class="field-help"></p><button type="submit" class="button primary"><img src="./assets/gemini.svg" alt="" width="18" height="18"> Avaliar e sugerir modelos</button></section>${a.result?`<section class="card project-assessment-results"><h2 class="sectiontitle">Avaliação do seu desafio</h2><p class="project-description">${html(a.result.summary)}</p><div class="project-recommendations">${a.result.recommendations.map((recommendation,i)=>`<article><span class="pill">${i===0?'Principal recomendação':'Alternativa / complemento'}</span><h3>${html(projectModels[recommendation.modelId].name)}</h3><p class="project-description">${html(recommendation.reason)}</p><h4>Por onde começar</h4><p class="project-description">${html(recommendation.firstSteps)}</p><button type="button" class="button primary" data-use-recommendation="${recommendation.modelId}">Montar com este modelo →</button></article>`).join('')}</div><p class="field-help">As recomendações são propostas para sua decisão. Revise o plano gerado antes de salvar.</p></section>`:''}</form>`;}
+  function renderProjectAssessment(){const a=projectAssessment;return pageHead('Avaliação Gemini','Descreva o desafio. O Gemini ajuda a escolher o método e montar o projeto.')+`<form id="project-assessment-form" class="project-editor"><section class="card project-method-intro"><span class="gemini-status"><img src="./assets/gemini.svg" alt="" width="24" height="24">Seu ponto de partida</span><h2>Qual problema vamos resolver?</h2><p>Você não precisa escolher a metodologia antes de começar. Informe o que acontece hoje, o resultado desejado e as condições de execução.</p></section><section class="card">${assessmentTextField('problem','Problema e resultado esperado',a.problem,6000,6)}<div class="project-editor-basics"><label class="field">Área<select name="areaId">${projOption(a.areaId,false)}</select></label><label class="field">Início previsto<input type="date" name="startDate" value="${html(a.startDate)}"></label><label class="field">Prazo final<input type="date" name="endDate" value="${html(a.endDate)}"></label></div>${assessmentTextField('people','Pessoas e equipes envolvidas',a.people,1500,3)}${assessmentTextField('constraints','Recursos, limitações e informações importantes',a.constraints,2500,3)}<p id="assessment-status" role="status" class="field-help"></p><button type="submit" class="button primary"><img src="./assets/gemini.svg" alt="" width="18" height="18"> Avaliar e sugerir modelos</button></section>${a.result?`<section class="card project-assessment-results"><h2 class="sectiontitle">Avaliação do seu desafio</h2><p class="project-description">${html(a.result.summary)}</p><div class="project-recommendations">${(Array.isArray(a.result.recommendations)?a.result.recommendations:[]).filter(recommendation=>Object.hasOwn(projectModels,recommendation?.modelId)).map((recommendation,i)=>`<article><span class="pill">${i===0?'Principal recomendação':'Alternativa / complemento'}</span><h3>${html(projectModels[recommendation.modelId].name)}</h3><p class="project-description">${html(recommendation.reason)}</p><h4>Por onde começar</h4><p class="project-description">${html(recommendation.firstSteps)}</p><button type="button" class="button primary" data-use-recommendation="${html(recommendation.modelId)}">Montar com este modelo →</button></article>`).join('')}</div><p class="field-help">As recomendações são propostas para sua decisão. Revise o plano gerado antes de salvar.</p></section>`:''}</form>`;}
   function assessmentTextField(name,label,value,max,rows){return `<label class="field">${html(label)}<textarea name="${name}" maxlength="${max}" rows="${rows}">${html(value)}</textarea><button type="button" class="button small" data-assessment-improve="${name}"><img src="./assets/gemini.svg" alt="" width="16" height="16"> Melhorar com Gemini</button></label>`;}
   document.addEventListener('input',event=>{const field=event.target;if(field.closest('#project-assessment-form')&&Object.hasOwn(projectAssessment,field.name))projectAssessment[field.name]=field.value;});
   document.addEventListener('change',event=>{const field=event.target;if(field.closest('#project-assessment-form')&&Object.hasOwn(projectAssessment,field.name))projectAssessment[field.name]=field.value;});
@@ -279,7 +318,7 @@
     let project=db.initiatives.find(item=>item.id===d.id);const values={name:d.name.trim(),areaId:d.areaId,description:d.description,model:d.model,sections:{...(d.drafts[d.model]||{})},owner:d.owner,resources:d.resources,startDate:d.startDate,endDate:d.endDate,phase:d.phase,milestones:structuredClone(d.milestones),risks:structuredClone(d.risks),indicators:structuredClone(d.indicators),notes:structuredClone(d.notes),history:structuredClone(d.history),updatedAt:Date.now()};
     if(project){Object.assign(project,values);db.tasks.filter(t=>t.initiativeId===project.id).forEach(t=>{t.project=d.areaId;});}
     else{project={id:uuid(),createdAt:Date.now(),...values};db.initiatives.push(project);d.id=project.id;}
-    persist();render();$('#project-model-status').textContent='Projeto salvo. Você pode continuar editando.';notice('Projeto salvo.');
+    persistNow();render();$('#project-model-status').textContent='Projeto salvo. Você pode continuar editando.';notice('Projeto salvo.');
   });
   async function improveProjectField(fieldName){
     const d=projectDraft,form=$('#project-editor-form');if(!d||!form||d.busy)return;
@@ -315,7 +354,7 @@
   function timeReport(){return globalThis.FlowTime.summarize(db,view.timePeriod,view.timeOffset)}
   function renderTime(){
     const report=timeReport(), duration=globalThis.FlowTime.duration;
-    const last=new Date(report.end);last.setDate(last.getDate()-1);
+    const last=new Date(+report.end-1);
     const range=report.start.toLocaleDateString('pt-BR')+(view.timePeriod==='day'?'':` — ${last.toLocaleDateString('pt-BR')}`);
     const peak=Math.max(...report.buckets.map(b=>b.ms),1);
     const bars=report.buckets.map(b=>`<div class="time-bar" title="${html(b.label)}: ${duration(b.ms)}"><span class="time-bar-value">${b.ms?Math.round(b.ms/60000)+'m':''}</span><i style="height:${b.ms?Math.max(2,b.ms/peak*135):0}px"></i><small>${html(b.label)}</small></div>`).join('');
@@ -332,22 +371,36 @@
     else promptModal({title:'Entrar com Google',subtitle:'A conexão com sua conta ainda precisa ser ativada.',content:'<p>Configure o Supabase e o provedor Google na Vercel para ter login e armazenamento privado na nuvem.</p><a class="button primary" href="https://github.com/rafaelvalada-droid/Flow/blob/main/docs/ATIVACAO-GOOGLE.md" target="_blank" rel="noopener noreferrer">Ver instruções de ativação</a>',onSubmit:()=>true,ok:'Fechar'});
   }
   function importLocal(){
-    let legacy;try{legacy=JSON.parse(localStorage.getItem('flow.workspace.v1'))}catch{}
+    flushPersist();let legacy;try{legacy=JSON.parse(localStorage.getItem('flow.workspace.v1'))}catch{}
     if(legacy?.version!==1||!Array.isArray(legacy.tasks)||!Array.isArray(legacy.projects)){notice('Nenhuma base anterior encontrada neste navegador. Você também pode importar um backup.');return}
     if(!confirm('Acrescentar as tarefas deste navegador à conta Google atual? Os dados locais serão preservados.'))return;
-    const imported=workflow.normalize(structuredClone(legacy));workflow.reconcile(imported);
+    let imported;try{imported=normalizeWorkspace(legacy);workflow.reconcile(imported)}catch{notice('A base deste navegador não pôde ser lida. Exporte um backup dela antes de tentar novamente.');return}
     if(imported.focus)workflow.cancel(imported,imported.focus.taskId);
-    const areaIds=new Map();
-    for(const p of [...imported.projects,...(imported.archivedProjects||[])]){
+    // Áreas arquivadas continuam arquivadas; IDs que colidem com outro conteúdo recebem um novo ID.
+    const areaIds=new Map(),projectIds=new Map(),taskIds=new Map(),taken=id=>db.initiatives.some(p=>p.id===id)||db.projectTrash.some(entry=>entry.project.id===id);
+    for(const [list,archived] of [[imported.projects,false],[imported.archivedProjects||[],true]])for(const p of list){
       const current=findProject(p.id);let id=p.id;
       if(current&&current.name!==p.name)id=uuid();
-      if(!current||id!==p.id)db.projects.push({...p,id});
+      if(!current||id!==p.id)(archived?(db.archivedProjects??=[]):db.projects).push({...p,id});
       areaIds.set(p.id,id);
+    }
+    for(const p of imported.initiatives){
+      // Mesmo projeto (inclusive de uma importação anterior com ID trocado): as tarefas apontam para ele.
+      const areaId=areaIds.get(p.areaId)||p.areaId,same=db.initiatives.find(item=>item.name===p.name&&item.areaId===areaId&&(item.id===p.id||item.createdAt===p.createdAt));
+      if(same){projectIds.set(p.id,same.id);continue}
+      const id=taken(p.id)?uuid():p.id;db.initiatives.push({...p,id,areaId});projectIds.set(p.id,id);
     }
     let count=0;
     for(const task of imported.tasks){
-      if(db.tasks.some(t=>JSON.stringify(t)===JSON.stringify(task)||(task.gmailCaptureId&&t.gmailCaptureId===task.gmailCaptureId)))continue;
-      db.tasks.push({...task,id:findTask(task.id)?uuid():task.id,project:areaIds.get(task.project)||task.project});count++;
+      const duplicate=db.tasks.find(t=>t.id===task.id&&t.createdAt===task.createdAt&&t.title===task.title||JSON.stringify(t)===JSON.stringify(task)||(task.gmailCaptureId&&t.gmailCaptureId===task.gmailCaptureId));
+      if(duplicate){taskIds.set(task.id,duplicate.id);continue}
+      const id=findTask(task.id)?uuid():task.id;taskIds.set(task.id,id);
+      // Projeto ausente da base anterior: a tarefa fica livre para ser vinculada de novo.
+      db.tasks.push({...task,id,project:areaIds.get(task.project)||task.project,initiativeId:projectIds.get(task.initiativeId)||null});count++;
+    }
+    for(const entry of imported.projectTrash){
+      if(db.projectTrash.some(item=>item.deletedAt===entry.deletedAt&&item.project.name===entry.project.name))continue;
+      db.projectTrash.push({...entry,project:{...entry.project,id:taken(entry.project.id)?uuid():entry.project.id,areaId:areaIds.get(entry.project.areaId)||entry.project.areaId},taskIds:(Array.isArray(entry.taskIds)?entry.taskIds:[]).map(id=>taskIds.get(id)).filter(Boolean)});
     }
     persistAndRender();closeModal();notice(`${count} tarefas acrescentadas. Cronômetros importados ficam pausados.`);
   }
@@ -382,7 +435,7 @@
   }
   function renderAlerts(){
     const rows=[['Lembrar antes do vencimento','Planejado para a etapa de envio de e-mails.'],['Acompanhar tarefas atrasadas','Alerta para tarefas cujo prazo final já passou.'],['Resumo diário de tarefas','Consolidar as demandas previstas para cada dia.'],['Resumo semanal por área','Entregar um resumo de pendências por área.']];
-    return pageHead('Alertas','Preferências de lembretes e acompanhamento.')+`<section class="card">${rows.map(([title,desc],i)=>`<div class="alertrow"><div><strong>${title}</strong><small>${desc}</small></div><button class="switch ${db.preferences.alerts[i]?'on':''}" data-alert="${i}" role="switch" aria-checked="${db.preferences.alerts[i]}" aria-label="${title}"></button></div>`).join('')}<label class="field" style="max-width:310px;margin-top:19px">Antecedência do lembrete<select id="reminder-days">${[1,2,3,7].map(n=>`<option value="${n}" ${db.preferences.reminderDays===n?'selected':''}>${n} ${n===1?'dia':'dias'} antes</option>`).join('')}</select></label></section><div class="notice" style="margin-top:15px">Esta tela já grava suas preferências. O envio automático por e-mail <b>ainda não está ativado</b>; ele dependerá da autenticação, do servidor e do serviço de notificações.</div>`;
+    return pageHead('Alertas','Preferências de lembretes e acompanhamento.')+`<section class="card">${rows.map(([title,desc],i)=>`<div class="alertrow"><div><strong>${title}</strong><small>${desc}</small></div><button class="switch ${db.preferences.alerts[i]===true?'on':''}" data-alert="${i}" role="switch" aria-checked="${db.preferences.alerts[i]===true}" aria-label="${title}"></button></div>`).join('')}<label class="field" style="max-width:310px;margin-top:19px">Antecedência do lembrete<select id="reminder-days">${[1,2,3,7].map(n=>`<option value="${n}" ${db.preferences.reminderDays===n?'selected':''}>${n} ${n===1?'dia':'dias'} antes</option>`).join('')}</select></label></section><div class="notice" style="margin-top:15px">Esta tela já grava suas preferências. O envio automático por e-mail <b>ainda não está ativado</b>; ele dependerá da autenticação, do servidor e do serviço de notificações.</div>`;
   }
   function tick(){
     if(workflow.reconcile(db)){persist();render();notice(db.focus?.phase==='break'?'Ciclo concluído. Hora de uma pausa.':'Pausa concluída. Comece o próximo ciclo quando estiver pronto.');return}
@@ -420,7 +473,16 @@
     for(const stale of children.values())stale.remove();
     return true;
   }
+  function renderFailure(title,text,error){$('#screen').innerHTML=pageHead(title,text)+`<section class="card startup-access render-failure"><p class="sync-error" role="alert">Algo nos dados impediu a exibição.${error?.message?' Detalhe técnico: '+html(error.message):''}</p><div class="actionbar">${button('⚙ Dados do UlbraFlow','settings',true)}${button('Abrir Entrada','show-inbox')}</div></section>`}
+  let renderedPage='';
+  // Uma tela que falha mostra um aviso e mantém menu e ⚙ utilizáveis; false permite desfazer uma troca de dados.
   function render(gmailOnly=false){
+    if(renderedPage==='agenda'&&view.page!=='agenda')globalThis.FlowCalendar?.showRange?.(null);
+    renderedPage=view.page;
+    try{paint(gmailOnly);return true}
+    catch(error){console.error(error);try{renderFailure('Não foi possível abrir esta tela','Seus dados salvos foram preservados. Exporte uma cópia ou importe um backup em Dados do UlbraFlow.',error)}catch{}return false}
+  }
+  function paint(gmailOnly){
     cancelPipelineDrag();
     const screen=$('#screen'),scroll=$('.screen'),focused=document.activeElement,focusForm=focused?.closest?.('form[data-email-review]'),focusData=focusForm?{id:focusForm.dataset.emailReview,name:focused.name,start:focused.selectionStart,end:focused.selectionEnd,top:focused.getBoundingClientRect().top}:null;
     const anchor=view.page==='entrada'?[...screen.querySelectorAll('[data-email-card]')].find(card=>card.getBoundingClientRect().bottom>scroll.getBoundingClientRect().top):null,anchorData=anchor?{id:anchor.dataset.emailCard,top:anchor.getBoundingClientRect().top}:null,previousScroll=scroll.scrollTop;
@@ -436,7 +498,7 @@
     if(!t)return;
     if(t.status==='done'){notice('Reabra a tarefa antes de iniciar um ciclo.');return}
     if(!workflow.classified(db,t)){classifyTask(t,()=>start(t));return}
-    workflow.start(db,t.id);view.focusId=t.id;persist();openPage('foco');notice('Uma tarefa, um ciclo de foco.');
+    workflow.start(db,t.id);view.focusId=t.id;persistNow();openPage('foco');notice('Uma tarefa, um ciclo de foco.');
   }
   function complete(t){if(!t)return;workflow.cancel(db,t.id);t.status='done';t.completedAt=Date.now();persistAndRender();notice('Tarefa concluída. Tempo de trabalho preservado.')}
   function moveTask(t,target,options={}){
@@ -533,15 +595,25 @@
   document.addEventListener('lostpointercapture',event=>{if(pipelineDrag?.pointerId===event.pointerId)cancelPipelineDrag();});
   window.addEventListener('blur',cancelPipelineDrag);
   document.addEventListener('click',event=>{if(Date.now()<suppressDragClickUntil&&event.target.closest?.('.pipeline-board')){event.preventDefault();event.stopImmediatePropagation();}},true);
-  function openPage(page){if(page==='gmail')page='entrada';if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area','meus-projetos','project-editor','project-assessment'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0);if(page==='entrada'&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))}
+  function openPage(page){if(page==='gmail')page='entrada';if(!['entrada','esteira','foco','tarefas','projetos','agenda','gmail','alertas','tempo','area','meus-projetos','project-editor','project-assessment'].includes(page))return;view.page=page;view.aiSuggestion=null;render();document.querySelector('.screen').scrollTo(0,0);if(page==='entrada'&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(()=>db,persist))}
   function selectTask(id){if(view.page!=='tarefas')view.detailReturnPage=view.page;view.selectedId=id;view.projectFilter='all';view.statusFilter='all';openPage('tarefas')}
   function openGmail(t){const url=validGmailUrl(t?.gmailUrl);if(!url){notice('Não há um link válido do Gmail nesta tarefa.');return}window.open(url,'_blank','noopener,noreferrer')}
   function download(filename, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-  function exportIcs(t){if(!t?.plannedDate){notice('Informe a data de execução antes de exportar o evento.');return}const d=t.plannedDate.replaceAll('-','');let start='',end='';if(t.plannedTime){const dt=new Date(`${t.plannedDate}T${t.plannedTime}:00`);start=`DTSTART:${dt.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`;end=`DTEND:${new Date(dt.getTime()+30*60000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`}else{const next=new Date(`${t.plannedDate}T12:00:00`);next.setDate(next.getDate()+1);start=`DTSTART;VALUE=DATE:${d}`;end=`DTEND;VALUE=DATE:${localDate(next).replaceAll('-','')}`}const text=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//UlbraFlow Workspace//PT-BR//EN','BEGIN:VEVENT',`UID:${t.id}@flow.local`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`,start,end,`SUMMARY:${escapeIcs(t.title)}`,`DESCRIPTION:${escapeIcs(t.description+(t.gmailUrl?'\nGmail: '+t.gmailUrl:''))}`,'END:VEVENT','END:VCALENDAR'].join('\r\n');download(`ulbraflow-${t.id}.ics`,text,'text/calendar;charset=utf-8');notice('Evento .ics exportado. Importe o arquivo no Google Agenda.')}
+  function exportIcs(t){if(!workflow.validDate(t?.plannedDate)){notice('Informe a data de execução antes de exportar o evento.');return}const d=t.plannedDate.replaceAll('-','');let start='',end='';if(/^([01]\d|2[0-3]):[0-5]\d$/.test(t.plannedTime||'')){const dt=new Date(`${t.plannedDate}T${t.plannedTime}:00`);start=`DTSTART:${dt.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`;end=`DTEND:${new Date(dt.getTime()+30*60000).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`}else{const next=new Date(`${t.plannedDate}T12:00:00`);next.setDate(next.getDate()+1);start=`DTSTART;VALUE=DATE:${d}`;end=`DTEND;VALUE=DATE:${localDate(next).replaceAll('-','')}`}const text=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//UlbraFlow Workspace//PT-BR//EN','BEGIN:VEVENT',`UID:${escapeIcs(t.id)}@flow.local`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z')}`,start,end,`SUMMARY:${escapeIcs(t.title)}`,`DESCRIPTION:${escapeIcs(t.description+(t.gmailUrl?'\nGmail: '+t.gmailUrl:''))}`,'END:VEVENT','END:VCALENDAR'].join('\r\n');download(`ulbraflow-${String(t.id).replace(/[^\w-]/g,'')}.ics`,text,'text/calendar;charset=utf-8');notice('Evento .ics exportado. Importe o arquivo no Google Agenda.')}
+  // Com a janela aberta o restante do app fica inerte; ao fechar, o foco volta a quem a abriu (ou ao equivalente redesenhado).
+  let modalOpener=null;
+  const focusableIn=root=>[...root.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(node=>node.getClientRects().length);
+  const openerSelector=node=>{const attributes=[...node.attributes].filter(a=>a.name==='id'||a.name.startsWith('data-'));return attributes.length?node.tagName.toLowerCase()+attributes.map(a=>`[${a.name}="${CSS.escape(a.value)}"]`).join(''):''};
   function promptModal({title,subtitle,content,onSubmit,ok='Salvar'}){
-    const box=$('#modal-backdrop');box.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${html(title)}"><h2>${html(title)}</h2><p>${html(subtitle)}</p><form id="active-modal-form">${content}<div class="modal-footer"><button type="button" class="button" data-action="close-modal">Cancelar</button><button type="submit" class="button primary">${html(ok)}</button></div></form></div>`;box.classList.remove('hidden');box._submit=onSubmit;box.querySelector('input,select')?.focus();
+    const box=$('#modal-backdrop');
+    if(box.classList.contains('hidden')){const opener=document.activeElement;modalOpener=opener&&opener!==document.body&&!box.contains(opener)?{node:opener,selector:openerSelector(opener)}:null}
+    box.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${html(title)}"><h2>${html(title)}</h2><p>${html(subtitle)}</p><form id="active-modal-form">${content}<div class="modal-footer"><button type="button" class="button" data-action="close-modal">Cancelar</button><button type="submit" class="button primary">${html(ok)}</button></div></form></div>`;box.classList.remove('hidden');box._submit=onSubmit;$('.app-shell').inert=true;(box.querySelector('input,select')||focusableIn(box)[0])?.focus();
   }
-  const closeModal=()=>{activeDictation?.abort();activeDictation=null;$('#modal-backdrop').classList.add('hidden');$('#modal-backdrop').innerHTML=''};
+  const closeModal=()=>{
+    activeDictation?.abort();activeDictation=null;const box=$('#modal-backdrop'),wasOpen=!box.classList.contains('hidden');box.classList.add('hidden');box.innerHTML='';box._submit=null;$('.app-shell').inert=false;if(!wasOpen)return;
+    const opener=modalOpener;modalOpener=null;let target=opener?.node?.isConnected?opener.node:null;try{target||=opener?.selector?document.querySelector(opener.selector):null}catch{}
+    if(target&&!target.closest('[inert]')&&target.getClientRects().length)target.focus({preventScroll:true});else{const heading=$('#screen h1');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true})}}
+  };
   function newProject(){promptModal({title:'Nova área',subtitle:'Organize suas demandas em uma nova área.',content:`<label class="field">Nome da área<input name="name" required maxlength="70" placeholder="Ex.: Planejamento Acadêmico" /></label><label class="field">Cor<select name="color"><option value="#507ee9">Azul</option><option value="#9270d4">Violeta</option><option value="#2ca79a">Verde</option><option value="#dbab56">Dourado</option></select></label>`,onSubmit:data=>{const name=String(data.get('name')||'').trim();if(!name)return false;db.projects.push({id:uuid(),name,color:String(data.get('color'))});persistAndRender();notice('Área criada.');return true}})}
   function newTask(prefill={}){
     const isMail=!!prefill.gmailUrl, fromAgenda=view.page==='agenda',fromArea=view.page==='area';
@@ -552,7 +624,7 @@
       const t={id:uuid(),title,project:String(data.get('project')||''),status:'todo',priority:'medium',plannedDate:String(data.get('plannedDate')||''),plannedTime:String(data.get('plannedTime')||''),dueDate:String(data.get('dueDate')||''),description:String(data.get('description')||''),subtasks:[],sessions:[],startedAt:null,focusCycles:0,gmailUrl:validGmailUrl(prefill.gmailUrl||''),gmailSubject:String(prefill.gmailSubject||''),gmailSender:String(prefill.gmailSender||''),createdAt:Date.now(),completedAt:null,initiativeId:prefill.initiativeId||null,source:prefill.shareId?'share':null,sharedUrl:prefill.sharedUrl||null,geminiAnalyzed:!!prefill.geminiReview,geminiClassified:!!prefill.geminiReview?.areaId,geminiModel:prefill.geminiReview?.modelUsed||null};
       if(fromArea&&t.project!==view.areaId){notice('Use a área deste projeto para criar a tarefa.');return false}
       if(t.plannedTime&&!t.plannedDate){notice('Informe a data de execução para usar um horário.');return false}
-      db.tasks.unshift(t);view.selectedId=t.id;persist();if(prefill.shareId){let saved=false;try{saved=JSON.parse(localStorage.getItem(STORAGE_KEY))?.tasks?.some(item=>item.id===t.id);}catch{}if(!saved){db.tasks=db.tasks.filter(item=>item.id!==t.id);return false;}FlowShareTarget.discard(prefill.shareId).catch(()=>{});pendingShare=null}if(fromAgenda){const date=new Date(t.plannedDate+'T12:00:00');const monday=new Date();monday.setHours(12,0,0,0);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);view.weekOffset=Math.floor(Math.round((date-monday)/86400000)/7)}openPage(fromArea?'area':fromAgenda?'agenda':workflow.classified(db,t)?'esteira':'entrada');notice(workflow.classified(db,t)?'Demanda incluída na esteira.':'Demanda capturada. Falta classificar área e data.');return true;
+      db.tasks.unshift(t);view.selectedId=t.id;persistNow();if(prefill.shareId){let saved=false;try{saved=JSON.parse(localStorage.getItem(STORAGE_KEY))?.tasks?.some(item=>item.id===t.id);}catch{}if(!saved){db.tasks=db.tasks.filter(item=>item.id!==t.id);return false;}FlowShareTarget.discard(prefill.shareId).catch(()=>{});pendingShare=null}if(fromAgenda){const date=new Date(t.plannedDate+'T12:00:00');const monday=new Date();monday.setHours(12,0,0,0);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);view.weekOffset=Math.floor(Math.round((date-monday)/86400000)/7)}openPage(fromArea?'area':fromAgenda?'agenda':workflow.classified(db,t)?'esteira':'entrada');notice(workflow.classified(db,t)?'Demanda incluída na esteira.':'Demanda capturada. Falta classificar área e data.');return true;
     },ok:'Salvar demanda'});
     const form=$('#active-modal-form'),context=form.elements.description,dictate=form.querySelector('#task-dictate'),rewrite=form.querySelector('#task-rewrite'),assistStatus=form.querySelector('#task-assist-status');
     let stopContextDictation;
@@ -596,13 +668,38 @@
     promptModal({title:'Classificar demanda',subtitle:t.title,content:`<div class="classification-questions"><label class="field">1. Para onde vai?<select name="project" required>${projOption(t.project||'',false)}</select></label><label class="field">2. Qual o prazo final?<input type="date" name="dueDate" required value="${html(t.dueDate||'')}" /></label></div><p class="smalltext muted">A área identifica a demanda. A data determina sua urgência na esteira comum.</p>`,onSubmit:data=>{
       const project=String(data.get('project')||''),dueDate=String(data.get('dueDate')||'');
       if(!db.projects.some(area=>area.id===project)||!workflow.validDate(dueDate))return false;
-      t.project=project;t.dueDate=dueDate;if(t.status==='inbox')t.status='todo';persist();
+      t.project=project;t.dueDate=dueDate;if(t.status==='inbox')t.status='todo';persistNow();
       if(after)after();else openPage('esteira');notice('Demanda classificada.');return true;
     },ok:'Incluir na esteira'});
   }
   function linkMail(){promptModal({title:'Vincular conversa do Gmail',subtitle:'Cole o link da conversa e associe a uma nova tarefa.',content:`<label class="field">Link da conversa<input name="url" type="url" required placeholder="https://mail.google.com/mail/u/0/#..." /></label><label class="field">Assunto<input name="subject" required maxlength="180" placeholder="Assunto do e-mail" /></label><label class="field">Remetente (opcional)<input name="sender" maxlength="150" placeholder="Setor responsável" /></label>`,onSubmit:data=>{const gmailUrl=validGmailUrl(String(data.get('url')));if(!gmailUrl){notice('Cole um endereço HTTPS válido de mail.google.com.');return false}const gmailSubject=String(data.get('subject')||'').trim();const gmailSender=String(data.get('sender')||'').trim();newTask({title:`Responder: ${gmailSubject}`,gmailUrl,gmailSubject,gmailSender});return false},ok:'Continuar'})}
-  function exportData(){download(`ulbraflow-backup-${localDate()}.json`,JSON.stringify(db,null,2),'application/json');notice('Cópia de segurança exportada.')}
-  function importData(){promptModal({title:'Importar backup',subtitle:'Atenção: esta operação substitui as tarefas e áreas do workspace atual.',content:`<label class="field">Arquivo JSON do UlbraFlow<input name="file" type="file" accept=".json,application/json" required /></label>`,onSubmit:()=>false,ok:'Importar'});const form=$('#active-modal-form');form.addEventListener('submit',async e=>{e.preventDefault();const file=form.elements.file.files?.[0];if(!file)return;try{const val=JSON.parse(await file.text());if(val?.version!==1||!Array.isArray(val.projects)||!Array.isArray(val.tasks))throw new Error();if(!confirm('Substituir todas as tarefas e áreas atuais pelo backup?'))return;db=workflow.normalize(val);workflow.reconcile(db);view.selectedId=db.tasks[0]?.id||null;persist();closeModal();render();notice('Backup importado com sucesso.')}catch{notice('Backup inválido ou incompatível.')}},{once:true})}
+  // Em recuperação, o backup exportado é o conteúdo original preservado, não o workspace vazio exibido.
+  function exportData(){flushPersist();const text=recovering?(workspace.mode==='cloud'?JSON.stringify(workspace.data??null,null,2):localStorage.getItem(STORAGE_KEY)||''):JSON.stringify(db,null,2);download(`ulbraflow-backup-${localDate()}.json`,text,'application/json');notice('Cópia de segurança exportada.')}
+  // Troca o workspace só se a nova versão normaliza e é exibida; senão a anterior continua intacta e nada é salvo.
+  // Uma troca aceita descarta a gravação pendente desta aba: o conteúdo recebido é mais novo.
+  function replaceWorkspace(data,validate=false){
+    let next,changed;try{next=normalizeWorkspace(data);changed=workflow.reconcile(next)}catch(error){console.error(error);return false}
+    const previous=db,previousView=view,wasDirty=persistDirty,undo=()=>{db=previous;view=previousView;render();if(wasDirty)persist();return false};
+    db=next;view={...previousView};clearTimeout(persistTimer);persistDirty=false;
+    if(validate){try{for(const page of [renderInbox,renderPipeline,renderFocus,renderTasks,renderProjects,renderArea,renderMyProjects,renderAlerts,renderTime])page();view={...previousView}}catch(error){console.error(error);return undo()}}
+    if(!render())return undo();
+    if(changed)persist();return true;
+  }
+  function importData(){
+    flushPersist();promptModal({title:'Importar backup',subtitle:'Atenção: esta operação substitui as tarefas e áreas do workspace atual.',content:`<label class="field">Arquivo JSON do UlbraFlow<input name="file" type="file" accept=".json,application/json" required /></label>`,onSubmit:()=>false,ok:'Importar'});
+    const form=$('#active-modal-form');let busy=false;
+    form.addEventListener('submit',async e=>{
+      e.preventDefault();const file=form.elements.file.files?.[0];if(!file||busy)return;busy=true;
+      try{
+        let value=null;try{value=JSON.parse(await file.text())}catch{}
+        if(!validBackup(value)){notice('Backup inválido ou incompatível. O workspace atual foi mantido.');return}
+        if(!confirm('Substituir todas as tarefas e áreas atuais pelo backup?'))return;
+        if(!replaceWorkspace(value,true)){notice('Este backup não pôde ser aberto. O workspace atual foi mantido sem alterações.');return}
+        recovering=false;projectDraft=null;if(view.page==='project-editor')view.page='meus-projetos';view.selectedId=db.tasks[0]?.id||null;
+        persistNow();closeModal();render();notice('Backup importado com sucesso.');
+      }finally{busy=false}
+    });
+  }
   function settingsModal(){promptModal({title:'Dados do UlbraFlow',subtitle:workspace.mode==='cloud'?'Dados privados da sua conta Google, salvos no Supabase.':'Seus dados estão salvos neste navegador.',content:`<div class="notice">Exporte uma cópia das suas tarefas e dos históricos de tempo. ${workspace.mode==='cloud'?'Confira o estado do salvamento no botão da conta.':'O acesso Google permite ativar o armazenamento na nuvem.'}</div><div class="row" style="margin-top:15px;flex-wrap:wrap"><button type="button" class="button" data-action="export-data">↓ Exportar backup</button><button type="button" class="button" data-action="import-data">↑ Importar backup</button>${workspace.mode==='cloud'?button('Trazer tarefas deste navegador','import-local'):button('Entrar com Google','account')}</div>`,onSubmit:()=>true,ok:'Fechar'})}
 
   async function generateAI(){
@@ -638,7 +735,7 @@
     if(element.dataset.dragTask){chooseTaskStage(element.dataset.dragTask);return;}
     const areaId=element.dataset.areaUp||element.dataset.areaDown;
     if(areaId){const index=db.projects.findIndex(p=>p.id===areaId),target=index+(element.dataset.areaUp?-1:1);if(index>=0&&target>=0&&target<db.projects.length){[db.projects[index],db.projects[target]]=[db.projects[target],db.projects[index]];persistAndRender();document.querySelector(`[data-area-${element.dataset.areaUp?'up':'down'}="${CSS.escape(areaId)}"]`)?.focus()}return}
-    if(element.dataset.ignoreEmail){const email=FlowGmailReview.info().emails.find(e=>e.id===element.dataset.ignoreEmail);if(email){db.gmailReviews??={};db.gmailReviews[email.id]={...(db.gmailReviews[email.id]||{}),messageId:email.messageId,state:'ignored'};persistAndRender()}return}
+    if(element.dataset.ignoreEmail){const email=FlowGmailReview.info().emails.find(e=>e.id===element.dataset.ignoreEmail);if(email){db.gmailReviews??={};db.gmailReviews[email.id]={messageId:email.messageId,state:'ignored',at:Date.now()};persistAndRender()}return}
     if(element.dataset.replyEmail){await composeReply(element.dataset.replyEmail);return}
     const page=element.dataset.page;
     if(page){openPage(page);return}
@@ -648,7 +745,7 @@
     const p=element.dataset.project;if(p){view.areaId=p;openPage('area');return}
     const mailId=element.dataset.mailTask;if(mailId){view.mailSelected=mailId;render();return}
     const subid=element.dataset.deleteSub;if(subid){const t=selectedTask();t.subtasks=t.subtasks.filter(s=>s.id!==subid);persistAndRender();return}
-    if(element.dataset.alert!==undefined){const i=Number(element.dataset.alert);db.preferences.alerts[i]=!db.preferences.alerts[i];persistAndRender();return}
+    if(element.dataset.alert!==undefined){const i=Number(element.dataset.alert);db.preferences.alerts[i]=db.preferences.alerts[i]!==true;persistAndRender();return}
     const t=selectedTask();try{switch(element.dataset.action){
       case 'toggle-done':view.hideDone=!view.hideDone;render();break;
       case 'show-areas':openPage('projetos');break;
@@ -665,7 +762,7 @@
       case 'project-remove-row':{const d=projectDraft,collection=element.dataset.collection;if(d&&!d.busy&&['milestones','risks','indicators'].includes(collection)){d[collection]=d[collection].filter(row=>row.id!==element.dataset.id);render();}break;}
       case 'project-editor-task':{const d=projectDraft;if(!d?.id){notice('Salve o projeto antes de adicionar tarefas.');break;}newTask({project:d.areaId,initiativeId:d.id});break;}
       case 'project-milestone-task':{const d=projectDraft,m=d?.milestones.find(m=>m.id===element.dataset.id);if(!d?.id){notice('Salve o projeto antes de criar tarefas das entregas.');break;}if(m?.name.trim())newTask({title:m.name,project:d.areaId,initiativeId:d.id,dueDate:m.dueDate,description:m.owner?'Responsável: '+m.owner:''});else notice('Informe o nome da entrega.');break;}
-      case 'project-link-task':{const d=projectDraft,t=findTask($('#project-link-task')?.value);if(!d?.id){notice('Salve o projeto antes de vincular tarefas.');break;}if(t&&t.project===d.areaId&&!t.initiativeId){t.initiativeId=d.id;persist();render();notice('Tarefa vinculada ao projeto.');}break;}
+      case 'project-link-task':{const d=projectDraft,t=findTask($('#project-link-task')?.value);if(!d?.id){notice('Salve o projeto antes de vincular tarefas.');break;}if(t&&t.project===d.areaId&&!t.initiativeId){t.initiativeId=d.id;persistAndRender();notice('Tarefa vinculada ao projeto.');}break;}
       case 'project-export':exportProjectReport();break;
       case 'project-editor-back':openPage('meus-projetos');break;
       case 'create-model-project':modelProject();break;
@@ -688,10 +785,10 @@
       case 'review-share':if(pendingShare)newTask({title:pendingShare.title||'Mensagem compartilhada',description:[pendingShare.text,pendingShare.url].filter(Boolean).join('\n\n').slice(0,7500),shareId:pendingShare.id,sharedUrl:pendingShare.url});break;
       case 'discard-share':if(pendingShare){await FlowShareTarget.discard(pendingShare.id);pendingShare=null;render()}break;
       case 'new-task':newTask();break;
-      case 'gmail-read-connect':try{await cloud.signIn('gmail')}catch(error){notice(error.message)}break;
-      case 'gmail-refresh':await FlowGmailReview.refresh();await FlowGmailReview.analyze(db,persist);break;
-      case 'gmail-more':await FlowGmailReview.refresh(true);await FlowGmailReview.analyze(db,persist);break;
-      case 'gmail-analyze':await FlowGmailReview.analyze(db,persist,true);break;
+      case 'gmail-read-connect':flushPersist();try{await cloud.signIn('gmail')}catch(error){notice(error.message)}break;
+      case 'gmail-refresh':await FlowGmailReview.refresh();await FlowGmailReview.analyze(()=>db,persist);break;
+      case 'gmail-more':await FlowGmailReview.refresh(true);await FlowGmailReview.analyze(()=>db,persist);break;
+      case 'gmail-analyze':await FlowGmailReview.analyze(()=>db,persist,true);break;
       case 'gmail-read-disconnect':cloud.disconnectGmail();FlowGmailReview.reset();render();break;
       case 'gmail-mobile':
         try{const token=await cloud.createGmailToken();promptModal({title:'Gmail no celular',subtitle:'Cole esta chave no complemento Incluir no UlbraFlow. Ela vale por 90 dias e substitui a conexão anterior.',content:`<label class="field">Chave de conexão<input readonly value="${html(token)}" autocomplete="off" spellcheck="false" aria-label="Chave de conexão Gmail" /></label><p class="smalltext">Guarde esta chave apenas no complemento. Ela permite consultar áreas e incluir demandas na sua conta.</p>`,onSubmit:()=>true,ok:'Fechar'})}catch(error){notice(error.message)}break;
@@ -713,19 +810,19 @@
       case 'start':start(t);break;
       case 'pause':stop(t);persistAndRender();notice('Cronômetro pausado.');break;
       case 'complete':complete(t);break;
-      case 'delete-task':if(confirm('Excluir a tarefa e todo seu histórico de tempo?')){workflow.cancel(db,t.id);db.tasks=db.tasks.filter(x=>x.id!==t.id);view.selectedId=null;persist();openPage(view.detailReturnPage||'esteira');notice('Tarefa excluída.')}break;
+      case 'delete-task':if(confirm('Excluir a tarefa e todo seu histórico de tempo?')){workflow.cancel(db,t.id);db.tasks=db.tasks.filter(x=>x.id!==t.id);view.selectedId=null;persistNow();openPage(view.detailReturnPage||'esteira');notice('Tarefa excluída.')}break;
       case 'reply-task':if(t?.gmailThreadId)await composeReply(t.gmailThreadId);break;
       case 'open-email':openGmail(t);break;
       case 'open-linked-email':openGmail(findTask(view.mailSelected));break;
       case 'open-mail-task':selectTask(view.mailSelected);break;
       case 'export-ics':exportIcs(t);break;
-      case 'calendar-connect':await globalThis.FlowCalendar.connect();break;
+      case 'calendar-connect':flushPersist();await globalThis.FlowCalendar.connect();break;
       case 'calendar-sync':await globalThis.FlowCalendar.synchronize();break;
       case 'calendar-disconnect':globalThis.FlowCalendar.disconnect();render();notice('Conexão encerrada. Os eventos já criados permanecem no Google Agenda.');break;
       case 'account':accountModal();break;
-      case 'sign-out':await cloud.signOut();break;
-      case 'cloud-retry':await cloud.flush(db);closeModal();notice('Dados salvos na nuvem.');break;
-      case 'cloud-reload':if(confirm('Carregar os dados da nuvem? A cópia atual será preservada como backup neste navegador.'))await cloud.loadRemote();break;
+      case 'sign-out':flushPersist();await cloud.signOut();break;
+      case 'cloud-retry':flushPersist();await cloud.flush(db);closeModal();notice('Dados salvos na nuvem.');break;
+      case 'cloud-reload':if(confirm('Carregar os dados da nuvem? A cópia atual será preservada como backup neste navegador.')){flushPersist();reloading=true;try{await cloud.loadRemote()}catch(error){reloading=false;throw error}}break;
       case 'import-local':importLocal();break;
       case 'time-previous':view.timeOffset--;render();break;
       case 'time-next':view.timeOffset++;render();break;
@@ -759,7 +856,7 @@
     const existing=linkedEmailTask(email),cached=db.gmailReviews?.[email.id],review=cached?.messageId===email.messageId?cached:null;
     if(existing){existing.geminiAnalyzed=!!review;existing.geminiClassified=!!review?.areaId;existing.geminiModel=review?.modelUsed||null;existing.title=title;existing.gmailSubject=email.subject;existing.gmailSender=email.sender;existing.project=project;existing.dueDate=dueDate;existing.gmailMessageId=email.messageId;existing.gmailThreadId=email.id;}
     else db.tasks.unshift({id:uuid(),title,project,dueDate,status:'todo',priority:'medium',plannedDate:'',plannedTime:'',description:review?.summary||email.snippet,subtasks:[],sessions:[],startedAt:null,focusCycles:0,completedAt:null,createdAt:Date.now(),gmailUrl:email.gmailUrl,gmailSubject:email.subject,gmailSender:email.sender,gmailCaptureId:'gmail-review-'+email.id,gmailThreadId:email.id,gmailMessageId:email.messageId,geminiAnalyzed:!!review,geminiClassified:!!review?.areaId,geminiModel:review?.modelUsed||null});
-    db.gmailReviews??={};db.gmailReviews[email.id]={...(review||{}),messageId:email.messageId,state:'accepted'};persistAndRender();let confirmed=false;try{await cloud.flush(db);confirmed=true;if(shouldArchive)await FlowGmailReview.archive(email.id);notice(shouldArchive?'Demanda salva e e-mail arquivado.':existing?'Demanda atualizada.':'Demanda incluída na esteira.')}catch(error){if(!confirmed){db.gmailReviews[email.id].state='pending';persistAndRender();notice('A nuvem não confirmou o salvamento. O e-mail não foi arquivado: '+error.message)}else notice('Demanda salva, mas o Gmail não foi arquivado: '+error.message)}
+    db.gmailReviews??={};const previousReview=db.gmailReviews[email.id];db.gmailReviews[email.id]={...(review||{}),messageId:email.messageId,state:'accepted',at:Date.now()};persistAndRender();let confirmed=false;try{await cloud.flush(db);confirmed=true;if(shouldArchive)await FlowGmailReview.archive(email.id,email.messageId);notice(shouldArchive?'Demanda salva e e-mail arquivado.':existing?'Demanda atualizada.':'Demanda incluída na esteira.')}catch(error){if(!confirmed){if(previousReview)db.gmailReviews[email.id]=previousReview;else delete db.gmailReviews[email.id];persistAndRender();notice('A nuvem não confirmou o salvamento. O e-mail não foi arquivado: '+error.message)}else notice('Demanda salva, mas o Gmail não foi arquivado: '+error.message)}
   });
   document.addEventListener('change',e=>{
     const x=e.target,t=selectedTask();
@@ -776,30 +873,55 @@
     if(x.id==='focus-task-select'){view.focusId=x.value;render();return}
     if(x.id==='focus-minutes'||x.id==='break-minutes'){const n=Number(x.value),max=x.id==='focus-minutes'?180:60;if(!Number.isInteger(n)||n<1||n>max){notice(`Escolha entre 1 e ${max} minutos.`);render();return}db.preferences[x.id==='focus-minutes'?'focusMinutes':'breakMinutes']=n;persistAndRender();return}
     if(x.id==='ai-mode'){view.aiMode=x.value;view.aiSuggestion=null;render();return}
-    if(x.id==='reminder-days'){db.preferences.reminderDays=Number(x.value);persist();return}
+    if(x.id==='reminder-days'){db.preferences.reminderDays=[1,2,3,7].includes(Number(x.value))?Number(x.value):1;persistNow();return}
     const fieldMap={'edit-title':'title','edit-project':'project','edit-status':'status','edit-planned':'plannedDate','edit-time':'plannedTime','edit-due':'dueDate','edit-description':'description'};
     if(fieldMap[x.id] && t){const field=fieldMap[x.id];if(field==='status'&&x.value==='done'){workflow.cancel(db,t.id);t.completedAt=Date.now()}if(field==='status'&&t.status==='done'&&x.value!=='done')t.completedAt=null;t[field]=x.value;if((field==='project'||field==='dueDate')&&!workflow.classified(db,t))workflow.cancel(db,t.id);if(field==='status'&&x.value!=='doing')workflow.cancel(db,t.id);persistAndRender()}
   });
   document.addEventListener('input',e=>{if(e.target.id==='edit-description'){const t=selectedTask();if(t){t.description=e.target.value;persist()}}});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(pipelineDrag?.active)suppressDragClickUntil=Date.now()+400;cancelPipelineDrag();closeModal();}});
-  window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY){db=workflow.normalize(load());if(workflow.reconcile(db))persist();render()}});
-  window.addEventListener('flow:open-capture',event=>{db=workflow.normalize(load());const task=db.tasks.find(t=>t.gmailCaptureId===event.detail?.requestId);if(task){view.projectBoard='all';openPage('esteira');selectTask(task.id)}});
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){if(pipelineDrag?.active)suppressDragClickUntil=Date.now()+400;cancelPipelineDrag();closeModal();return}
+    // Tab e Shift+Tab circulam apenas dentro da janela aberta.
+    const box=$('#modal-backdrop');if(e.key!=='Tab'||box.classList.contains('hidden'))return;
+    const items=focusableIn(box),inside=box.contains(document.activeElement);if(!items.length){e.preventDefault();return}
+    if(!inside||document.activeElement===(e.shiftKey?items[0]:items.at(-1))){e.preventDefault();(e.shiftKey?items.at(-1):items[0]).focus()}
+  });
+  // Mantém o texto em edição, o foco e a rolagem quando outra aba ou a nuvem substituem o workspace.
+  function captureEditing(){const field=document.activeElement,state={top:$('.screen').scrollTop,page:view.page};if(field?.id&&$('#screen').contains(field))Object.assign(state,{id:field.id,value:field.value,start:field.selectionStart,end:field.selectionEnd,taskId:field.id==='edit-description'?selectedTask()?.id:null});return state}
+  function restoreEditing(state){
+    if(view.page!==state.page)return;if(view.page!=='entrada')$('.screen').scrollTop=state.top;
+    const field=state.id&&document.getElementById(state.id);if(!field)return;
+    if(state.taskId){const t=selectedTask();if(t?.id!==state.taskId)return;if(t.description!==state.value){t.description=state.value;persist()}field.value=state.value}
+    field.focus({preventScroll:true});try{if(state.start!=null)field.setSelectionRange(state.start,state.end)}catch{}
+  }
+  const storedWorkspace=()=>{try{return readStored()}catch{return null}};
+  window.addEventListener('storage',e=>{if(e.key!==STORAGE_KEY)return;const next=storedWorkspace();if(!next)return;const editing=captureEditing();if(replaceWorkspace(next)){recovering=false;restoreEditing(editing)}});
+  window.addEventListener('flow:open-capture',event=>{const next=storedWorkspace();if(next)replaceWorkspace(next);const {requestId,taskId}=event.detail||{},task=db.tasks.find(t=>(requestId&&t.gmailCaptureId===requestId)||(taskId&&t.id===taskId));if(task){view.projectBoard='all';view.boardDate='all';openPage('esteira');selectTask(task.id)}});
+  // cloud.js já enfileirou a versão mesclada após um conflito: aqui só a cópia local é atualizada.
+  window.addEventListener('flow:cloud-remote-merged',event=>{
+    const data=event.detail?.data;if(workspace.mode!=='cloud'||recovering||!record(data))return;
+    const editing=captureEditing();let copy;try{copy=structuredClone(data)}catch{return}
+    if(!replaceWorkspace(copy)){notice('A versão mesclada da nuvem não pôde ser exibida. Recarregue o UlbraFlow.');return}
+    try{writeLocal(JSON.stringify(db))}catch{}restoreEditing(editing);
+  });
+  // Grava na hora ao sair, ao perder o foco e quando a extensão vai ler o armazenamento.
+  for(const type of ['flow:persist-flush','pagehide','beforeunload','blur'])window.addEventListener(type,()=>flushPersist());
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)flushPersist()});
   function rememberEmailDraft(event){const x=event.target,form=x.closest?.('form[data-email-review]');if(!form||!x.name)return;const email=FlowGmailReview.info().emails.find(e=>e.id===form.dataset.emailReview);if(!email)return;view.emailDrafts??={};let draft=view.emailDrafts[email.id];if(draft?.messageId!==email.messageId)draft=view.emailDrafts[email.id]={messageId:email.messageId,fields:{}};draft.fields[x.name]=x.type==='checkbox'?x.checked:x.value;}
   document.addEventListener('input',rememberEmailDraft);document.addEventListener('change',rememberEmailDraft);
   function restoreEmailDrafts(){for(const email of FlowGmailReview.info().emails){const draft=view.emailDrafts?.[email.id];if(draft?.messageId!==email.messageId)continue;const form=document.querySelector(`form[data-email-review="${CSS.escape(email.id)}"]`);if(form)for(const [name,value] of Object.entries(draft.fields)){const input=form.elements.namedItem(name);if(input){if(input.type==='checkbox')input.checked=value;else input.value=value}}}}
   let gmailPaint;
   window.addEventListener('flow:gmail-review',event=>{
     if(view.page==='entrada'&&!gmailPaint)gmailPaint=requestAnimationFrame(()=>{gmailPaint=null;if(view.page==='entrada')render(true)});
-    if(event.detail?.emailsChanged)FlowGmailReview.analyze(db,persist);
+    if(event.detail?.emailsChanged)FlowGmailReview.analyze(()=>db,persist);
   });
-  setInterval(()=>{if(view.page==='entrada'&&!document.hidden&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))},30000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&view.page==='entrada'&&cloud.gmailToken())FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist))});
+  setInterval(()=>{if(view.page==='entrada'&&!document.hidden&&cloud.gmailToken()&&!FlowGmailReview.info().loading)FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(()=>db,persist))},30000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&view.page==='entrada'&&cloud.gmailToken())FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(()=>db,persist))});
   window.addEventListener('flow:sync-status',updateAccount);
   window.addEventListener('flow:calendar-status',()=>{if(view.page==='agenda')render()});
   window.addEventListener('flow:cloud-save',async event=>{
     if(event.detail?.key!==STORAGE_KEY||workspace.mode!=='cloud')return;
     const requestId=event.detail.requestId;
-    try{db=workflow.normalize(load());if(!db.tasks.some(t=>t.gmailCaptureId===requestId))throw new Error('A demanda não foi recebida pelo UlbraFlow. Recarregue o app e tente novamente.');render();await cloud.flush(db);window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:true}}))}
+    try{const next=storedWorkspace();if(!next||!replaceWorkspace(next)||!db.tasks.some(t=>t.gmailCaptureId===requestId))throw new Error('A demanda não foi recebida pelo UlbraFlow. Recarregue o app e tente novamente.');await cloud.flush(db);window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:true}}))}
     catch(error){window.dispatchEvent(new CustomEvent('flow:cloud-save-result',{detail:{requestId,ok:false,error:error.message}}))}
   });
   window.addEventListener('online',()=>{cloud.flush().catch(()=>{});globalThis.FlowCalendar.schedule()});
@@ -810,9 +932,14 @@
   // Botão de backup facilmente acessível sem ocupar uma sexta tela.
   const nav=document.querySelector('.sidebar-foot');const backup=document.createElement('button');backup.className='button small workspace-settings';backup.type='button';backup.dataset.action='settings';backup.title='Exportar ou importar os dados';backup.textContent='⚙';nav.appendChild(backup);
   globalThis.FlowCalendar.initialize(()=>db,persist);
-  persist();render();updateAccount();handleCapture();
-  if(pendingShare)newTask({title:pendingShare.title||'Mensagem compartilhada',description:[pendingShare.text,pendingShare.url].filter(Boolean).join('\n\n').slice(0,7500),shareId:pendingShare.id,sharedUrl:pendingShare.url});
-  $('.sidebar').inert=false;$('.top-actions').inert=false;finishStartup();
-  if(view.page==='entrada'&&cloud.gmailToken())FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(db,persist));
+  // O menu e o ⚙ sempre são liberados, mesmo que a primeira tela falhe; dados ilegíveis ficam preservados.
+  try{
+    if(recovering)renderFailure('Não foi possível abrir seus dados','Eles foram preservados sem alterações. Exporte uma cópia ou importe um backup em Dados do UlbraFlow.',startupError);
+    else if(render())persistNow();
+    updateAccount();handleCapture();
+    if(pendingShare&&!recovering)newTask({title:pendingShare.title||'Mensagem compartilhada',description:[pendingShare.text,pendingShare.url].filter(Boolean).join('\n\n').slice(0,7500),shareId:pendingShare.id,sharedUrl:pendingShare.url});
+  }catch(error){console.error(error);notice(error?.message||'Não foi possível concluir a abertura do UlbraFlow.')}
+  finally{document.querySelectorAll('.sidebar,.top-actions').forEach(node=>{node.inert=false});finishStartup()}
+  if(view.page==='entrada'&&cloud.gmailToken())FlowGmailReview.refresh().then(()=>FlowGmailReview.analyze(()=>db,persist));
   setInterval(()=>{if(view.page==='tempo'&&!document.hidden&&!db.focus?.endsAt)return;if(view.page==='tempo'&&!document.hidden)render()},60000);
 })();

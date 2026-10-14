@@ -278,3 +278,8 @@ body.pipeline-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing
 .project-trash{margin-top:24px}.project-trash summary{cursor:pointer;font-weight:600;color:var(--muted)}.project-trash-row{padding:15px 0;border-top:1px solid var(--border);gap:15px;flex-wrap:wrap}
 
 .method-google-search{display:inline-flex;align-items:center;gap:7px;text-decoration:none;margin-top:4px;max-width:100%;white-space:normal}
+
+/* Tela que não pôde ser exibida: aviso legível com acesso aos Dados do UlbraFlow. */
+.render-failure>p.sync-error{max-width:none;font-size:13px;color:var(--accent)}
+/* Título recebe o foco quando o botão que abriu uma janela deixou de existir. */
+#screen h1[tabindex="-1"]:focus{outline:none}

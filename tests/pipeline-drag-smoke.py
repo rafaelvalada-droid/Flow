@@ -16,7 +16,14 @@ INBOX = 'drag-unclassified'
 
 
 async def state(page):
-    return await page.evaluate('(key) => JSON.parse(localStorage.getItem(key))', KEY)
+    # The app batches background writes; the extension flush event writes them before reading.
+    return await page.evaluate("(key) => {window.dispatchEvent(new Event('flow:persist-flush'));return JSON.parse(localStorage.getItem(key));}", KEY)
+
+
+async def open_board(page):
+    # The board opens on the "Hoje" deadline filter; these demands are due later.
+    await page.locator('#sidebar-nav [data-page="esteira"]').click()
+    await page.locator('#board-date-filter').select_option('all')
 
 
 def task(db, task_id=TASK):
@@ -43,7 +50,7 @@ async def seed(page):
       localStorage.setItem(key,JSON.stringify(db));
     }""", KEY)
     await page.reload()
-    await page.locator('#sidebar-nav [data-page="esteira"]').click()
+    await open_board(page)
     await expect(page.locator(f'[data-pipeline-task="{TASK}"]')).to_be_visible()
 
 
@@ -115,7 +122,7 @@ async def main():
             if key not in ['status','completedAt']:
                 assert finished[key] == value, key
         await page.reload()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await open_board(page)
         await assert_stage(page, 'done')
         assert task(await state(page)) == finished
         passed('Native dragging advances stages and persists completion without losing task data')
