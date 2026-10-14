@@ -99,7 +99,7 @@ async function flowTab() {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!['FLOW_LISTS', 'FLOW_SAVE_EMAIL', 'FLOW_OPEN_EMAIL', 'FLOW_FIND_EMAIL', 'FLOW_COMPLETE_EMAIL'].includes(message?.type)) return;
+  if (!['FLOW_LISTS', 'FLOW_SAVE_EMAIL', 'FLOW_OPEN_EMAIL', 'FLOW_FIND_EMAIL', 'FLOW_COMPLETE_EMAIL', 'FLOW_ARCHIVE_EMAIL'].includes(message?.type)) return;
   if (!isGmailSender(sender)) {
     sendResponse({ok: false, error: 'A captura precisa ser feita na conversa aberta no Gmail.'});
     return;
@@ -108,7 +108,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'FLOW_FIND_EMAIL') return findEmail(message.data);
     if (message.type === 'FLOW_COMPLETE_EMAIL') return completeEmail(message.data, sender);
     const tabId = await flowTab();
-    const type = message.type === 'FLOW_LISTS' ? 'FLOW_BRIDGE_LISTS' : message.type==='FLOW_OPEN_EMAIL'?'FLOW_BRIDGE_OPEN':'FLOW_BRIDGE_SAVE';
+    const type = message.type === 'FLOW_LISTS' ? 'FLOW_BRIDGE_LISTS' : message.type==='FLOW_OPEN_EMAIL'?'FLOW_BRIDGE_OPEN':message.type==='FLOW_ARCHIVE_EMAIL'?'FLOW_BRIDGE_ARCHIVE':'FLOW_BRIDGE_SAVE';
     const result = await chrome.tabs.sendMessage(tabId, {type, data: message.data});
     if (!result) throw new Error('Não foi possível conectar ao UlbraFlow. Atualize a aba do UlbraFlow e tente novamente.');
     if(result.ok&&message.type==='FLOW_OPEN_EMAIL')await chrome.tabs.update(tabId,{active:true});

@@ -130,3 +130,29 @@ test('Completing fails clearly for a conversation outside Flow, an app refusal o
  const [id,timer]=[...silent.timers][0];assert.equal(timer.ms,10000);silent.timers.delete(id);timer.fn();
  assert.match((await pending).error,/não respondeu/);
 });
+
+// Incluir e arquivar: sem o botão do Gmail, a ponte pede ao app que arquive pela conexão Gmail da Entrada.
+function archiver(h,{ok=true}={}){
+ const asked=[];
+ h.win.addEventListener('flow:archive-email',event=>{
+  const {requestId,gmailThreadId,gmailMessageId}=event.detail;asked.push([gmailThreadId,gmailMessageId]);
+  queueMicrotask(()=>h.win.dispatchEvent(new CustomEvent('flow:archive-email-result',{detail:{requestId,ok,...(ok?{}:{error:'conecte o Gmail na Entrada do UlbraFlow ou arquive pelo Gmail.'})}})));
+ });
+ return asked;
+}
+
+test('Archiving through Flow passes the thread and message ids to the app and reports its answer',async()=>{
+ const h=harness();const asked=archiver(h);
+ assert.deepEqual(await h.send('FLOW_BRIDGE_ARCHIVE',{gmailThreadId:thread,gmailMessageId:'18b2c3d4e5f6a7c0'}),{ok:true});
+ assert.deepEqual(asked,[[thread,'18b2c3d4e5f6a7c0']]);assert.equal(h.timers.size,0);
+ const refused=harness();archiver(refused,{ok:false});
+ assert.match((await refused.send('FLOW_BRIDGE_ARCHIVE',{gmailThreadId:thread})).error,/conecte o Gmail/);
+});
+
+test('Archiving through Flow refuses an unknown conversation and times out without an answer',async()=>{
+ const h=harness();let asked=0;h.win.addEventListener('flow:archive-email',()=>{asked++;});
+ assert.match((await h.send('FLOW_BRIDGE_ARCHIVE',{gmailThreadId:'#inbox/FMfcg'})).error,/identificar a conversa/);assert.equal(asked,0);
+ const pending=h.send('FLOW_BRIDGE_ARCHIVE',{gmailThreadId:thread});await new Promise(r=>setImmediate(r));
+ const [id,timer]=[...h.timers][0];assert.equal(timer.ms,30000);h.timers.delete(id);timer.fn();
+ assert.match((await pending).error,/não respondeu/);
+});

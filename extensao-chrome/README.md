@@ -1,8 +1,12 @@
-# UlbraFlow no Gmail — extensão Chrome 1.6.0
+# UlbraFlow no Gmail — extensão Chrome 1.7.0
 
 A extensão adiciona **Incluir no UlbraFlow** ao lado do assunto da conversa aberta no Gmail.
 Você escolhe a área e a data e salva a tarefa em uma caixa no próprio Gmail.
 A demanda entra na esteira comum de todas as áreas. Feche a janela clicando fora dela ou pressionando Esc. Após salvar, clique em **Ver no UlbraFlow** para abrir a demanda na aba de destino, ou em **Fechar** para continuar no Gmail.
+
+## Arquivar ao incluir
+
+A caixa **Incluir no UlbraFlow** traz **Arquivar o e-mail no Gmail depois de incluir**, marcado por padrão; a extensão lembra a última escolha. O e-mail só é arquivado depois que a tarefa foi salva: a extensão usa o botão Arquivar do próprio Gmail, que volta para a lista. Se o botão não for encontrado, arquiva pela conexão Gmail da Entrada do UlbraFlow (que não arquiva se chegou uma mensagem nova). Se nenhum dos dois for possível, a tarefa continua salva e a caixa avisa que o e-mail não foi arquivado.
 
 ## Concluir e voltar ao UlbraFlow
 
@@ -51,4 +55,4 @@ Depois de alterar a extensão, execute `npm run package:extension` para atualiza
 `npm run check` verifica a sintaxe do aplicativo e da extensão.
 `npm run test:extension` testa o fluxo com Chromium e Python Playwright em um perfil temporário, usando páginas de Gmail simuladas, os arquivos reais do UlbraFlow e um adaptador para a comunicação `chrome.*`. Nenhum e-mail real é acessado. O Chromium gerenciado do ambiente na nuvem bloqueia o carregamento nativo de extensões; a instalação real deve ser validada no Chrome do usuário.
 
-A extensão 1.6 pede área e data, respeita a conta Google ativa no UlbraFlow e grava o ID da conversa para evitar tarefas duplicadas entre extensão, celular e Entrada. Capturas antigas sem data ficam na Entrada do UlbraFlow para classificação; capturas anteriores à 1.5 não têm o ID e não são reconhecidas automaticamente.
+A extensão 1.7 pede área e data, respeita a conta Google ativa no UlbraFlow e grava o ID da conversa para evitar tarefas duplicadas entre extensão, celular e Entrada. Capturas antigas sem data ficam na Entrada do UlbraFlow para classificação; capturas anteriores à 1.5 não têm o ID e não são reconhecidas automaticamente.

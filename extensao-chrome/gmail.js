@@ -41,6 +41,25 @@
     };
   }
 
+  // Botão Arquivar da barra do Gmail (o mesmo que o usuário clicaria); o Gmail volta para a lista.
+  function archiveButton() {
+    const label = node => (node.getAttribute('aria-label') || node.getAttribute('data-tooltip') || '').trim();
+    return [...document.querySelectorAll('[act="7"]')].find(visible) ||
+      [...document.querySelectorAll('[role="button"][aria-label], [role="button"][data-tooltip]')].find(node => visible(node) && /^(arquivar|archive)$/i.test(label(node)));
+  }
+  async function archiveInGmail() {
+    const target = archiveButton();
+    if (!target) return false;
+    const before = location.href;
+    for (const type of ['mousedown', 'mouseup', 'click']) target.dispatchEvent(new MouseEvent(type, {bubbles: true, cancelable: true, view: window}));
+    for (let i = 0; i < 40 && location.href === before; i++) await new Promise(resolve => setTimeout(resolve, 100));
+    return location.href !== before;
+  }
+  const archivePreference = {
+    async get() { try { return (await chrome.storage.local.get('archiveOnSave')).archiveOnSave !== false; } catch { return true; } },
+    set(value) { try { chrome.storage.local.set({archiveOnSave: !!value}); } catch {} }
+  };
+
   function closeDialog() {
     if (!dialogHost) return;
     dialogHost.remove();
@@ -68,7 +87,7 @@
         :host{all:initial}*{box-sizing:border-box}
         dialog{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#182b49;background:#f0f5fc;border:0;border-radius:18px;padding:26px;width:430px;max-width:calc(100vw - 32px);box-shadow:0 20px 80px #3166dc40}
         dialog::backdrop{background:#182b4966}h2{font-size:22px;letter-spacing:-.5px;margin:0 0 5px}p{color:#5b6f8c;margin:0 0 20px}.brand{color:#3166dc;border-left:3px solid #3166dc;padding-left:8px;font-weight:800;font-size:12px;letter-spacing:1px;margin-bottom:8px}
-        label{display:block;font-weight:650;margin-top:16px}input,select{font:inherit;width:100%;padding:11px;border:1px solid #c8d7ee;border-radius:9px;margin-top:6px;background:#fff;color:#182b49}input:focus,select:focus{outline:2px solid #3166dc;outline-offset:2px}
+        label{display:block;font-weight:650;margin-top:16px}label.check{display:flex;align-items:center;gap:8px;font-weight:600}label.check input{width:auto;margin:0;accent-color:#3166dc}input,select{font:inherit;width:100%;padding:11px;border:1px solid #c8d7ee;border-radius:9px;margin-top:6px;background:#fff;color:#182b49}input:focus,select:focus{outline:2px solid #3166dc;outline-offset:2px}
         .sender{font-size:12px;color:#5b6f8c;overflow-wrap:anywhere;margin-top:7px}.actions{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}button{font:inherit;font-weight:650;border-radius:9px;padding:10px 18px;border:1px solid #c8d7ee;background:#fff;color:#182b49;cursor:pointer}button:hover{background:#e4edfb}button.primary{background:#3166dc;color:#fff;border-color:#3166dc}button.primary:hover{background:#2554be;border-color:#2554be}button:focus-visible{outline:3px solid #3166dc;outline-offset:3px}button:disabled{opacity:.55;cursor:default}
         #flow-status{min-height:22px;margin-top:15px;color:#5b6f8c;font-size:13px}#flow-status.error{color:#a4262c}#flow-status.success{color:#14774e}.footnote{font-size:12px;margin-top:12px;margin-bottom:0;color:#5b6f8c}
       </style>
@@ -81,6 +100,7 @@
           <div class="sender"></div>
           <label>1. Para onde vai? (área)<select name="project" required disabled><option value="">Carregando áreas…</option></select></label>
           <label>2. Para quando?<input name="dueDate" type="date" required></label>
+          <label class="check"><input name="archive" type="checkbox" checked> Arquivar o e-mail no Gmail depois de incluir</label>
           <div id="flow-status" role="status" aria-live="polite">Conectando ao UlbraFlow…</div>
           <div class="actions"><button type="button" id="flow-close">Cancelar</button><button class="primary" type="submit" disabled>Salvar no UlbraFlow</button></div>
           <p class="footnote">Área e data determinam a classificação. Todas as tarefas seguem pela mesma esteira.</p>
@@ -94,6 +114,9 @@
     const title = form.elements.title;
     const select = form.elements.project;
     const dueDate = form.elements.dueDate;
+    const archive = form.elements.archive;
+    archivePreference.get().then(value => { archive.checked = value; });
+    archive.addEventListener('change', () => archivePreference.set(archive.checked));
     const status = shadow.querySelector('#flow-status');
     const save = shadow.querySelector('[type="submit"]');
     const cancel = shadow.querySelector('#flow-close');
@@ -133,6 +156,7 @@
       title.disabled = true;
       select.disabled = true;
       dueDate.disabled = true;
+      archive.disabled = true;
       update('Salvando no UlbraFlow…');
       try {
         const result = await send('FLOW_SAVE_EMAIL', {
@@ -144,10 +168,24 @@
         finished = true;
         opened = {requestId: result.requestId || requestId, taskId: result.taskId};
         if (buttonHost?.isConnected && headingAnchor === email.heading) syncComplete(email);
-        update(result.duplicate ? 'Esta conversa já está no UlbraFlow. Nenhuma tarefa nova foi criada.' : 'Salvo no UlbraFlow! Você pode continuar no Gmail.', 'success');
+        const saved = result.duplicate ? 'Esta conversa já está no UlbraFlow. Nenhuma tarefa nova foi criada.' : 'Salvo no UlbraFlow! Você pode continuar no Gmail.';
+        update(saved, 'success');
         save.textContent = 'Ver no UlbraFlow';
         save.disabled = false;
         cancel.textContent = 'Fechar';
+        // Só depois de salvo: se o Gmail arquivar, ele volta para a lista e a caixa fecha sozinha.
+        if (archive.checked) {
+          update(saved + ' Arquivando o e-mail…', 'success');
+          let reason = '';
+          try {
+            if (!await archiveInGmail()) {
+              await send('FLOW_ARCHIVE_EMAIL', {gmailThreadId: email.gmailThreadId, gmailMessageId: email.gmailMessageId});
+              if (dialogHost === host) closeDialog();
+              location.hash = '#inbox';
+            }
+          } catch (error) { reason = error.message; }
+          if (reason && dialogHost === host) update(saved + ' O e-mail não foi arquivado: ' + reason, 'error');
+        }
       } catch (error) {
         if (dialogHost !== host) return;
         update(error.message, 'error');
@@ -155,6 +193,7 @@
         title.disabled = false;
         select.disabled = false;
         dueDate.disabled = false;
+        archive.disabled = false;
       } finally {
         saving = false;
         cancel.disabled = false;

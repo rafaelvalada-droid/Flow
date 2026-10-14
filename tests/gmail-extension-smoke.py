@@ -277,6 +277,48 @@ async def main(profile):
         assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 6
         passed('Capturing a conversation already in Flow (extension or phone) returns the existing task instead of a duplicate')
 
+        # Incluir e arquivar: depois de salvo, o botão Arquivar do próprio Gmail é usado e o Gmail volta para a lista.
+        await gmail.evaluate("""() => {const b=document.createElement('div');b.id='fake-archive';b.setAttribute('role','button');b.setAttribute('act','7');b.setAttribute('aria-label','Arquivar');b.textContent='Arquivar';b.addEventListener('click',()=>{window.__archived=(window.__archived||0)+1;location.hash='#inbox';});document.body.prepend(b);}""")
+        archive_box = gmail.locator('#flow-gmail-dialog [name="archive"]')
+        tasks_before = await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length")
+        await button.click()
+        await expect(select).to_be_enabled()
+        await expect(archive_box).to_be_checked()
+        await select.select_option('oferta')
+        await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-12')
+        await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
+        await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
+        assert await gmail.evaluate('window.__archived') == 1 and await gmail.evaluate('location.hash') == '#inbox'
+        assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == tasks_before
+        passed('Incluir no UlbraFlow saves first and then archives with Gmail\'s own Archive button, returning to the inbox')
+
+        await gmail.evaluate("location.hash = '#inbox/abcdefghijklmnop'")
+        await expect(button).to_have_count(1)
+        await button.click()
+        await expect(select).to_be_enabled()
+        await archive_box.uncheck()
+        await select.select_option('oferta')
+        await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-12')
+        await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
+        await expect(gmail.locator('#flow-status')).to_contain_text('já está no UlbraFlow')
+        assert await gmail.evaluate('window.__archived') == 1 and await gmail.evaluate('location.hash') == '#inbox/abcdefghijklmnop'
+        await gmail.locator('#flow-close').click()
+        passed('With Arquivar unchecked the email stays in the inbox')
+
+        await gmail.evaluate("document.getElementById('fake-archive').remove()")
+        await button.click()
+        await expect(select).to_be_enabled()
+        await expect(archive_box).to_be_checked()
+        await select.select_option('oferta')
+        await gmail.locator('#flow-gmail-dialog [name="dueDate"]').fill('2026-12-12')
+        await gmail.locator('#flow-gmail-dialog [type="submit"]').click()
+        await expect(gmail.locator('#flow-status')).to_contain_text('já está no UlbraFlow')
+        await expect(gmail.locator('#flow-status')).to_contain_text('O e-mail não foi arquivado: conecte o Gmail na Entrada do UlbraFlow')
+        await expect(gmail.get_by_role('button', name='Ver no UlbraFlow')).to_be_visible()
+        assert await gmail.evaluate('location.hash') == '#inbox/abcdefghijklmnop'
+        await gmail.locator('#flow-close').click()
+        passed('Without the Gmail button or a Gmail connection in Flow the task stays saved and the user is told the email was not archived')
+
         def stored_status(task_id):
             return flow.evaluate("id => JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.find(t=>t.id===id).status", task_id)
         await flow.locator('#sidebar-nav [data-page="esteira"]').click()
