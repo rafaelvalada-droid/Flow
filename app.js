@@ -895,6 +895,8 @@
   }
   const storedWorkspace=()=>{try{return readStored()}catch{return null}};
   window.addEventListener('storage',e=>{if(e.key!==STORAGE_KEY)return;const next=storedWorkspace();if(!next)return;const editing=captureEditing();if(replaceWorkspace(next)){recovering=false;restoreEditing(editing)}});
+  // Pedido da extensão no Gmail (Concluir e voltar ao UlbraFlow): mesma regra do botão Concluir e a tarefa fica aberta na tela.
+  window.addEventListener('flow:complete-task',event=>{const {requestId,taskId}=event.detail||{},reply=detail=>window.dispatchEvent(new CustomEvent('flow:complete-task-result',{detail:{requestId,...detail}}));try{const task=typeof taskId==='string'?db.tasks.find(t=>t.id===taskId):null;if(!task){reply({ok:false,error:'A tarefa não está neste UlbraFlow. Atualize a aba do UlbraFlow e tente novamente.'});return}if(task.status!=='done')complete(task);view.projectBoard='all';view.boardDate='all';selectTask(task.id);reply({ok:true,taskId:task.id})}catch(error){reply({ok:false,error:error.message||'Não foi possível concluir a tarefa.'})}});
   window.addEventListener('flow:open-capture',event=>{const next=storedWorkspace();if(next)replaceWorkspace(next);const {requestId,taskId}=event.detail||{},task=db.tasks.find(t=>(requestId&&t.gmailCaptureId===requestId)||(taskId&&t.id===taskId));if(task){view.projectBoard='all';view.boardDate='all';openPage('esteira');selectTask(task.id)}});
   // cloud.js já enfileirou a versão mesclada após um conflito: aqui só a cópia local é atualizada.
   window.addEventListener('flow:cloud-remote-merged',event=>{

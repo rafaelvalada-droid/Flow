@@ -92,3 +92,41 @@ test('Ver no UlbraFlow opens a duplicate by its own capture ID or task ID',async
  assert.deepEqual(opened,[{requestId:'',taskId:'manual'}]);
  assert.equal((await h.send('FLOW_BRIDGE_OPEN',{requestId:'missing-request-id',taskId:'other'})).ok,false);
 });
+
+// "Concluir e voltar ao UlbraFlow": a ponte localiza a tarefa da conversa e pede ao app que a conclua.
+function completer(h,{ok=true}={}){
+ const asked=[];
+ h.win.addEventListener('flow:complete-task',event=>{
+  const {requestId,taskId}=event.detail;asked.push(taskId);
+  if(ok){const db=h.read();db.tasks.find(t=>t.id===taskId).status='done';h.write(db);}
+  queueMicrotask(()=>h.win.dispatchEvent(new CustomEvent('flow:complete-task-result',{detail:{requestId,ok,...(ok?{taskId}:{error:'Falha simulada'})}})));
+ });
+ return asked;
+}
+
+test('Finding a conversation reports its linked task by any capture path, and nothing for unknown threads',async()=>{
+ const h=harness({cloud:false,tasks:[{id:'mobile',title:'Do celular',status:'todo',gmailCaptureId:'gmail-mobile-'+thread}]});
+ assert.deepEqual(await h.send('FLOW_BRIDGE_FIND',{gmailThreadId:thread}),{ok:true,task:{id:'mobile',status:'todo'}});
+ assert.deepEqual(await h.send('FLOW_BRIDGE_FIND',{gmailThreadId:'ffffffffffffffff'}),{ok:true,task:null});
+ assert.deepEqual(await h.send('FLOW_BRIDGE_FIND',{gmailThreadId:'<script>'}),{ok:true,task:null});
+});
+
+test('Completing a conversation asks the app to complete the linked task and returns its id',async()=>{
+ const h=harness({tasks:[{id:'linked',title:'Responder coordenação',status:'doing',gmailThreadId:thread},{id:'other',title:'Outra',status:'todo'}]});
+ const asked=completer(h);
+ const result=await h.send('FLOW_BRIDGE_COMPLETE',{gmailThreadId:thread});
+ assert.deepEqual(result,{ok:true,taskId:'linked'});assert.deepEqual(asked,['linked']);
+ assert.equal(h.read().tasks.find(t=>t.id==='linked').status,'done');assert.equal(h.read().tasks.find(t=>t.id==='other').status,'todo');
+ assert.equal(h.timers.size,0,'No response timer is left behind');
+});
+
+test('Completing fails clearly for a conversation outside Flow, an app refusal or no answer',async()=>{
+ const missing=harness();const unknown=await missing.send('FLOW_BRIDGE_COMPLETE',{gmailThreadId:thread});
+ assert.equal(unknown.ok,false);assert.match(unknown.error,/não está no UlbraFlow/);
+ const refused=harness({tasks:[{id:'linked',status:'todo',gmailThreadId:thread}]});completer(refused,{ok:false});
+ assert.match((await refused.send('FLOW_BRIDGE_COMPLETE',{gmailThreadId:thread})).error,/Falha simulada/);
+ const silent=harness({tasks:[{id:'linked',status:'todo',gmailThreadId:thread}]});
+ const pending=silent.send('FLOW_BRIDGE_COMPLETE',{gmailThreadId:thread});await new Promise(r=>setImmediate(r));
+ const [id,timer]=[...silent.timers][0];assert.equal(timer.ms,10000);silent.timers.delete(id);timer.fn();
+ assert.match((await pending).error,/não respondeu/);
+});

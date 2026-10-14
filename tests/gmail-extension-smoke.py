@@ -33,18 +33,25 @@ class ChromeAdapter:
         self.active_id = None
         self.flow_url = FLOW
         self.allowed = True
+        self.openers = {}
+        self.focused_windows = []
 
-    def register(self, page, active=False):
+    def register(self, page, active=False, opener=None):
         tab_id = self.next_id
         self.next_id += 1
         self.pages[tab_id] = page
+        if opener is not None:
+            self.openers[tab_id] = opener
         if active:
             self.active_id = tab_id
         return tab_id
 
     def tab(self, tab_id):
         page = self.pages[tab_id]
-        return {'id': tab_id, 'url': page.url, 'status': 'complete', 'active': tab_id == self.active_id}
+        tab = {'id': tab_id, 'url': page.url, 'status': 'complete', 'active': tab_id == self.active_id, 'windowId': 1}
+        if tab_id in self.openers:
+            tab['openerTabId'] = self.openers[tab_id]
+        return tab
 
     async def api(self, source, request):
         kind = request['kind']
@@ -65,6 +72,14 @@ class ChromeAdapter:
             return self.tab(self.active_id)
         if kind == 'tabs.get':
             return self.tab(data)
+        if kind == 'tabs.remove':
+            page = self.pages.pop(data)
+            self.openers.pop(data, None)
+            await page.close()
+            return None
+        if kind == 'windows.update':
+            self.focused_windows.append(data['windowId'])
+            return {'id': data['windowId'], 'focused': True}
         if kind == 'scripting.executeScript':
             page = self.pages[data['target']['tabId']]
             await page.evaluate("""id => {
@@ -79,7 +94,7 @@ class ChromeAdapter:
         if kind == 'runtime.sendMessage':
             page = source['page']
             tab_id = next(i for i, p in self.pages.items() if p == page)
-            return await self.dispatch(data, {'id': ID, 'url': page.url, 'tab': {'id': tab_id}, 'frameId': 0})
+            return await self.dispatch(data, {'id': ID, 'url': page.url, 'tab': self.tab(tab_id), 'frameId': 0})
         raise AssertionError('Unexpected Chrome API: ' + kind)
 
     async def dispatch(self, message, sender):
@@ -116,8 +131,10 @@ class ChromeAdapter:
                     create: value => call('tabs.create',value),
                     get: value => call('tabs.get',value),
                     update: (tabId,options) => call('tabs.update',{tabId,options}),
+                    remove: tabId => call('tabs.remove',tabId),
                     sendMessage: (tabId,message) => call('tabs.sendMessage',{tabId,message})
                 },
+                windows: {update: (windowId,options) => call('windows.update',{windowId,options})},
                 scripting: {executeScript: value => call('scripting.executeScript',value)}
             };
             window.importScripts = () => {};
@@ -254,11 +271,50 @@ async def main(profile):
         mobile = {'requestId': '9b1c4a5e-1111-4222-8333-944455556666', 'projectId': 'oferta', 'title': 'Outra',
                   'gmailUrl': 'https://mail.google.com/mail/?authuser=user%40ulbra.br#all/18b2c3d4e5f6a7ff',
                   'gmailThreadId': '18b2c3d4e5f6a7ff'}
-        await flow.evaluate("""() => {const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));db.tasks.push({id:'from-phone',title:'Celular',project:'oferta',status:'todo',gmailCaptureId:'gmail-mobile-18b2c3d4e5f6a7ff'});localStorage.setItem('flow.workspace.v1',JSON.stringify(db));}""")
+        await flow.evaluate("""() => {const db=JSON.parse(localStorage.getItem('flow.workspace.v1'));db.tasks.push({id:'from-phone',title:'Celular',project:'oferta',status:'todo',gmailCaptureId:'gmail-mobile-18b2c3d4e5f6a7ff'});const next=JSON.stringify(db);localStorage.setItem('flow.workspace.v1',next);window.dispatchEvent(new StorageEvent('storage',{key:'flow.workspace.v1',newValue:next,storageArea:localStorage}));}""")
         result = await adapter.bridge(flow_id, {'type': 'FLOW_BRIDGE_SAVE', 'data': mobile})
         assert result['ok'] and result['duplicate'] and result['taskId'] == 'from-phone'
         assert await flow.evaluate("JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.length") == 6
         passed('Capturing a conversation already in Flow (extension or phone) returns the existing task instead of a duplicate')
+
+        def stored_status(task_id):
+            return flow.evaluate("id => JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.find(t=>t.id===id).status", task_id)
+        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
+        await flow.locator('#board-date-filter').select_option('all')
+        demand = flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')
+        if not await demand.get_by_role('button', name='Abrir Gmail').is_visible():
+            await demand.locator('summary').click()
+        async with flow.expect_popup() as popup_info:
+            await demand.get_by_role('button', name='Abrir Gmail').click()
+        email_page = await popup_info.value
+        await email_page.wait_for_url(CANONICAL)
+        email_id = adapter.register(email_page, active=True, opener=flow_id)
+        await adapter.gmail(email_page)
+        finish = email_page.locator('#flow-gmail-complete button')
+        await expect(finish).to_have_text('✓ Concluir e voltar ao UlbraFlow', timeout=15000)
+        assert await stored_status(task['id']) != 'done'
+        async with email_page.expect_event('close'):
+            await finish.click()
+        assert email_id not in adapter.pages and adapter.active_id == flow_id and adapter.focused_windows[-1] == 1
+        assert await stored_status(task['id']) == 'done'
+        await expect(flow.locator('.page-head h1')).to_have_text('Detalhe da tarefa')
+        await expect(flow.get_by_role('button', name='← Reabrir tarefa')).to_be_visible()
+        passed('Concluir e voltar ao UlbraFlow in a conversation opened by Flow completes the task, returns to Flow and closes that tab')
+
+        await flow.get_by_role('button', name='← Reabrir tarefa').click()
+        assert await stored_status(task['id']) != 'done'
+        main_finish = gmail.locator('#flow-gmail-complete button')
+        await expect(main_finish).to_be_visible()
+        adapter.active_id = gmail_id
+        await main_finish.click()
+        await expect(gmail.locator('#flow-gmail-complete')).to_have_count(0)
+        assert not gmail.is_closed() and gmail_id in adapter.pages and adapter.active_id == flow_id
+        assert await gmail.evaluate('location.hash') == '#inbox'
+        assert await stored_status(task['id']) == 'done'
+        await gmail.evaluate("location.hash = '#inbox/abcdefghijklmnop'")
+        await expect(button).to_have_count(1)
+        await expect(gmail.locator('#flow-gmail-complete')).to_have_count(0)
+        passed('In the main Gmail tab the task is completed and Gmail returns to the inbox without closing the tab; done tasks show no button')
 
         await flow.reload()
         await flow.locator('#sidebar-nav [data-page="esteira"]').click()

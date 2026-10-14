@@ -1,4 +1,4 @@
-# UlbraFlow — especificação funcional 1.5
+# UlbraFlow — especificação funcional 1.6
 
 ## Propósito
 
@@ -41,7 +41,7 @@ A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de 
 
 ## Gmail
 
-A extensão Chrome 1.5 adiciona **Incluir no UlbraFlow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa.
+A extensão Chrome 1.6 adiciona **Incluir no UlbraFlow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa. Em conversas com tarefa aberta, **Concluir e voltar ao UlbraFlow** conclui a tarefa pela regra do app, ativa a aba do UlbraFlow com os detalhes e fecha a aba do e-mail apenas quando ela foi aberta pelo UlbraFlow; na aba principal do Gmail, volta para a caixa de entrada.
 
 A extensão usa uma aba do UlbraFlow no mesmo perfil e domínio configurado, preservando a navegação no Gmail. Não lê o corpo da mensagem nem envia respostas. Retentativas da mesma captura não duplicam tarefas. Áreas removidas e datas inválidas são recusadas. Capturas de versões anteriores sem data permanecem compatíveis e ficam a classificar.
 
@@ -63,6 +63,6 @@ Entrar com Google usa OAuth PKCE e identidade verificada pelo Supabase. O SQL em
 
 Google Agenda pede consentimento separado. Cria/atualiza eventos privados no calendário principal pela data de execução; prazo final separado na descrição. Sem horário é dia inteiro; com horário usa a duração do foco. Retirar data ou excluir remove somente eventos próprios do UlbraFlow. Sincroniza com a aba aberta; expiração exige reconexão. A exportação .ics continua disponível.
 
-A extensão 1.5 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso, lê o identificador da conversa para não duplicar capturas da Entrada ou do celular e acompanha a mesclagem automática quando outro aparelho salvou antes. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no UlbraFlow.
+A extensão 1.6 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso, lê o identificador da conversa para não duplicar capturas da Entrada ou do celular e acompanha a mesclagem automática quando outro aparelho salvou antes. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no UlbraFlow.
 
 Gemini permanece opcional, com chave no servidor, acionamento por clique e revisão. Alertas salvam preferências sem envio ativo. A interface usa cinza claro no conjunto e destaques verdes Ulbra S.A. (#045A52) com letras brancas, inclusive no acesso, na esteira, no foco, na agenda e na Gestão do Tempo. As cores das áreas ficam preservadas nos dados; a apresentação usa indicadores verdes. A impressão/PDF usa fundo claro e texto escuro. O slogan foi retirado, e a marca verde Ulbra S.A. enviada está no acesso e na barra superior.
