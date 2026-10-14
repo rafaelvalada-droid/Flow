@@ -79,7 +79,7 @@ Clique numa área para criar tarefas com a área preenchida e projetos que agrup
 
 ## Entrada unificada e Gemini
 
-Gmail e registros manuais agora compartilham a Entrada. Ativação de Gmail API, variável GEMINI_API_KEY, consentimento e comportamento: [docs/GMAIL-ENTRADA.md](docs/GMAIL-ENTRADA.md). Testes: `npm run test:gmail-review`.
+Gmail e registros manuais agora compartilham a Entrada. Cada e-mail tem **Arquivar no Gmail**, que tira a conversa da caixa de entrada sem criar demanda (útil para notificações); como em "Arquivar no Gmail após salvar", nada é arquivado se chegou mensagem nova. Ativação de Gmail API, variável GEMINI_API_KEY, consentimento e comportamento: [docs/GMAIL-ENTRADA.md](docs/GMAIL-ENTRADA.md). Testes: `npm run test:gmail-review`.
 
 A análise Gemini consulta os modelos disponíveis quando o configurado retorna 404. Modelos que rejeitam o esquema estruturado usam uma chamada compatível, mantendo a validação da resposta. Erros 400 mostram o parâmetro rejeitado, com credenciais removidas da mensagem.
 
