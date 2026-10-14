@@ -362,3 +362,91 @@ test('a plain Google sign-in does not keep Google tokens; only Gmail or Agenda c
     assert.equal(stored.gmailConnected, !!proof.gmail);
   }
 });
+
+// Celular aberto em segundo plano: novidades de outro aparelho chegam sem recarregar o app.
+const revisionChecks = h => h.server.requests.filter(url => url.endsWith('select=revision')).length;
+
+test('pull brings a newer cloud copy saved by another device and tells the interface, without uploading', async () => {
+  const h = harness();
+  await h.cloud.initialize();
+  h.server.row = {revision: 2, data: workspace([task('t1', {status: 'done'}), task('t2')])};
+  assert.equal(await h.cloud.pull(true), true);
+  assert.equal(h.merged().length, 1);
+  assert.equal(plain(h.merged()[0].detail.data).tasks[0].status, 'done');
+  assert.deepEqual(JSON.parse(h.values.get(KEY)), h.server.row.data);
+  assert.equal(h.values.get(KEY + '.revision'), '2');
+  assert.equal(h.cloud.info().status, 'saved');
+  assert.equal(h.uploads(), 0);
+  // Nada novo: só a revisão é consultada e nada é aplicado.
+  const before = h.server.requests.length;
+  assert.equal(await h.cloud.pull(true), false);
+  assert.equal(h.server.requests.length - before, 1);
+  assert.equal(revisionChecks(h), 2);
+  assert.equal(h.merged().length, 1);
+});
+
+test('pull merges local unsent edits with the newer cloud copy and uploads the result once', async () => {
+  const h = harness();
+  await h.cloud.initialize();
+  h.cloud.queue(workspace([task('t1', {title: 'Editada no celular'}), task('t2')]));
+  h.server.row = {revision: 2, data: workspace([task('t1'), task('t2', {status: 'done'})])};
+  assert.equal(await h.cloud.pull(true), true);
+  const shown = plain(h.merged()[0].detail.data).tasks;
+  assert.deepEqual(shown.map(t => [t.id, t.title, t.status]), [['t1', 'Editada no celular', 'todo'], ['t2', 'Tarefa t2', 'done']]);
+  assert.equal(h.values.get(KEY + '.base'), JSON.stringify(h.server.row.data), 'The base follows the cloud copy while edits are pending');
+  await h.fire();
+  assert.equal(h.uploads(), 1);
+  assert.equal(h.server.row.revision, 3);
+  assert.deepEqual(h.server.row.data.tasks.map(t => [t.title, t.status]), [['Editada no celular', 'todo'], ['Tarefa t2', 'done']]);
+  assert.equal(h.values.has(KEY + '.base'), false, 'The base is dropped once everything is saved');
+  assert.equal(h.cloud.info().status, 'saved');
+});
+
+test('pull leaves a real conflict to the normal save path and never applies it', async () => {
+  const h = harness();
+  await h.cloud.initialize();
+  h.cloud.queue(workspace([task('t1', {title: 'Celular'}), task('t2')]));
+  h.server.row = {revision: 2, data: workspace([task('t1', {title: 'Computador'}), task('t2')])};
+  assert.equal(await h.cloud.pull(true), false);
+  assert.equal(h.merged().length, 0);
+  assert.equal(JSON.parse(h.values.get(KEY + '.base')).tasks[0].title, 'Tarefa t1');
+});
+
+test('startup with unsent edits and a newer cloud revision merges with the stored base instead of blocking', async () => {
+  const base = workspace([task('t1'), task('t2')]);
+  const local = workspace([task('t1', {status: 'done'}), task('t2')]);
+  const h = harness({row: {revision: 2, data: workspace([task('phone'), task('t1'), task('t2')])},
+    values: [[KEY, JSON.stringify(local)], [KEY + '.pending', '1'], [KEY + '.revision', '1'], [KEY + '.base', JSON.stringify(base)]]});
+  const result = await h.cloud.initialize();
+  assert.equal(h.cloud.info().status, 'pending');
+  assert.deepEqual(plain(result.data).tasks.map(t => [t.id, t.status]), [['phone', 'todo'], ['t1', 'done'], ['t2', 'todo']]);
+  await h.fire();
+  assert.equal(h.server.row.revision, 3);
+  assert.deepEqual(h.server.row.data.tasks.map(t => [t.id, t.status]), [['phone', 'todo'], ['t1', 'done'], ['t2', 'todo']]);
+  assert.equal(h.cloud.info().status, 'saved');
+});
+
+test('edits left pending by the previous session are uploaded right after startup, without a new edit', async () => {
+  const local = workspace([task('t1', {status: 'done'}), task('t2')]);
+  const h = harness({values: [[KEY, JSON.stringify(local)], [KEY + '.pending', '1'], [KEY + '.revision', '1']]});
+  await h.cloud.initialize();
+  assert.equal(h.cloud.info().status, 'pending');
+  await h.fire();
+  assert.equal(h.uploads(), 1);
+  assert.equal(h.server.row.revision, 2);
+  assert.equal(h.server.row.data.tasks[0].status, 'done');
+  assert.equal(h.values.has(KEY + '.pending'), false);
+});
+
+test('Gmail analyses and Agenda signatures changed on two devices never block sync: the cloud value wins', () => {
+  const {cloud} = harness({row: null});
+  const review = summary => ({messageId: 'm1', state: 'pending', summary});
+  const base = workspace([task('t1')], {gmailReviews: {th: review('base')}, calendar: {events: {t1: {id: 'e1', signature: 'a'}}}});
+  const local = workspace([task('t1', {title: 'Local'})], {gmailReviews: {th: review('celular')}, calendar: {events: {t1: {id: 'e1', signature: 'b'}}}});
+  const remote = workspace([task('t1')], {gmailReviews: {th: review('computador')}, calendar: {events: {t1: {id: 'e1', signature: 'c'}}}});
+  const result = plain(cloud.merge(base, local, remote));
+  assert.deepEqual(result.conflicts, []);
+  assert.equal(result.value.gmailReviews.th.summary, 'computador');
+  assert.equal(result.value.calendar.events.t1.signature, 'c');
+  assert.equal(result.value.tasks[0].title, 'Local');
+});
