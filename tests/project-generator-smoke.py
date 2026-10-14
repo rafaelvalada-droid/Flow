@@ -49,6 +49,9 @@ async def tracking():
   assert await page.locator('progress').get_attribute('value')=='50'
   await page.locator('#project-link-task').select_option('task');await page.locator('[data-action=project-link-task]').click()
   await page.locator('#project-tasks [data-complete-task=task]').check();assert '100%' in await page.locator('.project-kpis').inner_text()
+  # Desmarcar reabre a tarefa e o avanço volta; marcar de novo conclui.
+  await page.locator('#project-tasks [data-complete-task=task]').click();await expect(page.locator('#project-tasks [data-complete-task=task]')).not_to_be_checked();assert '100%' not in await page.locator('.project-kpis').inner_text()
+  await page.locator('#project-tasks [data-complete-task=task]').click();await expect(page.locator('#project-tasks [data-complete-task=task]')).to_be_checked();assert '100%' in await page.locator('.project-kpis').inner_text()
   await page.locator('[name^="milestones:"][name$=":done"]').first.check();await page.locator('#project-editor-form [type=submit]').click()
   data=await page.evaluate("(window.dispatchEvent(new Event('flow:persist-flush')),JSON.parse(localStorage.getItem('flow.workspace.v1')))");project=data['initiatives'][-1]
   assert project['notes'][0]['text']=='Início da análise com a equipe' and len(project['history'])==2
