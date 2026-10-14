@@ -65,7 +65,7 @@ O relatório de Gestão do Tempo baixa um PDF direto no navegador, sem diálogo 
 
 Ocultar concluídas recolhe a coluna de entregues sem excluir dados; Mostrar concluídas restaura a esteira completa. Os indicadores superiores são compactos. A Agenda mantém conexão e navegação da semana junto do cabeçalho.
 
-Concluídas aparecem como cartões compactos com título e área. Clicar abre os detalhes, incluindo Reabrir tarefa; a coluna acompanha a altura do conteúdo.
+Concluídas aparecem como cartões compactos com título e área. Clicar abre os detalhes, incluindo Reabrir tarefa; a coluna acompanha a altura do conteúdo. Desmarcar o quadrado de uma concluída (na esteira ou na lista do projeto) reabre a tarefa na etapa em que estava ao ser concluída; concluídas antes desse registro voltam para Aguardando.
 
 A esteira diferencia as etapas por tons suaves de azul, com destaque mais forte em Em andamento. Colunas, cards e marcadores compartilham a cor da etapa; a classificação por área fica preservada.
 
