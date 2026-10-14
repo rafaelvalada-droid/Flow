@@ -25,7 +25,9 @@ test('every route sends CSP and the browser hardening headers', () => {
 });
 
 test('static folders are cached for a day without immutable (files are not fingerprinted)', () => {
-  for (const folder of ['assets', 'vendor', 'downloads']) assert.equal(rule(`/${folder}/(.*)`)['cache-control'], 'public, max-age=86400, stale-while-revalidate=604800');
+  for (const folder of ['assets', 'vendor']) assert.equal(rule(`/${folder}/(.*)`)['cache-control'], 'public, max-age=86400, stale-while-revalidate=604800');
+  // Os ZIPs da extensão e do complemento mudam de versão sem mudar de nome: o navegador sempre confere a versão nova.
+  assert.equal(rule('/downloads/(.*)')['cache-control'], 'public, no-cache');
   assert.equal(JSON.stringify(vercel).includes('immutable'), false);
   for (const name of Object.keys(vercel.functions)) assert.ok(existsSync(new URL('../' + name, import.meta.url)), name);
   assert.equal(existsSync(new URL('../api/project-plan.mjs', import.meta.url)), false, 'Helpers in api/ start with _ so Vercel does not deploy them as functions');

@@ -83,7 +83,7 @@ Os testes de navegador `test:app` e `test:extension` estavam quebrados desde que
 - Digitação e atualizações em segundo plano gravam em lotes de 350 ms; o envio à nuvem respeita a espera também durante um envio em andamento.
 - Entrada carrega metadados do Gmail e baixa o corpo só quando precisa analisar ou responder; reabrir o app não baixa conversas já revisadas.
 - Agenda deixa de consultar o Google fora da página Agenda.
-- Logo do cabeçalho em 64/128 px (6,6/19,5 KB) no lugar de 120 KB; `assets/`, `vendor/` e `downloads/` com cache de 1 dia; `/api/auth-config` com cache de CDN; verificação de conta e leitura do workspace em paralelo.
+- Logo do cabeçalho em 64/128 px (6,6/19,5 KB) no lugar de 120 KB; `assets/` e `vendor/` com cache de 1 dia (os ZIPs de `downloads/` sempre conferem a versão nova, para não entregar uma extensão antiga); `/api/auth-config` com cache de CDN; verificação de conta e leitura do workspace em paralelo.
 
 ### Abertura e testes
 
