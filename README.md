@@ -7,7 +7,7 @@ Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado �
 ## Uso
 
 - **Entrada:** área e data respondem “para onde?” e “para quando?”.
-- **Esteira:** arraste os cartões entre as etapas, use a alça no celular ou escolha a etapa pelo teclado. Setas, Avançar e Mover etapa continuam disponíveis; todas as áreas usam a mesma fila. Aguardando é opcional.
+- **Esteira:** arraste os cartões entre as etapas, use a alça no celular ou escolha a etapa pelo teclado. Setas, Avançar e Mover etapa continuam disponíveis; todas as áreas usam a mesma fila. Aguardando é opcional. O filtro Prazo final abre em **Hoje e atrasadas**: o que vence hoje e o que já venceu e continua aberto; Amanhã, Todas as datas e Escolher data continuam disponíveis.
 - **Foco:** ciclos de 25 minutos de trabalho e 5 de descanso, ajustáveis, com uma tarefa ativa. Pausas e ausência após o término do ciclo não contam como trabalho.
 - **Áreas:** catálogo de 12 classificações e áreas personalizadas. IDs, vínculos e históricos anteriores são preservados.
 - **Agenda:** data de execução separada do prazo. Conexão direta com Google Agenda após ativação; exportação .ics continua disponível.

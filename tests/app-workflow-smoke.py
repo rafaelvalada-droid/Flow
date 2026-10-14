@@ -45,7 +45,7 @@ async def run(profile):
         assert await page.locator('.pipeline-lane').count()==5
         assert await page.locator('.pipeline-task').count()==4
         await expect(page.locator('.brand')).to_have_text('UlbraFlow')
-        passed('Default screen opens Entrada; Esteira defaults to Hoje and shows one shared pipeline and the UlbraFlow name')
+        passed('Default screen opens Entrada; Esteira defaults to Hoje e atrasadas and shows one shared pipeline and the UlbraFlow name')
 
         await page.locator('.top-actions [data-action="new-task"]').click()
         form=page.locator('#active-modal-form')
