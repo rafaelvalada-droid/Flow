@@ -64,7 +64,7 @@ O UlbraFlow cria eventos privados no calendário principal enquanto está aberto
 
 ## Gmail e Gestão do Tempo
 
-Atualize a extensão para **1.6**: baixe o ZIP novo, substitua os arquivos da pasta instalada, recarregue a extensão em `chrome://extensions` e recarregue o Gmail. Entre no UlbraFlow antes de capturar. Em modo conectado, a extensão só confirma “salvo” depois da resposta da nuvem.
+Atualize a extensão para **1.7**: baixe o ZIP novo, substitua os arquivos da pasta instalada, recarregue a extensão em `chrome://extensions` e recarregue o Gmail. Entre no UlbraFlow antes de capturar. Em modo conectado, a extensão só confirma “salvo” depois da resposta da nuvem.
 
 **Gestão do Tempo** mostra dia, semana e mês, distribuição por área, sessões e tempo por tarefa. **Gerar relatório** baixa CSV ou abre a impressão para salvar PDF. A análise usa as sessões registradas, divide o tempo entre os dias e exclui descansos. Usa o fuso do dispositivo e a área atual da tarefa. Não conserva tempo de tarefas excluídas.
 

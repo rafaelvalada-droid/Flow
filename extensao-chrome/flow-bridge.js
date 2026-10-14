@@ -81,6 +81,25 @@
     return {taskId: task.id};
   }
 
+  // Arquivar pela conexão Gmail do UlbraFlow, quando o botão do próprio Gmail não está disponível.
+  async function archive(data) {
+    const gmailThreadId = threadOf(data?.gmailThreadId), gmailMessageId = threadOf(data?.gmailMessageId);
+    if (!gmailThreadId) throw new Error('Não foi possível identificar a conversa no Gmail. Arquive pelo Gmail.');
+    const requestId = crypto.randomUUID();
+    await new Promise((resolve, reject) => {
+      const stop = () => {clearTimeout(timeout);window.removeEventListener('flow:archive-email-result', finish);};
+      const timeout = setTimeout(() => {stop();reject(new Error('O UlbraFlow não respondeu. Arquive pelo Gmail.'));}, 30000);
+      const finish = event => {
+        if (event.detail?.requestId !== requestId) return;
+        stop();
+        if (event.detail.ok) resolve(); else reject(new Error(event.detail.error || 'Não foi possível arquivar.'));
+      };
+      window.addEventListener('flow:archive-email-result', finish);
+      window.dispatchEvent(new CustomEvent('flow:archive-email', {detail: {requestId, gmailThreadId, gmailMessageId}}));
+    });
+    return {};
+  }
+
   async function save(data) {
     if (!data || typeof data.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(data.requestId)) {
       throw new Error('Solicitação de captura inválida.');
@@ -129,13 +148,14 @@
   }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (sender.id !== chrome.runtime.id || !['FLOW_BRIDGE_LISTS', 'FLOW_BRIDGE_SAVE', 'FLOW_BRIDGE_OPEN', 'FLOW_BRIDGE_FIND', 'FLOW_BRIDGE_COMPLETE'].includes(message?.type)) return;
+    if (sender.id !== chrome.runtime.id || !['FLOW_BRIDGE_LISTS', 'FLOW_BRIDGE_SAVE', 'FLOW_BRIDGE_OPEN', 'FLOW_BRIDGE_FIND', 'FLOW_BRIDGE_COMPLETE', 'FLOW_BRIDGE_ARCHIVE'].includes(message?.type)) return;
     (async()=>{try {
       // A freshly opened UlbraFlow tab may still be checking OAuth and loading its data.
       const started=Date.now();
       while(opening() && document.querySelector('#google-login')?.hidden && Date.now()-started<12000)await new Promise(resolve=>setTimeout(resolve,50));
       if(message.type==='FLOW_BRIDGE_FIND'){sendResponse({ok:true,...find(message.data)});return;}
       if(message.type==='FLOW_BRIDGE_COMPLETE'){sendResponse({ok:true,...await complete(message.data)});return;}
+      if(message.type==='FLOW_BRIDGE_ARCHIVE'){sendResponse({ok:true,...await archive(message.data)});return;}
       if(message.type==='FLOW_BRIDGE_OPEN'){const {requestId,taskId}=message.data||{},task=read().db.tasks.find(t=>(requestId&&t.gmailCaptureId===requestId)||(taskId&&t.id===taskId));if(!task)throw new Error('A demanda não está neste UlbraFlow. Confira o endereço configurado na extensão.');window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{requestId:task.gmailCaptureId||'',taskId:task.id}}));sendResponse({ok:true});return;}
       const result = message.type === 'FLOW_BRIDGE_SAVE' ? await save(message.data) : {
         projects: read().db.projects.filter(p => typeof p.id === 'string' && typeof p.name === 'string')
