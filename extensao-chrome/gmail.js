@@ -1,5 +1,7 @@
 (() => {
   let buttonHost = null;
+  let completeHost = null;
+  let lookup = 0;
   let headingAnchor = null;
   let dialogHost = null;
   let dialogUrl = '';
@@ -141,6 +143,7 @@
         if (dialogHost !== host) return;
         finished = true;
         opened = {requestId: result.requestId || requestId, taskId: result.taskId};
+        if (buttonHost?.isConnected && headingAnchor === email.heading) syncComplete(email);
         update(result.duplicate ? 'Esta conversa já está no UlbraFlow. Nenhuma tarefa nova foi criada.' : 'Salvo no UlbraFlow! Você pode continuar no Gmail.', 'success');
         save.textContent = 'Ver no UlbraFlow';
         save.disabled = false;
@@ -175,6 +178,46 @@
     }
   }
 
+  function removeComplete() {
+    lookup++;
+    completeHost?.remove();
+    completeHost = null;
+  }
+
+  // "Concluir e voltar" aparece só quando a conversa tem uma tarefa aberta numa aba do UlbraFlow já aberta.
+  async function syncComplete(email) {
+    removeComplete();
+    const current = lookup, anchor = buttonHost;
+    if (!email.gmailThreadId) return;
+    let result;
+    try { result = await send('FLOW_FIND_EMAIL', {gmailThreadId: email.gmailThreadId}); } catch { return; }
+    if (current !== lookup || buttonHost !== anchor || !anchor?.isConnected || !result.task || result.task.status === 'done') return;
+    const host = document.createElement('span');
+    host.id = 'flow-gmail-complete';
+    const shadow = host.attachShadow({mode: 'open'});
+    const label = '✓ Concluir e voltar ao UlbraFlow';
+    shadow.innerHTML = `<style>:host{display:inline-flex;align-items:center;gap:8px;vertical-align:middle;margin:6px 0 6px 8px}button{font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:#14774e;color:#fff;border:0;border-radius:18px;padding:9px 16px;cursor:pointer;white-space:nowrap}button:hover{background:#0f5f3e}button:focus-visible{outline:3px solid #14774e;outline-offset:3px}button:disabled{opacity:.6;cursor:default}span{font:13px system-ui,-apple-system,"Segoe UI",sans-serif;color:#a4262c;max-width:360px}</style><button type="button"></button><span role="status" aria-live="polite"></span>`;
+    const button = shadow.querySelector('button'), status = shadow.querySelector('span');
+    button.textContent = label;
+    button.title = 'Marca a tarefa desta conversa como concluída no UlbraFlow e volta para lá';
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      button.textContent = 'Concluindo…';
+      status.textContent = '';
+      try {
+        const done = await send('FLOW_COMPLETE_EMAIL', {gmailThreadId: email.gmailThreadId});
+        // Aba aberta pelo UlbraFlow: a extensão fecha. Aba principal do Gmail: volta para a caixa de entrada.
+        if (!done.closed) {removeComplete();location.hash = '#inbox';}
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = label;
+        status.textContent = error.message;
+      }
+    });
+    completeHost = host;
+    anchor.insertAdjacentElement('afterend', host);
+  }
+
   function syncButton() {
     const email = conversation();
     if (dialogHost && dialogUrl !== location.href) closeDialog();
@@ -182,6 +225,7 @@
       buttonHost?.remove();
       buttonHost = null;
       headingAnchor = null;
+      removeComplete();
       return;
     }
     if (buttonHost?.isConnected && headingAnchor === email.heading) return;
@@ -193,6 +237,7 @@
     shadow.querySelector('button').addEventListener('click', openDialog);
     headingAnchor = email.heading;
     headingAnchor.insertAdjacentElement('afterend', buttonHost);
+    syncComplete(email);
   }
 
   function schedule() {

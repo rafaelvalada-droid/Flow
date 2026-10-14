@@ -55,6 +55,32 @@
   // Mesma conversa já capturada pela extensão, pelo celular ou pela revisão da Entrada.
   const linked=(db,id)=>id?db.tasks.find(task=>task.gmailThreadId===id||task.gmailCaptureId==='gmail-mobile-'+id||task.gmailCaptureId==='gmail-review-'+id||(typeof task.gmailUrl==='string'&&task.gmailUrl.endsWith('#all/'+id))):null;
 
+  // Situação da tarefa ligada à conversa, para o Gmail mostrar "Concluir e voltar" só quando há o que concluir.
+  // Só ID e etapa saem do UlbraFlow: o título não é exposto à página do Gmail.
+  function find(data) {
+    const task = linked(read().db, threadOf(data?.gmailThreadId));
+    return {task: task ? {id: task.id, status: task.status} : null};
+  }
+
+  // A conclusão é feita pelo próprio app (mesma regra do botão Concluir), que responde com flow:complete-task-result.
+  async function complete(data) {
+    const task = linked(read().db, threadOf(data?.gmailThreadId));
+    if (!task) throw new Error('Esta conversa não está no UlbraFlow. Use Incluir no UlbraFlow primeiro.');
+    const requestId = crypto.randomUUID();
+    await new Promise((resolve, reject) => {
+      const stop = () => {clearTimeout(timeout);window.removeEventListener('flow:complete-task-result', finish);};
+      const timeout = setTimeout(() => {stop();reject(new Error('O UlbraFlow não respondeu. Atualize a aba do UlbraFlow e tente novamente.'));}, 10000);
+      const finish = event => {
+        if (event.detail?.requestId !== requestId) return;
+        stop();
+        if (event.detail.ok) resolve(); else reject(new Error(event.detail.error || 'Não foi possível concluir a tarefa.'));
+      };
+      window.addEventListener('flow:complete-task-result', finish);
+      window.dispatchEvent(new CustomEvent('flow:complete-task', {detail: {requestId, taskId: task.id}}));
+    });
+    return {taskId: task.id};
+  }
+
   async function save(data) {
     if (!data || typeof data.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(data.requestId)) {
       throw new Error('Solicitação de captura inválida.');
@@ -103,11 +129,13 @@
   }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (sender.id !== chrome.runtime.id || !['FLOW_BRIDGE_LISTS', 'FLOW_BRIDGE_SAVE', 'FLOW_BRIDGE_OPEN'].includes(message?.type)) return;
+    if (sender.id !== chrome.runtime.id || !['FLOW_BRIDGE_LISTS', 'FLOW_BRIDGE_SAVE', 'FLOW_BRIDGE_OPEN', 'FLOW_BRIDGE_FIND', 'FLOW_BRIDGE_COMPLETE'].includes(message?.type)) return;
     (async()=>{try {
       // A freshly opened UlbraFlow tab may still be checking OAuth and loading its data.
       const started=Date.now();
       while(opening() && document.querySelector('#google-login')?.hidden && Date.now()-started<12000)await new Promise(resolve=>setTimeout(resolve,50));
+      if(message.type==='FLOW_BRIDGE_FIND'){sendResponse({ok:true,...find(message.data)});return;}
+      if(message.type==='FLOW_BRIDGE_COMPLETE'){sendResponse({ok:true,...await complete(message.data)});return;}
       if(message.type==='FLOW_BRIDGE_OPEN'){const {requestId,taskId}=message.data||{},task=read().db.tasks.find(t=>(requestId&&t.gmailCaptureId===requestId)||(taskId&&t.id===taskId));if(!task)throw new Error('A demanda não está neste UlbraFlow. Confira o endereço configurado na extensão.');window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{requestId:task.gmailCaptureId||'',taskId:task.id}}));sendResponse({ok:true});return;}
       const result = message.type === 'FLOW_BRIDGE_SAVE' ? await save(message.data) : {
         projects: read().db.projects.filter(p => typeof p.id === 'string' && typeof p.name === 'string')
