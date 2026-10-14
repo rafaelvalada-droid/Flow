@@ -11,6 +11,20 @@ AUTH='https://refresh-test.supabase.co'
 USER='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
 SESSION='flow.auth.session.v1'
 
+async def until(page, expression, timeout=15):
+    """page.wait_for_function compiles strings with eval, which the production CSP blocks; poll with evaluate()."""
+    deadline, last = asyncio.get_running_loop().time() + timeout, None
+    while True:
+        try:
+            if await page.evaluate(expression):
+                return
+        except Exception as error:  # navigation in progress or a not-yet-defined value
+            last = error
+        if asyncio.get_running_loop().time() > deadline:
+            raise AssertionError(f'Timed out waiting for {expression} ({last})')
+        await asyncio.sleep(0.05)
+
+
 async def main():
     state={'renewals':0,'token':'google-old','reject':None,'temporary_failure':False,'google_calls':0}
     async with async_playwright() as p:
@@ -53,7 +67,7 @@ async def main():
         page=await context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
         await page.goto(BASE)
         await expect(page.locator('.page-head h1')).to_have_text('Entrada')
-        await page.wait_for_function('FlowGmailReview.info().loading===false && FlowCloud.gmailToken().startsWith("google-renewed")')
+        await until(page, 'FlowGmailReview.info().loading===false && FlowCloud.gmailToken().startsWith("google-renewed")')
         assert state['renewals']==1
         assert await page.locator('#google-login').count()==0
         print('PASS Expired Google access renews on startup without requesting consent',flush=True)
@@ -63,7 +77,7 @@ async def main():
         await page.close()
         page=await context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
         await page.goto(BASE);await expect(page.locator('.page-head h1')).to_have_text('Entrada')
-        await page.wait_for_function('FlowGmailReview.info().loading===false')
+        await until(page, 'FlowGmailReview.info().loading===false')
         assert state['renewals']==1
         print('PASS Gmail and Agenda reuse the saved access after closing and reopening the app',flush=True)
         await page.locator('[data-page="agenda"]').click();await expect(page.get_by_text('Reunião conservada')).to_be_visible()

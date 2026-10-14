@@ -1,4 +1,4 @@
-import {publicConfig} from './auth-config.mjs';
+import {publicConfig,accountAccess} from './auth-config.mjs';
 
 const json=(status,data)=>Response.json(data,{status,headers:{'cache-control':'no-store','pragma':'no-cache'}});
 export function googleCredentials(env=process.env){
@@ -17,7 +17,8 @@ export async function POST(request){
     if(!body||typeof body.refreshToken!=='string'||body.refreshToken.length<16||body.refreshToken.length>8192||/\s/.test(body.refreshToken))return json(400,{error:'Credencial Google inválida.'});
     const auth=await fetch(config.url+'/auth/v1/user',{headers:{apikey:config.key,authorization},signal});
     if(!auth.ok)return json(401,{error:'Sua sessão expirou. Entre novamente.'});
-    const user=await auth.json();if(!/^[a-f0-9-]{36}$/i.test(user.id||''))return json(401,{error:'Conta inválida.'});
+    const user=await auth.json().catch(()=>null);if(!/^[a-f0-9-]{36}$/i.test(user?.id||''))return json(401,{error:'Conta inválida.'});
+    const access=accountAccess(user);if(!access.ok)return json(access.status,{error:access.error});
     const credentials=googleCredentials();
     if(!credentials.id||!credentials.secret)return json(503,{code:'GOOGLE_REFRESH_NOT_CONFIGURED',error:'Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET na Vercel, usando o mesmo cliente OAuth do Supabase, para renovar Gmail e Agenda automaticamente.'});
     const token=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:credentials.id,client_secret:credentials.secret,refresh_token:body.refreshToken,grant_type:'refresh_token'}),signal});

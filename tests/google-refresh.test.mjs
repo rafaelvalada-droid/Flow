@@ -67,6 +67,7 @@ async function client({values,expired=true,refreshResponse,googleUnauthorized=fa
       if(url.endsWith('/auth/v1/user'))return Response.json(user);
       if(url.includes('/auth/v1/token?'))return Response.json({access_token:'new-supabase-access',refresh_token:'new-supabase-refresh',expires_at:2100000000,user});
       if(url.endsWith('/auth/v1/logout?scope=local'))return Response.json({});
+      if(url==='https://oauth2.googleapis.com/revoke')return new Response(null,{status:200});
       if(url.includes('/rest/v1/flow_workspaces'))return Response.json([{revision:1,data:{version:1,projects:[],tasks:[],preferences:{}}}]);
       if(url==='/api/google-token'){
         renewals++;if(holdRefresh)await new Promise(resolve=>{release=resolve;});
@@ -102,6 +103,14 @@ test('a renewal arriving after logout cannot restore a session or overwrite anot
   const c=await client({holdRefresh:true});const pending=c.cloud.ensureGoogleToken('gmail');
   while(!c.renewals())await new Promise(resolve=>setTimeout(resolve,0));
   await c.cloud.signOut();c.release();await assert.rejects(pending,/conta mudou/);assert.equal(c.values.has(sessionKey),false);
+});
+test('a renewal finishing after Gmail and Agenda were disconnected cannot bring the Google token back',async()=>{
+  const c=await client({holdRefresh:true});const pending=c.cloud.ensureGoogleToken('gmail');
+  while(!c.renewals())await new Promise(resolve=>setTimeout(resolve,0));
+  c.cloud.disconnectGmail();c.cloud.disconnectCalendar();c.release();
+  await assert.rejects(pending,/conexão ou a conta Google mudou/);
+  assert.equal(c.stored().provider_token,undefined);assert.equal(c.stored().provider_refresh_token,undefined);
+  assert.equal(c.calls.filter(call=>call.url==='https://oauth2.googleapis.com/revoke').length,2);
 });
 test('Google credentials cannot be sent to an unrelated URL',async()=>{
   const c=await client({expired:false});const count=c.calls.length;
