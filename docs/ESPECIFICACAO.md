@@ -1,4 +1,4 @@
-# UlbraFlow — especificação funcional 1.3
+# UlbraFlow — especificação funcional 1.5
 
 ## Propósito
 
@@ -37,11 +37,11 @@ Sem configuração Google, armazenamento local na chave `flow.workspace.v1`. Com
 
 Tarefas mantêm título, descrição, situação, execução planejada, prazo, subtarefas, sessões e metadados Gmail. O campo adicional `focusCycles` guarda ciclos completos. `preferences.focusMinutes` e `preferences.breakMinutes` guardam o ritmo. `focus` guarda tarefa, fase (`work`, `break`, `ready`), término, tempo restante e duração.
 
-A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de foco quando ausentes. Um cronômetro antigo ativo mantém sua sessão e recebe um ciclo contado a partir da migração. O catálogo é aplicado uma vez também às bases existentes, com o marcador `classificationCatalogVersion`. Áreas equivalentes conservam IDs, cores e vínculos. A Ouvidoria de exemplo, retirada das novas classificações, permanece em `archivedProjects` para resolver nomes, filtros e execução de tarefas anteriores. Áreas personalizadas não são removidas. Recarregamentos posteriores não restauram áreas deliberadamente retiradas.
+A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de foco quando ausentes. Um cronômetro antigo ativo mantém sua sessão, tratada como um ciclo iniciado no seu início: conta no máximo um foco, e o intervalo até a migração não conta como trabalho. Dados malformados ficam em `recovered`, sem impedir a abertura. O catálogo é aplicado uma vez também às bases existentes, com o marcador `classificationCatalogVersion`. Áreas equivalentes conservam IDs, cores e vínculos. A Ouvidoria de exemplo, retirada das novas classificações, permanece em `archivedProjects` para resolver nomes, filtros e execução de tarefas anteriores. Áreas personalizadas não são removidas. Recarregamentos posteriores não restauram áreas deliberadamente retiradas.
 
 ## Gmail
 
-A extensão Chrome 1.3 adiciona **Incluir no UlbraFlow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa.
+A extensão Chrome 1.5 adiciona **Incluir no UlbraFlow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa.
 
 A extensão usa uma aba do UlbraFlow no mesmo perfil e domínio configurado, preservando a navegação no Gmail. Não lê o corpo da mensagem nem envia respostas. Retentativas da mesma captura não duplicam tarefas. Áreas removidas e datas inválidas são recusadas. Capturas de versões anteriores sem data permanecem compatíveis e ficam a classificar.
 
@@ -63,6 +63,6 @@ Entrar com Google usa OAuth PKCE e identidade verificada pelo Supabase. O SQL em
 
 Google Agenda pede consentimento separado. Cria/atualiza eventos privados no calendário principal pela data de execução; prazo final separado na descrição. Sem horário é dia inteiro; com horário usa a duração do foco. Retirar data ou excluir remove somente eventos próprios do UlbraFlow. Sincroniza com a aba aberta; expiração exige reconexão. A exportação .ics continua disponível.
 
-A extensão 1.3 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no UlbraFlow.
+A extensão 1.5 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso, lê o identificador da conversa para não duplicar capturas da Entrada ou do celular e acompanha a mesclagem automática quando outro aparelho salvou antes. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no UlbraFlow.
 
 Gemini permanece opcional, com chave no servidor, acionamento por clique e revisão. Alertas salvam preferências sem envio ativo. A interface usa cinza claro no conjunto e destaques verdes Ulbra S.A. (#045A52) com letras brancas, inclusive no acesso, na esteira, no foco, na agenda e na Gestão do Tempo. As cores das áreas ficam preservadas nos dados; a apresentação usa indicadores verdes. A impressão/PDF usa fundo claro e texto escuro. O slogan foi retirado, e a marca verde Ulbra S.A. enviada está no acesso e na barra superior.
