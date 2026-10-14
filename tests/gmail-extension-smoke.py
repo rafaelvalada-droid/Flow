@@ -280,7 +280,10 @@ async def main(profile):
         def stored_status(task_id):
             return flow.evaluate("id => JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.find(t=>t.id===id).status", task_id)
         await flow.locator('#sidebar-nav [data-page="esteira"]').click()
-        await flow.locator('#board-date-filter').select_option('all')
+        # Filtro escolhido pelo usuário antes de ir ao Gmail: precisa continuar igual na volta.
+        await flow.locator('#board-date-filter').select_option('specific')
+        await flow.locator('#board-specific-date').fill('2026-12-10')
+        await flow.locator('#board-specific-date').dispatch_event('change')
         demand = flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')
         if not await demand.get_by_role('button', name='Abrir Gmail').is_visible():
             await demand.locator('summary').click()
@@ -299,7 +302,19 @@ async def main(profile):
         assert await stored_status(task['id']) == 'done'
         await expect(flow.locator('.page-head h1')).to_have_text('Detalhe da tarefa')
         await expect(flow.get_by_role('button', name='← Reabrir tarefa')).to_be_visible()
-        passed('Concluir e voltar ao UlbraFlow in a conversation opened by Flow completes the task, returns to Flow and closes that tab')
+        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
+        await expect(flow.locator('#board-date-filter')).to_have_value('specific')
+        await expect(flow.locator('#board-specific-date')).to_have_value('2026-12-10')
+        await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_have_count(1)
+        # Ver no UlbraFlow (flow:open-capture) também abre a tarefa sem trocar o filtro da esteira.
+        open_task = "id => window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{taskId:id}}))"
+        await flow.evaluate(open_task, task['id'])
+        await expect(flow.locator('.page-head h1')).to_have_text('Detalhe da tarefa')
+        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
+        await expect(flow.locator('#board-date-filter')).to_have_value('specific')
+        await flow.evaluate(open_task, task['id'])
+        await expect(flow.get_by_role('button', name='← Reabrir tarefa')).to_be_visible()
+        passed('Concluir e voltar ao UlbraFlow in a conversation opened by Flow completes the task, returns to Flow, closes that tab and keeps the board filter')
 
         await flow.get_by_role('button', name='← Reabrir tarefa').click()
         assert await stored_status(task['id']) != 'done'
