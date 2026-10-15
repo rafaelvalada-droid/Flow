@@ -47,30 +47,42 @@
   for (const node of locked) node.inert = false;
   locked = [];
  }
+ // Liberar o app (inert) e mover o foco recalculam a página: acontece só no fim, com a abertura já invisível.
  function finish() {
+  release();
   overlay.remove();
   root.classList.remove('flow-opening');
+  focusApp();
   cleanUrl();
  }
+ // O app ainda carregando apareceria por um instante entre a abertura e o workspace: espera ficar pronto (até 6 s).
+ const appReady = () => !document.querySelector('.app-shell')?.hasAttribute('aria-busy');
+ function whenReady(done) {
+  if (appReady()) return done();
+  const shell = document.querySelector('.app-shell');
+  let finished = false;
+  const go = () => { if (finished) return; finished = true; watcher.disconnect(); clearTimeout(limit); done(); };
+  const watcher = new MutationObserver(() => { if (appReady()) go(); });
+  const limit = setTimeout(go, 6000);
+  if (shell) watcher.observe(shell, {attributes: true, attributeFilter: ['aria-busy']}); else go();
+ }
+ // Saída leve: só opacidade e transformação na própria abertura (sem máscara de tela cheia nem zoom no app),
+ // para não travar nem sacudir a tela no celular.
  function close(quick) {
   if (leaving) return;
   leaving = true;
-  release();
-  focusApp();
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return finish();
-  if (quick) { overlay.classList.add('is-leaving', 'is-quick'); setTimeout(finish, 260); return; }
-  const box = overlay.querySelector('.fo-orbit').getBoundingClientRect(), w = innerWidth, h = innerHeight;
-  let x = box.left + box.width / 2, y = box.top + box.height / 2;
-  if (!box.width || y < 0 || y > h) { x = w / 2; y = h / 2; }
-  const ring = Math.max(box.width * .42, 24), far = Math.hypot(Math.max(x, w - x), Math.max(y, h - y)) + 40;
-  Object.entries({'--fo-cx': x + 'px', '--fo-cy': y + 'px', '--fo-r0': ring * .9 + 'px', '--fo-r1': far + 'px', '--fo-s': (far / ring).toFixed(3)})
-   .forEach(([name, value]) => overlay.style.setProperty(name, value));
-  root.style.setProperty('--fo-ox', x + 'px');
-  root.style.setProperty('--fo-oy', y + 'px');
-  overlay.classList.add('is-leaving');
-  root.classList.add('fo-arrive');
-  setTimeout(finish, 980);
-  setTimeout(() => { root.classList.remove('fo-arrive'); root.style.removeProperty('--fo-ox'); root.style.removeProperty('--fo-oy'); }, 1150);
+  overlay.classList.add('is-waiting');
+  cta.setAttribute('aria-busy', 'true');
+  whenReady(() => {
+   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return finish();
+   overlay.classList.remove('is-waiting');
+   overlay.classList.add('is-leaving');
+   if (quick) overlay.classList.add('is-quick');
+   let done = false;
+   const end = () => { if (!done) { done = true; finish(); } };
+   overlay.addEventListener('animationend', event => { if (event.target === overlay) end(); });
+   setTimeout(end, quick ? 400 : 700);
+  });
  }
  function onKey(event) {
   const {key} = event;

@@ -1,6 +1,5 @@
 /* Abertura UlbraFlow: camada visual exibida uma vez por sessão, acima do app. */
 @property --fo-sweep{syntax:'<angle>';inherits:false;initial-value:300deg}
-@property --fo-hole{syntax:'<length>';inherits:false;initial-value:0px}
 @property --fo-pct{syntax:'<integer>';inherits:true;initial-value:72}
 @property --fo-p{syntax:'<number>';inherits:true;initial-value:1}
 .fo{display:none}
@@ -166,19 +165,17 @@ html.flow-opening .fo,html.flow-opening .fo[hidden]{display:block!important}
 @keyframes fo-s3{0%,43%{--fo-p:0}49%,100%{--fo-p:1}}
 @keyframes fo-s4{0%,51%{--fo-p:0}57%,100%{--fo-p:.45}}
 @keyframes fo-pct{0%,27%{--fo-pct:0}57%,100%{--fo-pct:72}}
-.fo.is-leaving{pointer-events:none}
-.fo.is-leaving .fo-fade{animation:fo-out .3s ease-in both}
-.fo.is-leaving .fo-bg{mask:radial-gradient(circle at var(--fo-cx) var(--fo-cy),transparent var(--fo-hole),#000 calc(var(--fo-hole) + 1.5px));animation:fo-hole .85s cubic-bezier(.7,0,.2,1) .1s both}
-.fo.is-leaving .fo-orbit{animation:fo-zoom .85s cubic-bezier(.7,0,.2,1) .1s both}
-.fo.is-leaving .fo-orbit::before{animation:fo-out .25s ease-in both}
-.fo.is-leaving.is-quick{animation:fo-out .24s ease-in both}
-.fo.is-leaving.is-quick .fo-bg,.fo.is-leaving.is-quick .fo-orbit{animation:none;mask:none}
-@keyframes fo-hole{from{--fo-hole:var(--fo-r0)}to{--fo-hole:var(--fo-r1)}}
-@keyframes fo-zoom{0%{transform:scale(1);opacity:1}65%{opacity:.85}100%{transform:scale(var(--fo-s));opacity:0}}
-html.fo-arrive .app-shell{transform-origin:var(--fo-ox,50%) var(--fo-oy,40%);animation:fo-arrive .95s cubic-bezier(.3,.6,.2,1) .1s both}
-@keyframes fo-arrive{from{transform:scale(1.06)}}
+.fo.is-waiting,.fo.is-leaving{pointer-events:none}
+.fo.is-waiting .fo-cta{opacity:.85}
+.fo.is-waiting .fo-cta-mark{animation:fo-wait 1s linear infinite}
+@keyframes fo-wait{to{transform:rotate(360deg)}}
+.fo.is-leaving{will-change:opacity,transform;animation:fo-exit .5s cubic-bezier(.4,0,.2,1) both}
+/* Na saída as animações internas param: só a camada da abertura esmaece. */
+.fo.is-leaving *,.fo.is-leaving *::before,.fo.is-leaving *::after{animation-play-state:paused!important}
+.fo.is-leaving.is-quick{animation-duration:.25s}
+@keyframes fo-exit{from{opacity:1;transform:none}to{opacity:0;transform:scale(1.02)}}
 @media (max-width:1100px) and (min-width:761px){.fo-frame{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 @media (min-width:761px) and (max-height:820px){.fo{--fo-orb:clamp(200px,min(40vh,31vw),340px)}.fo-top{height:clamp(56px,8vh,72px)}.fo-copy{padding:0}.fo-orbit{margin:0}.fo-beat p{margin-bottom:10px}.fo-board,.fo-proj{padding:13px 14px}.fo-lanes{--fo-ch:40px;--fo-cg:6px;--fo-lp:6px}.fo-stages{margin-bottom:6px}.fo-models{margin-bottom:10px}.fo-steps{gap:8px 16px;margin-top:10px}.fo-progress{margin-top:10px}}
 @media (max-width:760px){.fo{--fo-orb:116px;--fo-step:52px}.fo-frame{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto;grid-template-areas:"top top" "title orbit" "lede lede" "board board" "proj proj" "cta cta";column-gap:10px;min-height:0;padding-bottom:0}.fo-top{height:60px}.fo-copy{display:contents}.fo h1{grid-area:title;align-self:center;font-size:clamp(40px,12.4vw,56px)}.fo-lede{grid-area:lede;max-width:none;margin:14px 0 24px;font-size:15.5px}.fo-orbit{margin:6px 0 0}.fo-phase{display:none}.fo-beat{margin-bottom:20px}.fo-beat p{font-size:13px;margin-bottom:10px}.fo-board,.fo-proj{padding:12px;border-radius:16px}.fo-actions{grid-area:cta;position:sticky;bottom:0;z-index:2;margin:0 -16px;padding:14px 16px max(16px,env(safe-area-inset-bottom));background:linear-gradient(to top,#172b4d 64%,rgb(23 43 77/0))}.fo-cta{width:100%;justify-content:center}.fo-hint{display:none}}
 @container (max-width:560px){.fo-stages{margin-bottom:8px}.fo-stages::before{top:10px}.fo-stages li{gap:4px;font-size:9.5px;letter-spacing:-.01em}.fo-stages b{width:22px;height:22px;border-width:2px;font-size:8.5px}.fo-lanes{--fo-ch:36px;--fo-cg:6px;--fo-lp:6px}.fo-lanes>i{margin:0 2px;border-radius:8px}.fo-card{padding:0 5px}.fo-card-in{padding:0 0 0 19px;border-radius:7px}.fo-chk{left:5px;top:11px;width:10px;height:10px}.fo-chk::before{background-size:7px}.fo-card strong{display:block;height:14px;margin:11px 6px 0 0;color:transparent!important;font-size:0;background:linear-gradient(#d3def0 0 0) 0 0/100% 4px no-repeat,linear-gradient(#e6edf8 0 0) 0 10px/58% 4px no-repeat}.fo-live{right:-3px;top:-3px;width:8px;height:8px;border-width:1.5px}}
-@media (prefers-reduced-motion:reduce){.fo,.fo *,.fo *::before,.fo *::after,html.fo-arrive .app-shell{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){.fo,.fo *,.fo *::before,.fo *::after{animation:none!important;transition:none!important}}
