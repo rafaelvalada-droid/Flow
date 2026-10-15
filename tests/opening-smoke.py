@@ -1,5 +1,6 @@
 """Browser checks of the opening overlay: display rules, focus, dismissal, mobile layout and reduced motion."""
 import asyncio
+import re
 import os
 from playwright.async_api import async_playwright, expect
 
@@ -74,6 +75,25 @@ async def run():
         assert await page.evaluate('window.__csp')==[]
         await context.close()
         passed('Entrar em Fluxo removes the overlay, cleans the URL and returns focus to an interactive app')
+
+        # Clique antes de o app terminar de carregar: a abertura espera (indicador girando) e só então sai, sem mostrar o carregamento.
+        context,page,errors=await open_page(scripts=[CSP])
+        await page.goto(BASE+'/?abertura=1')
+        await expect(page.locator('#flow-opening')).to_be_visible()
+        await expect(page.locator('.app-shell')).not_to_have_attribute('aria-busy','true')
+        await page.evaluate("document.querySelector('.app-shell').setAttribute('aria-busy','true')")
+        await page.locator('[data-fo-enter]').click()
+        await page.wait_for_timeout(900)
+        await expect(page.locator('#flow-opening')).to_have_class(re.compile('is-waiting'))
+        assert await page.evaluate('document.querySelector(".app-shell").inert')
+        await page.evaluate("document.querySelector('.app-shell').removeAttribute('aria-busy')")
+        await expect(page.locator('#flow-opening')).to_have_count(0)
+        assert not await page.evaluate('document.querySelector(".app-shell").inert')
+        # A saída anima só a própria abertura: o app não recebe transformação.
+        assert await page.evaluate('getComputedStyle(document.querySelector(".app-shell")).transform')=='none'
+        assert not errors,errors
+        await context.close()
+        passed('Clicking before the app finished loading waits on the opening, then leaves with a light fade that never transforms the app')
 
         for key in ['Enter','Escape']:
             context,page,errors=await open_page()
