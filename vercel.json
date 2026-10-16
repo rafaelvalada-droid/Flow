@@ -13,6 +13,9 @@
     },
     "api/gemini.mjs": {
       "maxDuration": 45
+    },
+    "api/voice-note.mjs": {
+      "maxDuration": 60
     }
   },
   "headers": [
@@ -21,7 +24,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com; font-src 'self' data:; connect-src 'self' https://*.supabase.co https://gmail.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' https://*.supabase.co https://gmail.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
         },
         {
           "key": "X-Content-Type-Options",

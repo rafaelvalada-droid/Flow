@@ -415,6 +415,10 @@
   window.addEventListener('online', wake);
   globalThis.document?.addEventListener?.('visibilitychange', wake);
   if (typeof setInterval === 'function') setInterval(wake, 60000);
+  // Lembretes de voz: o áudio pode levar alguns segundos para subir e ser transcrito.
+  async function voiceNote(body){
+    await ensureToken();const response=await fetch('/api/voice-note',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),signal:AbortSignal.timeout(90000)});const result=await response.json().catch(()=>({}));if(!response.ok){const failure=new Error(result.error||`Falha ao processar o lembrete (HTTP ${response.status}).`);failure.status=response.status;failure.code=result.code;throw failure;}return result;
+  }
   async function analyzeGmail(body){
     await ensureToken();const response=await fetch('/api/gmail-review',{method:'POST',headers:{'content-type':'application/json',Authorization:'Bearer '+session.access_token},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});const result=await response.json().catch(()=>({}));if(!response.ok){const failure=new Error(result.error||`Falha na análise (HTTP ${response.status}).`);failure.upstreamStatus=result.upstreamStatus;failure.status=response.status;throw failure;}return result;
   }
@@ -461,7 +465,7 @@
     const renewed=await obtain(token);
     return send(renewed);
   }
-  globalThis.FlowCloud = {pull,googleFetch,ensureGoogleToken,analyzeGmail,gmailToken:()=>session?.gmailConnected?session.provider_token:null,disconnectGmail:()=>disconnect('gmailConnected'),createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
+  globalThis.FlowCloud = {pull,voiceNote,googleFetch,ensureGoogleToken,analyzeGmail,gmailToken:()=>session?.gmailConnected?session.provider_token:null,disconnectGmail:()=>disconnect('gmailConnected'),createGmailToken, revokeGmailToken, initialize, signIn, signOut, queue, flush, loadRemote,
     info: () => ({mode: user ? 'cloud' : 'local', user, key, status, error, configured: !!config?.configured}),
     calendarToken: () => session?.calendarConnected ? session.provider_token : null,
     disconnectCalendar: () => disconnect('calendarConnected'),

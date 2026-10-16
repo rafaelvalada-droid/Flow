@@ -7,6 +7,7 @@ import { POST as geminiPost } from './api/gemini.mjs';
 import { POST as gmailReviewPost } from './api/gmail-review.mjs';
 import { GET as authConfigGet } from './api/auth-config.mjs';
 import { POST as googleTokenPost } from './api/google-token.mjs';
+import { POST as voiceNotePost, MAX_BODY as voiceMaxBody } from './api/voice-note.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -28,12 +29,14 @@ const server = createServer(async (req, res) => {
       const result=authConfigGet();
       send(res, result.status, Object.fromEntries(result.headers), await result.text());return;
     }
-    if (['/api/gemini','/api/gmail-review','/api/google-token'].includes(route)) {
+    if (['/api/gemini','/api/gmail-review','/api/google-token','/api/voice-note'].includes(route)) {
       if (req.method !== 'POST') {send(res, 405, {'content-type':'application/json'}, JSON.stringify({error:'Método não permitido.'}));return;}
       const parts=[];
-      for await(const part of req){ parts.push(part); if (parts.reduce((n,p)=>n+p.length,0)>30_000){send(res, 413);return;} }
+      // Lembretes de voz enviam o áudio; as outras rotas recebem só texto.
+      const limit=route==='/api/voice-note'?voiceMaxBody+1000:30_000;
+      for await(const part of req){ parts.push(part); if (parts.reduce((n,p)=>n+p.length,0)>limit){send(res, 413);return;} }
       const request=new Request(`http://localhost:${port}${req.url}`,{method:'POST',headers:{'content-type':req.headers['content-type']||'application/json','x-flow-access-token':req.headers['x-flow-access-token']||'',authorization:req.headers.authorization||''},body:Buffer.concat(parts)});
-      const handlers={'/api/gemini':geminiPost,'/api/gmail-review':gmailReviewPost,'/api/google-token':googleTokenPost};
+      const handlers={'/api/gemini':geminiPost,'/api/gmail-review':gmailReviewPost,'/api/google-token':googleTokenPost,'/api/voice-note':voiceNotePost};
       const result=await handlers[route](request);
       send(res, result.status, Object.fromEntries(result.headers), await result.text());return;
     }
