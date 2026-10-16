@@ -129,10 +129,134 @@
   function renderGmailReview(){
     const state=FlowGmailReview.info(),connected=!!cloud.gmailToken();
     const rows=state.emails.filter(email=>{const r=db.gmailReviews?.[email.id],t=linkedEmailTask(email);return !(r?.messageId===email.messageId&&['accepted','ignored'].includes(r.state))&&!(t?.gmailMessageId===email.messageId&&r?.state!=='pending')});
-    return `<section class="card gmail-review-box"><div class="between"><h3 class="sectiontitle">Para revisar</h3><div class="row">${connected?button(state.loading?'Buscando…':'Atualizar e-mails','gmail-refresh',false,state.loading?'disabled':'')+button(`<img src="./assets/gemini.svg" alt="" width="16" height="16"> ${state.analyzing?`Analisando · ${state.completed||0} prontas`:'Analisar com Gemini'}`,'gmail-analyze',false,state.analyzing||!state.emails.length?'disabled':'')+button('Desconectar leitura','gmail-read-disconnect'):button('Conectar leitura do Gmail','gmail-read-connect',true)}</div></div><p class="smalltext muted">A leitura consulta a caixa de entrada. Ao analisar, o texto das últimas três mensagens é enviado ao Gemini, sem anexos. Você confirma cada demanda antes de incluí-la na esteira.</p>${state.error?`<p class="sync-error" role="alert">${html(state.error)}</p>`:''}<div class="gmail-review-grid">${rows.map(email=>{const sender=FlowGmailReview.address(email.sender).toLowerCase(),color=/^#[a-f0-9]{6}$/i.test(db.gmailSenderColors?.[sender]||'')?db.gmailSenderColors[sender]:'',review=db.gmailReviews?.[email.id],current=review?.messageId===email.messageId?review:null,existing=linkedEmailTask(email);return `<article class="gmail-review-card" data-email-card="${html(email.id)}" ${color?`style="border-left:4px solid ${color};background:${color}14"`: ''}><h3>${html(email.subject)}</h3><p class="smalltext muted">${html(email.sender)} · ${new Date(email.date).toLocaleDateString('pt-BR')}</p>${existing?'<span class="pill">Nova resposta · demanda já vinculada</span>':''}<span class="gemini-status ${current?'classified':'pending'}"><img src="./assets/gemini.svg" alt="Gemini" width="16" height="16">${current?(current.areaId?'Classificado pelo Gemini':'Analisado pelo Gemini · revisar área'):'Aguardando classificação Gemini'}</span><p class="gmail-summary">${html(current?.summary||email.snippet||'Sem texto disponível.')}</p>${current?.alert?`<p class="review-alert">${html(current.alert)}</p>`:''}${current?.needsReview?'<p class="smalltext muted">Confira a classificação sugerida.</p>':''}<label class="sender-color-label">Cor deste remetente <input type="color" data-sender-color="${html(sender)}" value="${color||'#507ee9'}" /></label>${email.truncated?'<p class="smalltext muted">Análise limitada às últimas mensagens e a 12 mil caracteres.</p>':''}<form data-email-review="${html(email.id)}"><label class="field">Título da demanda<input name="title" maxlength="180" required value="${html(current?.title||email.subject.slice(0,180))}" /></label><div class="detail-grid"><label class="field">Área${!current?'<small>Escolha uma área ou analise com Gemini</small>':''}<select name="project" required>${projOption(current?.areaId||existing?.project||'',false)}</select></label><label class="field">Prazo final<input name="dueDate" type="date" required value="${html(workflow.validDate(current?.dueDate)?current.dueDate:existing?.dueDate||'')}" /></label></div>${current?.dateEvidence?`<p class="smalltext muted">Trecho do prazo: “${html(current.dateEvidence)}”</p>`:''}<label class="archive-choice"><input type="checkbox" name="archive" checked> Arquivar no Gmail após salvar</label><div class="row"><button type="button" class="button" data-reply-email="${html(email.id)}">Responder</button><button type="submit" class="button primary">${existing?'Atualizar demanda':'✓ Incluir na esteira'}</button><button type="button" class="button" data-ignore-email="${html(email.id)}">Ignorar</button><button type="button" class="button" data-archive-email="${html(email.id)}" title="Tira o e-mail da caixa de entrada sem criar demanda">Arquivar no Gmail</button><a class="button" target="_blank" rel="noopener noreferrer" href="${html(email.gmailUrl)}">Abrir Gmail</a></div></form></article>`}).join('')||`<p class="muted smalltext">${state.loading?'Carregando e-mails…':connected?'Clique em Atualizar e-mails para buscar mensagens, ou todas as mensagens carregadas já foram revisadas.':'Conecte sua conta para revisar os e-mails aqui.'}</p>`}${db.tasks.filter(t=>workflow.stage(db,t)==='inbox').map(t=>`<article class="gmail-review-card" data-entry-card="${html(t.id)}"><span class="pill">${t.gmailUrl?'E-mail vinculado':t.source==='share'?'Texto compartilhado':'Entrada manual'}</span><h3 style="margin-top:10px">${html(t.title)}</h3><p class="gmail-summary">${html(t.description||'')}</p><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}</div><div class="row" style="margin-top:12px">${button('Classificar →','classify-task',true,`data-id="${html(t.id)}"`)}${button('Detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div></article>`).join('')}</div>${state.nextPage?button('Carregar mais','gmail-more'):''}</section>`;
+    return `<section class="card gmail-review-box"><div class="between"><h3 class="sectiontitle">Para revisar</h3><div class="row">${connected?button(state.loading?'Buscando…':'Atualizar e-mails','gmail-refresh',false,state.loading?'disabled':'')+button(`<img src="./assets/gemini.svg" alt="" width="16" height="16"> ${state.analyzing?`Analisando · ${state.completed||0} prontas`:'Analisar com Gemini'}`,'gmail-analyze',false,state.analyzing||!state.emails.length?'disabled':'')+button('Desconectar leitura','gmail-read-disconnect'):button('Conectar leitura do Gmail','gmail-read-connect',true)}</div></div><p class="smalltext muted">A leitura consulta a caixa de entrada. Ao analisar, o texto das últimas três mensagens é enviado ao Gemini, sem anexos. Você confirma cada demanda antes de incluí-la na esteira.</p>${state.error?`<p class="sync-error" role="alert">${html(state.error)}</p>`:''}<div class="gmail-review-grid">${rows.map(email=>{const sender=FlowGmailReview.address(email.sender).toLowerCase(),color=/^#[a-f0-9]{6}$/i.test(db.gmailSenderColors?.[sender]||'')?db.gmailSenderColors[sender]:'',review=db.gmailReviews?.[email.id],current=review?.messageId===email.messageId?review:null,existing=linkedEmailTask(email);return `<article class="gmail-review-card" data-email-card="${html(email.id)}" ${color?`style="border-left:4px solid ${color};background:${color}14"`: ''}><h3>${html(email.subject)}</h3><p class="smalltext muted">${html(email.sender)} · ${new Date(email.date).toLocaleDateString('pt-BR')}</p>${existing?'<span class="pill">Nova resposta · demanda já vinculada</span>':''}<span class="gemini-status ${current?'classified':'pending'}"><img src="./assets/gemini.svg" alt="Gemini" width="16" height="16">${current?(current.areaId?'Classificado pelo Gemini':'Analisado pelo Gemini · revisar área'):'Aguardando classificação Gemini'}</span><p class="gmail-summary">${html(current?.summary||email.snippet||'Sem texto disponível.')}</p>${current?.alert?`<p class="review-alert">${html(current.alert)}</p>`:''}${current?.needsReview?'<p class="smalltext muted">Confira a classificação sugerida.</p>':''}<label class="sender-color-label">Cor deste remetente <input type="color" data-sender-color="${html(sender)}" value="${color||'#507ee9'}" /></label>${email.truncated?'<p class="smalltext muted">Análise limitada às últimas mensagens e a 12 mil caracteres.</p>':''}<form data-email-review="${html(email.id)}"><label class="field">Título da demanda<input name="title" maxlength="180" required value="${html(current?.title||email.subject.slice(0,180))}" /></label><div class="detail-grid"><label class="field">Área${!current?'<small>Escolha uma área ou analise com Gemini</small>':''}<select name="project" required>${projOption(current?.areaId||existing?.project||'',false)}</select></label><label class="field">Prazo final<input name="dueDate" type="date" required value="${html(workflow.validDate(current?.dueDate)?current.dueDate:existing?.dueDate||'')}" /></label></div>${current?.dateEvidence?`<p class="smalltext muted">Trecho do prazo: “${html(current.dateEvidence)}”</p>`:''}<label class="archive-choice"><input type="checkbox" name="archive" checked> Arquivar no Gmail após salvar</label><div class="row"><button type="button" class="button" data-reply-email="${html(email.id)}">Responder</button><button type="submit" class="button primary">${existing?'Atualizar demanda':'✓ Incluir na esteira'}</button><button type="button" class="button" data-ignore-email="${html(email.id)}">Ignorar</button><button type="button" class="button" data-archive-email="${html(email.id)}" title="Tira o e-mail da caixa de entrada sem criar demanda">Arquivar no Gmail</button><a class="button" target="_blank" rel="noopener noreferrer" href="${html(email.gmailUrl)}">Abrir Gmail</a></div></form></article>`}).join('')||`<p class="muted smalltext">${state.loading?'Carregando e-mails…':connected?'Clique em Atualizar e-mails para buscar mensagens, ou todas as mensagens carregadas já foram revisadas.':'Conecte sua conta para revisar os e-mails aqui.'}</p>`}${db.tasks.filter(t=>workflow.stage(db,t)==='inbox').map(t=>`<article class="gmail-review-card" data-entry-card="${html(t.id)}"><span class="pill">${t.gmailUrl?'E-mail vinculado':t.source==='share'?'Texto compartilhado':t.source==='voice'?'🎙 Lembrete de voz':'Entrada manual'}</span><h3 style="margin-top:10px">${html(t.title)}</h3><p class="gmail-summary">${html(t.description||'')}</p><div class="task-meta">${areaBadge(t)}${urgencyBadge(t)}</div><div class="row" style="margin-top:12px">${button('Classificar →','classify-task',true,`data-id="${html(t.id)}"`)}${button('Detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div></article>`).join('')}</div>${state.nextPage?button('Carregar mais','gmail-more'):''}</section>`;
   }
+  // Lembretes de voz (Entrada): grava o áudio inteiro no navegador, sem cortar nas pausas como o ditado,
+  // transcreve com Gemini e salva como entrada a classificar. O áudio fica só nesta tela; salva-se o texto.
+  const VOICE_MAX=180;
+  const voice={state:'idle',text:'',title:'',error:'',url:'',blob:null,mime:'',seconds:0,previous:null};
+  let voiceRec=null;
+  const voiceClock=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+  function renderVoiceNotes(){
+    const s=voice.state,cloudOk=workspace.mode==='cloud',empty=!voice.text.trim();
+    const head=`<div class="between"><div><h3 class="sectiontitle">🎙 Lembretes de voz</h3><p class="smalltext muted">Grave um lembrete; ele fica na Entrada para você classificar depois.</p></div>${s==='idle'?button('🎙 Gravar lembrete','voice-record',true):''}</div>`;
+    let body='';
+    if(s==='recording')body=`<div class="voice-live"><span class="voice-dot" aria-hidden="true"></span><strong id="voice-time">${voiceClock(voice.seconds)}</strong><span class="smalltext muted">de ${voiceClock(VOICE_MAX)}</span><div class="voice-level" aria-hidden="true"><i id="voice-level"></i></div></div><div class="row">${button('■ Parar e transcrever','voice-stop',true)}${button('Cancelar','voice-cancel')}</div>`;
+    else if(s!=='idle')body=`${voice.url?`<audio class="voice-audio" controls preload="metadata" src="${html(voice.url)}"></audio>`:''}${s==='transcribing'?'<p class="smalltext voice-working" role="status">Transcrevendo com Gemini…</p>':`<label class="field">Título<input id="voice-title" maxlength="180" value="${html(voice.title)}" placeholder="Ex.: Ligar para a coordenação" /></label><label class="field">Lembrete<textarea id="voice-text" rows="4" maxlength="7500" placeholder="Digite ou ajuste o lembrete">${html(voice.text)}</textarea></label><div class="row">${button(s==='improving'?'Melhorando…':'<img src="./assets/gemini.svg" alt="" width="16" height="16"> Melhorar com Gemini','voice-improve',false,s==='improving'||empty||!cloudOk?'disabled':'')}${voice.previous&&s==='review'?button('Desfazer melhoria','voice-undo'):''}${voice.blob&&cloudOk&&s==='review'&&empty?button('Transcrever de novo','voice-retry'):''}${button('Salvar na Entrada','voice-save',true,s==='improving'||empty?'disabled':'')}${button('Gravar de novo','voice-record',false,s==='improving'?'disabled':'')}${button('Descartar','voice-discard')}</div>`}`;
+    return `<section class="card voice-notes" id="voice-notes">${head}${voice.error?`<p class="voice-error" role="alert">${html(voice.error)}</p>`:''}${!cloudOk&&s!=='recording'?'<p class="smalltext muted">Para transcrever e melhorar com Gemini, entre com Google. Sem isso, ouça a gravação e digite o texto.</p>':''}${body}</section>`;
+  }
+  function syncVoiceButtons(){
+    const empty=!voice.text.trim(),save=$('[data-action="voice-save"]'),improve=$('[data-action="voice-improve"]');
+    if(save)save.disabled=empty||voice.state==='improving';
+    if(improve)improve.disabled=empty||voice.state==='improving'||workspace.mode!=='cloud';
+  }
+  async function startVoice(){
+    if(voiceRec)return;
+    discardVoice(false);
+    if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){voice.error='Este navegador não grava áudio. Use o Chrome atualizado.';render();return}
+    let stream;
+    try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+    catch(error){voice.error=['NotAllowedError','SecurityError'].includes(error?.name)?'O microfone está bloqueado. Toque no cadeado ao lado do endereço, permita o microfone para o UlbraFlow e tente de novo.':error?.name==='NotFoundError'?'Nenhum microfone foi encontrado neste aparelho.':'Não foi possível usar o microfone: '+(error?.message||'erro desconhecido');render();return}
+    const type=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus'].find(value=>MediaRecorder.isTypeSupported?.(value))||'';
+    let recorder;
+    try{recorder=new MediaRecorder(stream,{...(type?{mimeType:type}:{}),audioBitsPerSecond:32000})}catch{recorder=new MediaRecorder(stream)}
+    const rec=voiceRec={recorder,stream,chunks:[],started:Date.now(),cancelled:false,done:false};
+    recorder.ondataavailable=event=>{if(event.data?.size)rec.chunks.push(event.data)};
+    recorder.onstop=()=>finishVoice(rec);
+    recorder.onerror=()=>{voice.error='O navegador interrompeu a gravação; o que foi gravado até ali foi mantido.';try{recorder.stop()}catch{finishVoice(rec)}};
+    // Microfone desligado no meio (ligação, aparelho bloqueado): aproveita o que já foi gravado.
+    for(const track of stream.getAudioTracks())track.addEventListener('ended',()=>{if(recorder.state==='recording')recorder.stop()});
+    try{recorder.start(1000)}catch(error){stream.getTracks().forEach(track=>track.stop());voiceRec=null;voice.error='Não foi possível iniciar a gravação: '+(error?.message||'erro desconhecido');render();return}
+    rec.limit=setTimeout(stopVoice,VOICE_MAX*1000);
+    // A tela do celular não apaga durante a gravação.
+    try{rec.wake=await navigator.wakeLock?.request('screen')}catch{}
+    try{const Context=window.AudioContext||window.webkitAudioContext;rec.ctx=new Context();rec.analyser=rec.ctx.createAnalyser();rec.analyser.fftSize=512;rec.ctx.createMediaStreamSource(stream).connect(rec.analyser);rec.samples=new Uint8Array(rec.analyser.fftSize)}catch{}
+    if(voiceRec!==rec){try{rec.ctx?.close()}catch{}try{rec.wake?.release()}catch{}return}
+    voice.state='recording';voice.seconds=0;voice.error='';
+    const tick=()=>{
+      if(voiceRec!==rec)return;
+      voice.seconds=(Date.now()-rec.started)/1000;
+      const time=document.getElementById('voice-time');if(time)time.textContent=voiceClock(voice.seconds);
+      if(rec.analyser){rec.analyser.getByteTimeDomainData(rec.samples);let peak=0;for(const value of rec.samples)peak=Math.max(peak,Math.abs(value-128));const bar=document.getElementById('voice-level');if(bar)bar.style.width=Math.min(100,peak/48*100)+'%'}
+      rec.raf=requestAnimationFrame(tick);
+    };
+    rec.raf=requestAnimationFrame(tick);
+    render();
+  }
+  function stopVoice(){if(voiceRec?.recorder.state==='recording')voiceRec.recorder.stop()}
+  function finishVoice(rec){
+    if(rec.done)return;rec.done=true;
+    cancelAnimationFrame(rec.raf);clearTimeout(rec.limit);rec.stream.getTracks().forEach(track=>track.stop());try{rec.ctx?.close()}catch{}try{rec.wake?.release()}catch{}
+    if(voiceRec===rec)voiceRec=null;
+    if(rec.cancelled){voice.state='idle';render();return}
+    const seconds=(Date.now()-rec.started)/1000,type=rec.recorder.mimeType||rec.chunks[0]?.type||'audio/webm',blob=new Blob(rec.chunks,{type});
+    if(!blob.size||seconds<1){voice.state='idle';voice.error='A gravação ficou vazia. Toque em Gravar lembrete e fale por alguns segundos.';render();return}
+    Object.assign(voice,{blob,mime:type,url:URL.createObjectURL(blob),seconds,text:'',title:'',previous:null});
+    transcribeVoice();
+  }
+  const voiceBase64=blob=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=()=>reject(reader.error);reader.readAsDataURL(blob)});
+  // WAV PCM mono, formato que o Gemini sempre aceita. A taxa cai de 16 para 8 kHz só em gravações longas,
+  // para caber no limite de envio da Vercel (3 minutos a 8 kHz ≈ 3,8 MB em base64).
+  async function voiceWav(blob){
+    const data=await blob.arrayBuffer(),Offline=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    for(const rate of [16000,12000,8000]){
+      if(rate>8000&&(voice.seconds+1)*rate*2*4/3>3900000)continue;
+      const decoded=await new Offline(1,1,rate).decodeAudioData(data.slice(0)),n=decoded.length,count=decoded.numberOfChannels;
+      const channels=Array.from({length:count},(_,i)=>decoded.getChannelData(i)),view=new DataView(new ArrayBuffer(44+n*2));
+      const text=(at,value)=>{for(let i=0;i<value.length;i++)view.setUint8(at+i,value.charCodeAt(i))};
+      text(0,'RIFF');view.setUint32(4,36+n*2,true);text(8,'WAVE');text(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,rate,true);view.setUint32(28,rate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);text(36,'data');view.setUint32(40,n*2,true);
+      for(let i=0;i<n;i++){let sample=0;for(const channel of channels)sample+=channel[i];sample=Math.max(-1,Math.min(1,sample/count));view.setInt16(44+i*2,sample<0?sample*0x8000:sample*0x7fff,true)}
+      if((44+n*2)*4/3<3900000||rate===8000)return new Blob([view],{type:'audio/wav'});
+    }
+  }
+  async function transcribeVoice(){
+    const blob=voice.blob;if(!blob)return;
+    if(workspace.mode!=='cloud'){voice.state='review';render();return}
+    voice.state='transcribing';voice.error='';render();
+    try{
+      let result;
+      try{result=await cloud.voiceNote({mode:'transcribe',mimeType:voice.mime,audio:await voiceBase64(blob)})}
+      catch(error){
+        // O Gemini recusou o formato gravado pelo navegador (webm/mp4) ou não ouviu fala nele: reenvia uma vez como WAV.
+        if(!['audio-format','no-speech'].includes(error?.code)||/wav/.test(voice.mime)||voice.blob!==blob)throw error;
+        let wav;try{wav=await voiceWav(blob)}catch{throw error}
+        if(voice.blob!==blob)return;
+        result=await cloud.voiceNote({mode:'transcribe',mimeType:'audio/wav',audio:await voiceBase64(wav)});
+      }
+      if(voice.blob!==blob)return;
+      voice.text=result.text;voice.title=result.title||'';
+    }catch(error){if(voice.blob!==blob)return;voice.error='Não foi possível transcrever: '+(error?.message||'erro desconhecido')+' A gravação continua aqui: tente de novo ou digite o texto.'}
+    voice.state='review';render();
+  }
+  async function improveVoice(){
+    const text=voice.text.trim();if(!text||voice.state!=='review')return;
+    voice.state='improving';voice.error='';render();
+    try{const result=await cloud.voiceNote({mode:'improve',text});if(voice.state!=='improving')return;voice.previous={text:voice.text,title:voice.title};voice.text=result.text;voice.title=result.title||voice.title}
+    catch(error){if(voice.state!=='improving')return;voice.error='Não foi possível melhorar com Gemini: '+(error?.message||'erro desconhecido')}
+    voice.state='review';render();
+  }
+  function undoVoice(){if(!voice.previous)return;Object.assign(voice,voice.previous,{previous:null});render()}
+  function saveVoice(){
+    const text=voice.text.trim();if(!text||voice.state!=='review')return;
+    const title=(voice.title.trim()||text.split(/\n|(?<=[.!?])\s/)[0]).slice(0,180)||'Lembrete de voz';
+    db.tasks.unshift({id:uuid(),title,project:'',status:'todo',priority:'medium',plannedDate:'',plannedTime:'',dueDate:'',description:text.slice(0,7500),subtasks:[],sessions:[],startedAt:null,focusCycles:0,gmailUrl:'',gmailSubject:'',gmailSender:'',createdAt:Date.now(),completedAt:null,initiativeId:null,source:'voice'});
+    discardVoice(false);persistAndRender();notice('Lembrete salvo na Entrada. Classifique a área e o prazo quando quiser.');
+  }
+  // Redesenhos em segundo plano (Gmail, nuvem) não interrompem a reprodução nem a digitação do lembrete.
+  function keepVoice(){const audio=$('#voice-notes .voice-audio'),field=document.activeElement;return {audio:audio&&voice.url&&audio.getAttribute('src')===voice.url?audio:null,field:['voice-text','voice-title'].includes(field?.id)?{id:field.id,start:field.selectionStart,end:field.selectionEnd}:null}}
+  function restoreVoice(kept){
+    const audio=$('#voice-notes .voice-audio');if(kept.audio&&audio&&audio.getAttribute('src')===kept.audio.getAttribute('src'))audio.replaceWith(kept.audio);
+    const field=kept.field&&document.getElementById(kept.field.id);if(field&&document.activeElement!==field){field.focus({preventScroll:true});try{field.setSelectionRange(kept.field.start,kept.field.end)}catch{}}
+  }
+  function discardVoice(redraw=true){
+    if(voiceRec){voiceRec.cancelled=true;try{voiceRec.recorder.stop()}catch{finishVoice(voiceRec)}}
+    if(voice.url)URL.revokeObjectURL(voice.url);
+    Object.assign(voice,{state:'idle',text:'',title:'',error:'',url:'',blob:null,mime:'',seconds:0,previous:null});
+    if(redraw)render();
+  }
+
   function renderInbox(){
-    return pageHead('Entrada','Revise e-mails e registros manuais antes de incluí-los na esteira.',`<div class="row">${button('+ Adicionar entrada','new-task',true)}</div>`)+workflowTrail()+(pendingShare?`<section class="card pending-share"><h3>Texto compartilhado recebido</h3><p class="smalltext">${html(pendingShare.title||pendingShare.text.slice(0,160))}</p><div class="row">${button('Revisar entrada','review-share',true)}${button('Descartar','discard-share')}</div></section>`:'')+renderGmailReview();
+    return pageHead('Entrada','Revise e-mails e registros manuais antes de incluí-los na esteira.',`<div class="row">${button('+ Adicionar entrada','new-task',true)}</div>`)+workflowTrail()+renderVoiceNotes()+(pendingShare?`<section class="card pending-share"><h3>Texto compartilhado recebido</h3><p class="smalltext">${html(pendingShare.title||pendingShare.text.slice(0,160))}</p><div class="row">${button('Revisar entrada','review-share',true)}${button('Descartar','discard-share')}</div></section>`:'')+renderGmailReview();
   }
 
   function renderPipelineBody(t,status){return `<div class="demand-body">${hasGeminiReview(t)?'<span class="gemini-status classified"><img src="./assets/gemini.svg" alt="Gemini" width="16" height="16">Analisado com Gemini</span>':''}<div class="task-meta">${urgencyBadge(t)}</div>${active(t)?'<span class="focus-indicator">● Em foco agora</span>':''}${validGmailUrl(t.gmailUrl)?`<button type="button" class="button small pipeline-gmail" data-open-email="${html(t.id)}" aria-label="Abrir Gmail" title="Abrir e-mail no Gmail"><img src="./assets/gmail.svg" alt="" width="18" height="14"></button>`:''}<div class="pipeline-actions">${status==='inbox'?button('Classificar','classify-task',false,`data-id="${html(t.id)}"`):status!=='done'?button(active(t)?'Abrir foco':'Focar','focus-task',false,`data-id="${html(t.id)}"`):'<span class="completed-label">✓ Entregue</span>'}${button('Detalhes','task-detail',false,`data-task="${html(t.id)}"`)}</div><div class="stage-actions">${['doing','waiting','done'].includes(status)?button('← Retornar','return-task',false,`data-id="${html(t.id)}"`):''}${status!=='done'?button(status==='inbox'?'Classificar →':status==='waiting'?'Concluir →':'Avançar →','advance-task',false,`data-id="${html(t.id)}"`):''}</div>${status!=='inbox'?`<select class="lane-move" data-move-task="${html(t.id)}" aria-label="Mover ${html(t.title)} para outra etapa"><option value="">Mover etapa…</option>${Object.entries(nameOfStatus).filter(([key])=>key!=='inbox'&&key!==status).map(([key,name])=>`<option value="${key}">${name}</option>`).join('')}</select>`:''}</div>`;}
@@ -491,7 +615,7 @@
     document.querySelectorAll('#sidebar-nav [data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===view.page));
     const inbox=db.tasks.filter(t=>workflow.stage(db,t)==='inbox').length;
     const count=$('#inbox-count');if(count){count.textContent=inbox;count.hidden=!inbox}
-    if(!(gmailOnly&&view.page==='entrada'&&patchGmailReview())){screen.innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,area:renderArea,'meus-projetos':renderMyProjects,'project-editor':renderProjectEditor,'project-assessment':renderProjectAssessment,agenda:renderCalendar,gmail:renderInbox,alertas:renderAlerts,tempo:renderTime})[view.page]();for(const card of screen.querySelectorAll('[data-email-card],[data-entry-card]'))card._renderedHTML=card.outerHTML;}tick();if(view.page==='entrada'){restoreEmailDrafts();scroll.scrollTop=previousScroll;let target;if(focusData){const form=screen.querySelector(`form[data-email-review="${CSS.escape(focusData.id)}"]`);target=form?.elements.namedItem(focusData.name);if(target){target.focus({preventScroll:true});try{if(focusData.start!==null)target.setSelectionRange(focusData.start,focusData.end);}catch{}scroll.scrollTop+=target.getBoundingClientRect().top-focusData.top;}}if(!target&&anchorData){const card=screen.querySelector(`[data-email-card="${CSS.escape(anchorData.id)}"]`);if(card)scroll.scrollTop+=card.getBoundingClientRect().top-anchorData.top;}}
+    if(!(gmailOnly&&view.page==='entrada'&&patchGmailReview())){const voiceKept=keepVoice();screen.innerHTML=({entrada:renderInbox,esteira:renderPipeline,foco:renderFocus,tarefas:renderTasks,projetos:renderProjects,area:renderArea,'meus-projetos':renderMyProjects,'project-editor':renderProjectEditor,'project-assessment':renderProjectAssessment,agenda:renderCalendar,gmail:renderInbox,alertas:renderAlerts,tempo:renderTime})[view.page]();for(const card of screen.querySelectorAll('[data-email-card],[data-entry-card]'))card._renderedHTML=card.outerHTML;restoreVoice(voiceKept);}tick();if(view.page==='entrada'){restoreEmailDrafts();scroll.scrollTop=previousScroll;let target;if(focusData){const form=screen.querySelector(`form[data-email-review="${CSS.escape(focusData.id)}"]`);target=form?.elements.namedItem(focusData.name);if(target){target.focus({preventScroll:true});try{if(focusData.start!==null)target.setSelectionRange(focusData.start,focusData.end);}catch{}scroll.scrollTop+=target.getBoundingClientRect().top-focusData.top;}}if(!target&&anchorData){const card=screen.querySelector(`[data-email-card="${CSS.escape(anchorData.id)}"]`);if(card)scroll.scrollTop+=card.getBoundingClientRect().top-anchorData.top;}}
   }
   function stop(t){if(!t)return;if(db.focus?.taskId===t.id)workflow.pause(db);else workflow.cancel(db,t.id)}
   function start(t){
@@ -787,6 +911,14 @@
       case 'area-new-task':newTask({project:view.areaId});break;
       case 'initiative-new-task':{const initiative=(db.initiatives||[]).find(p=>p.id===element.dataset.id&&p.areaId===view.areaId);if(initiative)newTask({project:view.areaId,initiativeId:initiative.id});break}
       case 'review-share':if(pendingShare)newTask({title:pendingShare.title||'Mensagem compartilhada',description:[pendingShare.text,pendingShare.url].filter(Boolean).join('\n\n').slice(0,7500),shareId:pendingShare.id,sharedUrl:pendingShare.url});break;
+      case 'voice-record':await startVoice();break;
+      case 'voice-stop':stopVoice();break;
+      case 'voice-cancel':discardVoice();break;
+      case 'voice-retry':await transcribeVoice();break;
+      case 'voice-improve':await improveVoice();break;
+      case 'voice-undo':undoVoice();break;
+      case 'voice-save':saveVoice();break;
+      case 'voice-discard':discardVoice();break;
       case 'discard-share':if(pendingShare){await FlowShareTarget.discard(pendingShare.id);pendingShare=null;render()}break;
       case 'new-task':newTask();break;
       case 'gmail-read-connect':flushPersist();try{await cloud.signIn('gmail')}catch(error){notice(error.message)}break;
@@ -881,6 +1013,9 @@
     const fieldMap={'edit-title':'title','edit-project':'project','edit-status':'status','edit-planned':'plannedDate','edit-time':'plannedTime','edit-due':'dueDate','edit-description':'description'};
     if(fieldMap[x.id] && t){const field=fieldMap[x.id];if(field==='status'&&x.value==='done'){workflow.cancel(db,t.id);t.completedAt=Date.now()}if(field==='status'&&t.status==='done'&&x.value!=='done')t.completedAt=null;t[field]=x.value;if((field==='project'||field==='dueDate')&&!workflow.classified(db,t))workflow.cancel(db,t.id);if(field==='status'&&x.value!=='doing')workflow.cancel(db,t.id);persistAndRender()}
   });
+  window.addEventListener('beforeunload',e=>{if(voiceRec||(voice.state!=='idle'&&(voice.blob||voice.text.trim()))){e.preventDefault();e.returnValue=''}});
+  document.addEventListener('visibilitychange',async()=>{const rec=voiceRec;if(document.hidden||!rec||rec.done||rec.wake&&!rec.wake.released)return;try{rec.wake=await navigator.wakeLock?.request('screen')}catch{}if(voiceRec!==rec)try{rec.wake?.release()}catch{}});
+  document.addEventListener('input',e=>{if(e.target.id==='voice-text'){voice.text=e.target.value;syncVoiceButtons()}else if(e.target.id==='voice-title')voice.title=e.target.value});
   document.addEventListener('input',e=>{if(e.target.id==='edit-description'){const t=selectedTask();if(t){t.description=e.target.value;persist()}}});
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape'){if(pipelineDrag?.active)suppressDragClickUntil=Date.now()+400;cancelPipelineDrag();closeModal();return}

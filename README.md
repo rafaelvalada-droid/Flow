@@ -83,6 +83,10 @@ Gmail e registros manuais agora compartilham a Entrada. Cada e-mail tem **Arquiv
 
 A análise Gemini consulta os modelos disponíveis quando o configurado retorna 404. Modelos que rejeitam o esquema estruturado usam uma chamada compatível, mantendo a validação da resposta. Erros 400 mostram o parâmetro rejeitado, com credenciais removidas da mensagem.
 
+### Lembretes de voz
+
+No topo da Entrada, **Gravar lembrete** grava pelo microfone do navegador (até 3 minutos, com relógio, medidor de volume e tela do celular sempre acesa). A gravação inteira vai de uma vez para `/api/voice-note`, que transcreve com Gemini e sugere um título; o texto pode ser editado, reescrito com **Melhorar com Gemini** (com **Desfazer melhoria**) e salvo com **Salvar na Entrada**, como entrada sem área e sem prazo marcada "🎙 Lembrete de voz", para classificar depois. Só o texto é salvo; o áudio fica na tela até salvar ou descartar. Se o Gemini recusar o formato do navegador (webm/mp4), o app reenvia a gravação convertida em WAV mono. Se a transcrição falhar, a gravação continua na tela para **Transcrever de novo** ou para digitar o texto. A rota usa a mesma conta Google, `FLOW_ALLOWED_EMAILS`, cota diária e `GEMINI_REVIEW_MODEL` da análise de e-mails. Sem login Google, dá para gravar, ouvir e digitar, mas não transcrever. Testes: `npm run test:voice`.
+
 ## Instalar no Android
 
 Abra o UlbraFlow no Chrome normal e escolha menu ⋮ → Adicionar à tela inicial → Instalar. O manifesto define nome, ícones 192/512 e abertura standalone. O service worker guarda apenas a página pública de reconexão; APIs, e-mails e dados da conta não são colocados em cache. `npm run test:pwa` verifica os critérios de instalação do Chrome e o fallback sem conexão. O aplicativo continua exigindo internet para autenticar e sincronizar.

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
-    "check": "node --check areas.js && node --check workflow.js && node --check cloud.js && node --check calendar.js && node --check time-report.js && node --check report-pdf.js && node --check app.js && node --check server.mjs && node --check api/auth-config.mjs && node --check api/google-token.mjs && node --check api/_project-plan.mjs && node --check api/gmail-review.mjs && node --check api/gemini.mjs && node --check extensao-chrome/shared.js && node --check extensao-chrome/background.js && node --check extensao-chrome/gmail.js && node --check extensao-chrome/flow-bridge.js && node --check extensao-chrome/popup.js && node --check gmail-review.js && node --check api/gmail-review.mjs && node --check service-worker.js && node --check install-app.js && node --check share-target.js",
+    "check": "node --check areas.js && node --check workflow.js && node --check cloud.js && node --check calendar.js && node --check time-report.js && node --check report-pdf.js && node --check app.js && node --check server.mjs && node --check api/auth-config.mjs && node --check api/google-token.mjs && node --check api/_project-plan.mjs && node --check api/gmail-review.mjs && node --check api/gemini.mjs && node --check api/voice-note.mjs && node --check extensao-chrome/shared.js && node --check extensao-chrome/background.js && node --check extensao-chrome/gmail.js && node --check extensao-chrome/flow-bridge.js && node --check extensao-chrome/popup.js && node --check gmail-review.js && node --check api/gmail-review.mjs && node --check service-worker.js && node --check install-app.js && node --check share-target.js",
     "test": "npm run check && npm run test:unit && npm run test:browser",
     "test:unit": "node --test \"tests/*.test.mjs\"",
     "test:browser": "python3 scripts/run-browser-tests.py",
@@ -28,7 +28,8 @@
     "test:pwa": "python3 tests/pwa-smoke.py",
     "test:share": "python3 tests/share-target-smoke.py",
     "test:security": "python3 scripts/run-browser-tests.py app-security cloud-csp",
-    "test:opening": "python3 scripts/run-browser-tests.py opening"
+    "test:opening": "python3 scripts/run-browser-tests.py opening",
+    "test:voice": "node --test tests/cloud-voice-note.test.mjs && python3 scripts/run-browser-tests.py app-voice"
   },
   "engines": {
     "node": "24.x"
