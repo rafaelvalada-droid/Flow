@@ -12,11 +12,12 @@ BASE = os.environ.get('FLOW_TEST_URL', 'http://127.0.0.1:3000')
 FAKE_CLOUD = '''window.FlowCloud={initialize:async()=>({mode:'cloud',key:'test-workspace',data:{version:1,areaCatalogVersion:5,projects:[{id:'oferta',name:'Oferta de turmas',color:'#507ee9'}],tasks:[],preferences:{}}}),info:()=>({mode:'cloud',user:{id:'test-owner',email:'user@ulbra.br'},status:'saved'}),queue:()=>{},flush:async()=>{},calendarToken:()=>null,gmailToken:()=>null,signIn:async()=>{},
 voiceNote:async body=>{const r=await fetch('/api/voice-note',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Object.assign(new Error(data.error),{status:r.status,code:data.code});return data}};'''
 DUE = (date.today() + timedelta(days=7)).isoformat()
-CLASSIFIED = {'title': 'Preparar o relatório de matrículas', 'description': 'Consolidar os números da oferta.', 'areaId': 'oferta', 'dueDate': DUE,
-              'dateEvidence': 'sexta que vem', 'transcript': 'Preparar o relatório de matrículas, área oferta, até sexta que vem.', 'modelUsed': 'gemini-2.5-flash'}
+CLASSIFIED = {'title': 'Relatório de matrículas', 'description': 'Consolidar os números da oferta.', 'areaId': 'oferta', 'dueDate': DUE,
+              'dateEvidence': 'sexta que vem', 'transcript': 'Relatório de matrículas. Consolidar os números da oferta. Área oferta. Até sexta que vem. Subtarefas: um, levantar os dados; dois, montar a planilha.',
+              'subtasks': ['Levantar os dados', 'Montar a planilha'], 'modelUsed': 'gemini-2.5-flash'}
 # Área inexistente e sem prazo: a demanda fica na Entrada para completar a classificação.
-PARTIAL = {'title': 'Ligar para a coordenação', 'description': '', 'areaId': 'inexistente', 'dueDate': '', 'dateEvidence': '', 'transcript': 'Ligar para a coordenação.'}
-TYPED = {'title': 'Conferir a escala', 'description': '', 'areaId': 'oferta', 'dueDate': DUE, 'dateEvidence': 'dia 25', 'transcript': 'Conferir a escala, área oferta, até dia 25'}
+PARTIAL = {'title': 'Ligar para a coordenação', 'description': '', 'areaId': 'inexistente', 'dueDate': '', 'dateEvidence': '', 'transcript': 'Ligar para a coordenação.', 'subtasks': []}
+TYPED = {'title': 'Conferir a escala', 'description': '', 'areaId': 'oferta', 'dueDate': DUE, 'dateEvidence': 'dia 25', 'transcript': 'Conferir a escala, área oferta, até dia 25', 'subtasks': []}
 
 
 async def stored(page):
@@ -54,6 +55,7 @@ async def run():
         voice = page.locator('#voice-notes')
         record = voice.get_by_role('button', name='Falar demanda')
         result = voice.locator('.voice-result')
+        await expect(voice).to_contain_text('Fale nesta ordem: nome da demanda, descrição, área e prazo. Para subtarefas, diga “subtarefas” e enumere.')
         today = await page.evaluate("(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})()")
 
         await record.click()
@@ -82,11 +84,18 @@ async def run():
         await expect(result).to_contain_text('“sexta que vem”')
         await expect(result).to_contain_text('Já está na Esteira, em A fazer.')
         await expect(result).to_contain_text('Entendi: “' + CLASSIFIED['transcript'] + '”')
+        await expect(result.locator('.voice-subtasks-title')).to_have_text('Subtarefas (2)')
+        await expect(result.locator('.voice-subtasks li')).to_have_text(CLASSIFIED['subtasks'])
         task = (await stored(page))[0]
         assert task['title'] == CLASSIFIED['title'] and task['project'] == 'oferta' and task['dueDate'] == DUE and task['status'] == 'todo', task
         assert task['source'] == 'voice' and task['description'] == CLASSIFIED['description'] and task['geminiClassified'] is True, task
+        assert [(sub['text'], sub['done']) for sub in task['subtasks']] == [('Levantar os dados', False), ('Montar a planilha', False)] and all(sub['id'] for sub in task['subtasks']), task['subtasks']
         await expect(page.locator('[data-entry-card]').filter(has_text=CLASSIFIED['title'])).to_have_count(0)
-        print('PASS Speaking a demand sends the whole recording with the areas and today; it is created classified, straight to A fazer', flush=True)
+        await result.get_by_role('button', name='Abrir demanda').click()
+        await expect(page.locator('label.subtask')).to_contain_text(CLASSIFIED['subtasks'])
+        await page.locator('#sidebar-nav [data-page="entrada"]').click()
+        await expect(result).to_contain_text(CLASSIFIED['title'])
+        print('PASS Speaking a demand sends the whole recording with the areas and today; it is created classified with its subtasks, straight to A fazer', flush=True)
 
         await voice.get_by_role('button', name='Desfazer').click()
         await expect(result).to_have_count(0)
@@ -103,7 +112,8 @@ async def run():
         card = page.locator('[data-entry-card]').filter(has_text=PARTIAL['title'])
         await expect(card).to_contain_text('Criada com Gemini')
         task = (await stored(page))[0]
-        assert task['project'] == '' and task['dueDate'] == '' and task['geminiClassified'] is False, task
+        assert task['project'] == '' and task['dueDate'] == '' and task['geminiClassified'] is False and task['subtasks'] == [], task
+        await expect(result.locator('.voice-subtasks')).to_have_count(0)
         print('PASS Without a known area or a date the demand waits in the Entrada, marked as created with Gemini', flush=True)
 
         typed = voice.locator('#voice-typed')

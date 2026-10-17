@@ -10,7 +10,7 @@ const emailOnly = {id: ID, email: 'pessoa@ulbra.br', app_metadata: {provider: 'e
 const AUDIO = 'GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwH/////////'.repeat(4);
 const AREAS = [{id: 'oferta', name: 'Oferta de turmas'}, {id: 'folha', name: 'Folha docente'}];
 const base = {mode: 'demand', today: '2026-10-16', areas: AREAS};
-const DEMAND = {transcript: 'Preparar o relatório de matrículas, área oferta, até sexta que vem.', title: 'Preparar o relatório de matrículas', description: 'Consolidar os números.', areaId: 'oferta', dueDate: '2026-10-23', dateEvidence: 'sexta que vem'};
+const DEMAND = {transcript: 'Relatório de matrículas. Consolidar os números. Área oferta. Até sexta que vem. Subtarefas: um, levantar os dados; dois, montar a planilha.', title: 'Relatório de matrículas', description: 'Consolidar os números.', areaId: 'oferta', dueDate: '2026-10-23', dateEvidence: 'sexta que vem', subtasks: ['Levantar os dados', 'Montar a planilha']};
 const answer = value => Response.json({candidates: [{content: {parts: [{text: JSON.stringify(value)}]}}]});
 
 async function call(body, {user = google, gemini = () => answer(DEMAND), env = {}, headers = {}} = {}) {
@@ -65,11 +65,19 @@ test('the calendar gives Gemini real weekdays to resolve "sexta", "amanhã" and 
 
 test('validateDemand keeps only an area from the list and a real date, and drops the evidence without a date', () => {
   const body = {areas: AREAS};
-  assert.deepEqual(validateDemand(DEMAND, body), {title: DEMAND.title, description: DEMAND.description, transcript: DEMAND.transcript, areaId: 'oferta', dueDate: '2026-10-23', dateEvidence: 'sexta que vem'});
+  assert.deepEqual(validateDemand(DEMAND, body), {title: DEMAND.title, description: DEMAND.description, transcript: DEMAND.transcript, areaId: 'oferta', dueDate: '2026-10-23', dateEvidence: 'sexta que vem', subtasks: ['Levantar os dados', 'Montar a planilha']});
   const loose = validateDemand({...DEMAND, title: '  ' + 'x'.repeat(300), areaId: 'inventada', dueDate: '2026-02-30'}, body);
   assert.equal(loose.title.length, 180); assert.equal(loose.areaId, ''); assert.equal(loose.dueDate, ''); assert.equal(loose.dateEvidence, '');
-  assert.deepEqual(validateDemand(null, body), {title: '', description: '', transcript: '', areaId: '', dueDate: '', dateEvidence: ''});
+  assert.deepEqual(validateDemand(null, body), {title: '', description: '', transcript: '', areaId: '', dueDate: '', dateEvidence: '', subtasks: []});
   assert.equal(validateDemand({...DEMAND, areaId: 42}, body).areaId, '');
+});
+
+test('subtasks keep the spoken order and drop empty, non-text and excess items', () => {
+  const body = {areas: AREAS};
+  assert.deepEqual(validateDemand({...DEMAND, subtasks: ['  Levantar os dados ', '', 7, null, 'x'.repeat(300)]}, body).subtasks, ['Levantar os dados', 'x'.repeat(180)]);
+  assert.equal(validateDemand({...DEMAND, subtasks: Array.from({length: 40}, (_, i) => 'Etapa ' + (i + 1))}, body).subtasks.length, 30);
+  assert.deepEqual(validateDemand({...DEMAND, subtasks: 'levantar, montar'}, body).subtasks, []);
+  assert.deepEqual(validateDemand({...DEMAND, subtasks: undefined}, body).subtasks, []);
 });
 
 test('a recording goes inline to Gemini with today, the calendar and the areas, after auth and quota', async () => {
@@ -86,8 +94,12 @@ test('a recording goes inline to Gemini with today, the calendar and the areas, 
   assert.deepEqual(context.areas, AREAS);
   assert.equal(context.texto, undefined);
   assert.equal(sent.generationConfig.temperature, 0);
-  assert.deepEqual(sent.generationConfig.responseSchema.required, ['transcript', 'title', 'description', 'areaId', 'dueDate', 'dateEvidence']);
-  assert.match(sent.systemInstruction.parts[0].text, /sem inventar/);
+  assert.deepEqual(sent.generationConfig.responseSchema.required, ['transcript', 'title', 'description', 'areaId', 'dueDate', 'dateEvidence', 'subtasks']);
+  assert.deepEqual(sent.generationConfig.responseSchema.properties.subtasks, {type: 'ARRAY', items: {type: 'STRING'}});
+  const instruction = sent.systemInstruction.parts[0].text;
+  assert.match(instruction, /1\) o nome da demanda; 2\) a descrição; 3\) a classificação, isto é, a área; 4\) a data do prazo; e, se quiser, 5\) as subtarefas/);
+  assert.match(instruction, /nunca invente subtarefas/);
+  assert.match(instruction, /sem inventar/);
 });
 
 test('a typed demand sends only text and the same context', async () => {
