@@ -1,16 +1,26 @@
-"""Lembretes de voz na Entrada: gravação real do navegador (microfone simulado do Chromium), transcrição,
-melhoria com Gemini, salvamento como entrada e falhas. A rota /api/voice-note e a nuvem são simuladas."""
+"""Criar demanda com Gemini na Entrada: gravação real do navegador (microfone simulado do Chromium), envio
+com áreas e data de hoje, demanda criada já classificada ou na Entrada, desfazer, texto digitado, falhas e
+reenvio em WAV. A rota /api/voice-note e a nuvem são simuladas."""
 import asyncio
 import base64
-import struct
 import os
+import struct
+from datetime import date, timedelta
 from playwright.async_api import async_playwright, expect
 
 BASE = os.environ.get('FLOW_TEST_URL', 'http://127.0.0.1:3000')
 FAKE_CLOUD = '''window.FlowCloud={initialize:async()=>({mode:'cloud',key:'test-workspace',data:{version:1,areaCatalogVersion:5,projects:[{id:'oferta',name:'Oferta de turmas',color:'#507ee9'}],tasks:[],preferences:{}}}),info:()=>({mode:'cloud',user:{id:'test-owner',email:'user@ulbra.br'},status:'saved'}),queue:()=>{},flush:async()=>{},calendarToken:()=>null,gmailToken:()=>null,signIn:async()=>{},
 voiceNote:async body=>{const r=await fetch('/api/voice-note',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Object.assign(new Error(data.error),{status:r.status,code:data.code});return data}};'''
-TRANSCRIBED = {'text': 'Ligar para a coordenação amanhã sobre a escala.', 'title': 'Ligar para a coordenação'}
-IMPROVED = {'text': 'Ligar amanhã para a coordenação e confirmar a escala.', 'title': 'Confirmar a escala com a coordenação'}
+DUE = (date.today() + timedelta(days=7)).isoformat()
+CLASSIFIED = {'title': 'Preparar o relatório de matrículas', 'description': 'Consolidar os números da oferta.', 'areaId': 'oferta', 'dueDate': DUE,
+              'dateEvidence': 'sexta que vem', 'transcript': 'Preparar o relatório de matrículas, área oferta, até sexta que vem.', 'modelUsed': 'gemini-2.5-flash'}
+# Área inexistente e sem prazo: a demanda fica na Entrada para completar a classificação.
+PARTIAL = {'title': 'Ligar para a coordenação', 'description': '', 'areaId': 'inexistente', 'dueDate': '', 'dateEvidence': '', 'transcript': 'Ligar para a coordenação.'}
+TYPED = {'title': 'Conferir a escala', 'description': '', 'areaId': 'oferta', 'dueDate': DUE, 'dateEvidence': 'dia 25', 'transcript': 'Conferir a escala, área oferta, até dia 25'}
+
+
+async def stored(page):
+    return await page.evaluate("JSON.parse(localStorage.getItem('test-workspace')).tasks")
 
 
 async def run():
@@ -18,7 +28,7 @@ async def run():
         browser = await p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH', '/usr/bin/chromium'),
                                           args=['--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'])
         context = await browser.new_context(viewport={'width': 1280, 'height': 1000})
-        state = {'requests': [], 'fail': False}
+        state = {'requests': [], 'fail': False, 'wav_only': False, 'answer': CLASSIFIED}
 
         async def route(req):
             url = req.request.url
@@ -29,10 +39,10 @@ async def run():
                 state['requests'].append(body)
                 if state['fail']:
                     await req.fulfill(status=502, json={'error': 'O Gemini demorou demais para responder.'})
-                elif state.get('wav_only') and body.get('mimeType', 'audio/wav') != 'audio/wav':
+                elif state['wav_only'] and 'audio' in body and body['mimeType'] != 'audio/wav':
                     await req.fulfill(status=502, json={'error': 'O Gemini recusou o pedido.', 'upstreamStatus': 400, 'code': 'audio-format'})
                 else:
-                    await req.fulfill(json=TRANSCRIBED if body['mode'] == 'transcribe' else IMPROVED)
+                    await req.fulfill(json=TYPED if 'text' in body else state['answer'])
             else:
                 await req.continue_()
         await context.route('**/*', route)
@@ -42,7 +52,9 @@ async def run():
         await page.goto(BASE)
         await expect(page.locator('.page-head h1')).to_have_text('Entrada')
         voice = page.locator('#voice-notes')
-        record = voice.get_by_role('button', name='Gravar lembrete')
+        record = voice.get_by_role('button', name='Falar demanda')
+        result = voice.locator('.voice-result')
+        today = await page.evaluate("(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')})()")
 
         await record.click()
         await expect(voice.locator('#voice-time')).to_be_visible()
@@ -61,67 +73,76 @@ async def run():
 
         await record.click()
         await page.wait_for_timeout(2200)
-        await voice.get_by_role('button', name='Parar e transcrever').click()
-        await expect(voice.locator('#voice-text')).to_have_value(TRANSCRIBED['text'])
-        await expect(voice.locator('#voice-title')).to_have_value(TRANSCRIBED['title'])
+        await voice.get_by_role('button', name='Parar e criar demanda').click()
+        await expect(result).to_contain_text(CLASSIFIED['title'])
         sent = state['requests'][-1]
-        assert sent['mode'] == 'transcribe' and sent['mimeType'].startswith('audio/') and len(sent['audio']) > 1000, {k: (v if k != 'audio' else len(v)) for k, v in sent.items()}
-        assert (await voice.locator('audio').get_attribute('src')).startswith('blob:')
-        print('PASS Stopping uploads the whole recording once and fills an editable title and text; the recording can be played back', flush=True)
+        assert sent['mode'] == 'demand' and sent['today'] == today and sent['mimeType'].startswith('audio/') and len(sent['audio']) > 1000, {k: (v if k != 'audio' else len(v)) for k, v in sent.items()}
+        assert {'id': 'oferta', 'name': 'Oferta de turmas'} in sent['areas'], sent['areas']
+        await expect(result).to_contain_text('Oferta de turmas')
+        await expect(result).to_contain_text('“sexta que vem”')
+        await expect(result).to_contain_text('Já está na Esteira, em A fazer.')
+        await expect(result).to_contain_text('Entendi: “' + CLASSIFIED['transcript'] + '”')
+        task = (await stored(page))[0]
+        assert task['title'] == CLASSIFIED['title'] and task['project'] == 'oferta' and task['dueDate'] == DUE and task['status'] == 'todo', task
+        assert task['source'] == 'voice' and task['description'] == CLASSIFIED['description'] and task['geminiClassified'] is True, task
+        await expect(page.locator('[data-entry-card]').filter(has_text=CLASSIFIED['title'])).to_have_count(0)
+        print('PASS Speaking a demand sends the whole recording with the areas and today; it is created classified, straight to A fazer', flush=True)
 
-        await voice.get_by_role('button', name='Melhorar com Gemini').click()
-        await expect(voice.locator('#voice-text')).to_have_value(IMPROVED['text'])
-        assert state['requests'][-1] == {'mode': 'improve', 'text': TRANSCRIBED['text']}
-        await voice.get_by_role('button', name='Desfazer melhoria').click()
-        await expect(voice.locator('#voice-text')).to_have_value(TRANSCRIBED['text'])
-        await voice.get_by_role('button', name='Melhorar com Gemini').click()
-        await expect(voice.locator('#voice-title')).to_have_value(IMPROVED['title'])
-        print('PASS Melhorar com Gemini rewrites title and text and can be undone', flush=True)
-
-        await page.evaluate("document.querySelector('#voice-notes')._old=1;document.querySelector('#voice-notes .voice-audio')._kept=1")
-        await voice.locator('#voice-text').click()
-        await voice.locator('#voice-text').press('End')
-        await voice.locator('#voice-text').press_sequentially(' Extra')
-        await page.evaluate("dispatchEvent(new CustomEvent('flow:cloud-remote-merged',{detail:{data:JSON.parse(localStorage.getItem('test-workspace'))}}))")
-        kept = await page.evaluate("({redrawn:!document.querySelector('#voice-notes')._old,audio:document.querySelector('#voice-notes .voice-audio')._kept===1,focus:document.activeElement.id})")
-        assert kept == {'redrawn': True, 'audio': True, 'focus': 'voice-text'}, kept
-        await expect(voice.locator('#voice-text')).to_have_value(IMPROVED['text'] + ' Extra')
-        await voice.locator('#voice-text').fill(IMPROVED['text'])
-        print('PASS A background redraw keeps the playing recording, the typed text and the cursor', flush=True)
-
-        await voice.get_by_role('button', name='Salvar na Entrada').click()
+        await voice.get_by_role('button', name='Desfazer').click()
+        await expect(result).to_have_count(0)
         await expect(record).to_be_visible()
-        card = page.locator('[data-entry-card]').filter(has_text=IMPROVED['title'])
-        await expect(card).to_be_visible()
-        await expect(card).to_contain_text('Lembrete de voz')
-        task = await page.evaluate("JSON.parse(localStorage.getItem('test-workspace')).tasks[0]")
-        assert task['source'] == 'voice' and task['title'] == IMPROVED['title'] and task['description'] == IMPROVED['text'], task
-        assert task['project'] == '' and task['dueDate'] == '' and task['status'] == 'todo'
-        print('PASS Salvar na Entrada creates an unclassified entry marked as a voice reminder, ready to classify', flush=True)
+        assert await stored(page) == []
+        print('PASS Desfazer removes the demand that was just created', flush=True)
 
-        state['fail'] = True
+        state['answer'] = PARTIAL
         await record.click()
         await page.wait_for_timeout(1500)
-        await voice.get_by_role('button', name='Parar e transcrever').click()
-        await expect(voice.locator('.voice-error')).to_contain_text('Não foi possível transcrever')
-        await expect(voice.get_by_role('button', name='Salvar na Entrada')).to_be_disabled()
+        await voice.get_by_role('button', name='Parar e criar demanda').click()
+        await expect(result).to_contain_text('falta a área e o prazo')
+        await expect(result.get_by_role('button', name='Classificar →')).to_be_visible()
+        card = page.locator('[data-entry-card]').filter(has_text=PARTIAL['title'])
+        await expect(card).to_contain_text('Criada com Gemini')
+        task = (await stored(page))[0]
+        assert task['project'] == '' and task['dueDate'] == '' and task['geminiClassified'] is False, task
+        print('PASS Without a known area or a date the demand waits in the Entrada, marked as created with Gemini', flush=True)
+
+        typed = voice.locator('#voice-typed')
+        await expect(voice.get_by_role('button', name='Criar com Gemini')).to_be_disabled()
+        await typed.fill('Conferir a escala, área oferta, até dia 25')
+        await typed.press('Enter')
+        await expect(result).to_contain_text(TYPED['title'])
+        assert state['requests'][-1] == {'mode': 'demand', 'today': today, 'areas': sent['areas'], 'text': 'Conferir a escala, área oferta, até dia 25'}, state['requests'][-1]
+        await expect(typed).to_have_value('')
+        assert [t['title'] for t in await stored(page)][:2] == [TYPED['title'], PARTIAL['title']]
+        print('PASS A typed demand goes to Gemini the same way (Enter or the button) and the field is cleared', flush=True)
+
+        state['fail'] = True
+        state['answer'] = CLASSIFIED
+        await record.click()
+        await page.wait_for_timeout(1500)
+        await voice.get_by_role('button', name='Parar e criar demanda').click()
+        await expect(voice.locator('.voice-error')).to_contain_text('Não foi possível criar a demanda')
+        assert (await voice.locator('audio').get_attribute('src')).startswith('blob:')
+        await page.evaluate("document.querySelector('#voice-notes')._old=1;document.querySelector('#voice-notes .voice-audio')._kept=1")
+        await typed.click()
+        await typed.press_sequentially('Rascunho')
+        await page.evaluate("dispatchEvent(new CustomEvent('flow:cloud-remote-merged',{detail:{data:JSON.parse(localStorage.getItem('test-workspace'))}}))")
+        kept = await page.evaluate("({redrawn:!document.querySelector('#voice-notes')._old,audio:document.querySelector('#voice-notes .voice-audio')._kept===1,focus:document.activeElement.id})")
+        assert kept == {'redrawn': True, 'audio': True, 'focus': 'voice-typed'}, kept
+        await expect(typed).to_have_value('Rascunho')
+        await typed.fill('')
         state['fail'] = False
-        await voice.get_by_role('button', name='Transcrever de novo').click()
-        await expect(voice.locator('#voice-text')).to_have_value(TRANSCRIBED['text'])
+        await voice.get_by_role('button', name='Tentar de novo').click()
+        await expect(result).to_contain_text(CLASSIFIED['title'])
         await expect(voice.locator('.voice-error')).to_have_count(0)
-        await voice.locator('#voice-text').fill('Texto digitado à mão')
-        await expect(voice.get_by_role('button', name='Salvar na Entrada')).to_be_enabled()
-        await voice.get_by_role('button', name='Descartar').click()
-        await expect(record).to_be_visible()
-        print('PASS A failed transcription keeps the recording for a retry; typed text can be saved; Descartar resets', flush=True)
+        print('PASS A failed request keeps the recording to retry; a background redraw keeps the audio, the typed text and the cursor', flush=True)
 
         state['wav_only'] = True
         before = len(state['requests'])
         await record.click()
         await page.wait_for_timeout(2200)
-        await voice.get_by_role('button', name='Parar e transcrever').click()
-        await expect(voice.locator('#voice-text')).to_have_value(TRANSCRIBED['text'])
-        await expect(voice.locator('.voice-error')).to_have_count(0)
+        await voice.get_by_role('button', name='Parar e criar demanda').click()
+        await expect(result).to_contain_text(CLASSIFIED['title'])
         compressed, wav = state['requests'][before:]
         assert compressed['mimeType'] != 'audio/wav' and wav['mimeType'] == 'audio/wav', (compressed['mimeType'], wav['mimeType'])
         header = base64.b64decode(wav['audio'][:64])
@@ -133,23 +154,24 @@ async def run():
         peak = max(abs(v) for (v,) in struct.iter_unpack('<h', pcm[:len(pcm) // 2 * 2]))
         assert peak > 1000, f'o WAV ficou em silêncio (pico {peak})'
         state['wav_only'] = False
-        await voice.get_by_role('button', name='Descartar').click()
         print('PASS When Gemini refuses the browser audio format, the recording is resent once as 16 kHz mono WAV', flush=True)
 
         await page.set_viewport_size({'width': 390, 'height': 844})
+        assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         await record.click()
-        await expect(voice.get_by_role('button', name='Parar e transcrever')).to_be_visible()
+        await expect(voice.get_by_role('button', name='Parar e criar demanda')).to_be_visible()
         assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         await voice.get_by_role('button', name='Cancelar').click()
-        print('PASS The recording controls fit a 390 px phone', flush=True)
+        print('PASS The result card and the recording controls fit a 390 px phone', flush=True)
 
         denied = await context.new_page()
         denied.on('pageerror', lambda error: errors.append(str(error)))
         await denied.add_init_script("navigator.mediaDevices.getUserMedia=()=>Promise.reject(new DOMException('Permission denied','NotAllowedError'))")
         await denied.goto(BASE)
-        await denied.locator('#voice-notes').get_by_role('button', name='Gravar lembrete').click()
+        await denied.locator('#voice-notes').get_by_role('button', name='Falar demanda').click()
         await expect(denied.locator('#voice-notes .voice-error')).to_contain_text('O microfone está bloqueado')
-        print('PASS A blocked microphone explains how to allow it', flush=True)
+        await expect(denied.locator('#voice-typed')).to_be_visible()
+        print('PASS A blocked microphone explains how to allow it and the demand can still be typed', flush=True)
         assert not errors, errors
         await browser.close()
 
