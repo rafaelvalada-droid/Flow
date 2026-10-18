@@ -35,8 +35,8 @@ async def run():
         assert await page.locator('#flow-opening').count()==0
         assert not await page.evaluate('window.__openingSeen')
         assert await page.evaluate('navigator.webdriver')
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(page.locator('.pipeline-board')).to_be_visible()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await expect(page.locator('.today-layout')).to_be_visible()
         assert not errors,errors
         await context.close()
         passed('Automated browsers never see the opening and use the app immediately')
@@ -49,7 +49,7 @@ async def run():
         await expect(page.locator('#fo-title')).to_have_text('Entre em Fluxo.')
         await expect(page.locator('[data-fo-beat="2"] h2')).to_be_visible()
         await expect(page.locator('[data-fo-beat="3"] h2')).to_be_visible()
-        await expect(page.locator('.fo-stages li')).to_have_text(['01Classificar','02Preparar','03Executar','04Aguardar','05Entregar'])
+        await expect(page.locator('.fo-stages li')).to_have_text(['01Capturar','02Classificar','03Agendar','04Executar','05Concluir'])
         assert await page.locator('.fo-dots circle').count()==60
         assert await page.evaluate('document.activeElement.matches("[data-fo-enter]")')
         assert await page.evaluate('document.querySelector(".app-shell").inert')
@@ -69,8 +69,8 @@ async def run():
         assert not await page.evaluate('document.documentElement.classList.contains("flow-opening")')
         assert not await page.evaluate('document.querySelector(".app-shell").inert')
         assert await page.evaluate('document.querySelector(".app-shell").contains(document.activeElement)')
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(page.locator('.pipeline-board')).to_be_visible()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await expect(page.locator('.today-layout')).to_be_visible()
         assert not errors,errors
         assert await page.evaluate('window.__csp')==[]
         await context.close()

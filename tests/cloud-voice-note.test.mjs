@@ -10,7 +10,8 @@ const emailOnly = {id: ID, email: 'pessoa@ulbra.br', app_metadata: {provider: 'e
 const AUDIO = 'GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwH/////////'.repeat(4);
 const AREAS = [{id: 'oferta', name: 'Oferta de turmas'}, {id: 'folha', name: 'Folha docente'}];
 const base = {mode: 'demand', today: '2026-10-16', areas: AREAS};
-const DEMAND = {transcript: 'Relatório de matrículas. Consolidar os números. Área oferta. Até sexta que vem. Subtarefas: um, levantar os dados; dois, montar a planilha.', title: 'Relatório de matrículas', description: 'Consolidar os números.', areaId: 'oferta', dueDate: '2026-10-23', dateEvidence: 'sexta que vem', subtasks: ['Levantar os dados', 'Montar a planilha']};
+const DEMAND = {transcript: 'Relatório de matrículas. Classificação oferta. Consolidar os números. Sexta que vem. Reserve uma hora e meia. Subtarefas: um, levantar os dados; dois, montar a planilha.', title: 'Relatório de matrículas', areaId: 'oferta', projectId: '', description: 'Consolidar os números.', dueDate: '2026-10-23', dateEvidence: 'sexta que vem', duration: 90, subtasks: ['Levantar os dados', 'Montar a planilha']};
+const PROJECTS = [{id: 'caixa', name: 'Caixa da ouvidoria', areaId: 'folha'}];
 const answer = value => Response.json({candidates: [{content: {parts: [{text: JSON.stringify(value)}]}}]});
 
 async function call(body, {user = google, gemini = () => answer(DEMAND), env = {}, headers = {}} = {}) {
@@ -38,9 +39,11 @@ async function call(body, {user = google, gemini = () => answer(DEMAND), env = {
 }
 
 test('parseVoiceBody accepts a recording or a typed demand with today and the areas, and rejects the rest', () => {
-  assert.deepEqual(parseVoiceBody(JSON.stringify({...base, mimeType: 'audio/webm;codecs=opus', audio: AUDIO})), {today: '2026-10-16', areas: AREAS, mimeType: 'audio/webm', audio: AUDIO});
+  assert.deepEqual(parseVoiceBody(JSON.stringify({...base, mimeType: 'audio/webm;codecs=opus', audio: AUDIO})), {today: '2026-10-16', areas: AREAS, projects: [], mimeType: 'audio/webm', audio: AUDIO});
   assert.equal(parseVoiceBody(JSON.stringify({...base, mimeType: 'Audio/MP4', audio: AUDIO})).mimeType, 'audio/mp4');
-  assert.deepEqual(parseVoiceBody(JSON.stringify({...base, text: 'Conferir a escala'})), {today: '2026-10-16', areas: AREAS, text: 'Conferir a escala'});
+  assert.deepEqual(parseVoiceBody(JSON.stringify({...base, text: 'Conferir a escala'})), {today: '2026-10-16', areas: AREAS, projects: [], text: 'Conferir a escala'});
+  assert.deepEqual(parseVoiceBody(JSON.stringify({...base, projects: [{...PROJECTS[0], color: 'x'}], text: 'x'})).projects, PROJECTS);
+  for (const projects of ['caixa', [{id: 'p', name: 'P', areaId: 'outra'}], [{id: '', name: 'P', areaId: 'oferta'}], [{id: 'p', name: 3, areaId: 'oferta'}], Array.from({length: 201}, (_, i) => ({id: 'p' + i, name: 'P', areaId: 'oferta'}))]) assert.equal(parseVoiceBody(JSON.stringify({...base, projects, text: 'x'})).error, 'Projetos inválidos.');
   assert.deepEqual(parseVoiceBody(JSON.stringify({...base, areas: [{id: 'a', name: 'A', color: '#fff', extra: 'x'}], text: 'x'})).areas, [{id: 'a', name: 'A'}]);
   assert.equal(parseVoiceBody('x'.repeat(MAX_BODY + 1)).status, 413);
   assert.equal(parseVoiceBody('{').status, 400);
@@ -65,10 +68,15 @@ test('the calendar gives Gemini real weekdays to resolve "sexta", "amanhã" and 
 
 test('validateDemand keeps only an area from the list and a real date, and drops the evidence without a date', () => {
   const body = {areas: AREAS};
-  assert.deepEqual(validateDemand(DEMAND, body), {title: DEMAND.title, description: DEMAND.description, transcript: DEMAND.transcript, areaId: 'oferta', dueDate: '2026-10-23', dateEvidence: 'sexta que vem', subtasks: ['Levantar os dados', 'Montar a planilha']});
+  assert.deepEqual(validateDemand(DEMAND, body), {title: DEMAND.title, description: DEMAND.description, transcript: DEMAND.transcript, areaId: 'oferta', projectId: '', dueDate: '2026-10-23', dateEvidence: 'sexta que vem', duration: 90, subtasks: ['Levantar os dados', 'Montar a planilha']});
   const loose = validateDemand({...DEMAND, title: '  ' + 'x'.repeat(300), areaId: 'inventada', dueDate: '2026-02-30'}, body);
   assert.equal(loose.title.length, 180); assert.equal(loose.areaId, ''); assert.equal(loose.dueDate, ''); assert.equal(loose.dateEvidence, '');
-  assert.deepEqual(validateDemand(null, body), {title: '', description: '', transcript: '', areaId: '', dueDate: '', dateEvidence: '', subtasks: []});
+  assert.deepEqual(validateDemand(null, body), {title: '', description: '', transcript: '', areaId: '', projectId: '', dueDate: '', dateEvidence: '', duration: null, subtasks: []});
+  assert.deepEqual([30, '45', 0, 4, 721, 'meia hora', 59.6].map(duration => validateDemand({...DEMAND, duration}, body).duration), [30, 45, null, null, null, null, 60]);
+  // Projeto nomeado define a área; projeto desconhecido é descartado e a área dita continua valendo.
+  const withProject = {areas: AREAS, projects: PROJECTS};
+  assert.deepEqual(['areaId', 'projectId'].map(key => validateDemand({...DEMAND, areaId: 'oferta', projectId: 'caixa'}, withProject)[key]), ['folha', 'caixa']);
+  assert.deepEqual(['areaId', 'projectId'].map(key => validateDemand({...DEMAND, projectId: 'outro'}, withProject)[key]), ['oferta', '']);
   assert.equal(validateDemand({...DEMAND, areaId: 42}, body).areaId, '');
 });
 
@@ -80,10 +88,10 @@ test('subtasks keep the spoken order and drop empty, non-text and excess items',
   assert.deepEqual(validateDemand({...DEMAND, subtasks: undefined}, body).subtasks, []);
 });
 
-test('a recording goes inline to Gemini with today, the calendar and the areas, after auth and quota', async () => {
-  const result = await call({...base, mimeType: 'audio/webm;codecs=opus', audio: AUDIO});
+test('a recording goes inline to Gemini with today, the calendar, the areas and the projects, after auth and quota', async () => {
+  const result = await call({...base, projects: PROJECTS, mimeType: 'audio/webm;codecs=opus', audio: AUDIO});
   assert.equal(result.status, 200);
-  assert.deepEqual(result.body, {...validateDemand(DEMAND, {areas: AREAS}), modelUsed: 'gemini-2.5-flash'});
+  assert.deepEqual(result.body, {...validateDemand(DEMAND, {areas: AREAS, projects: PROJECTS}), modelUsed: 'gemini-2.5-flash'});
   assert.deepEqual(result.calls.map(call => new URL(call.url).pathname), ['/auth/v1/user', '/rest/v1/rpc/flow_ai_quota_hit', '/v1beta/models/gemini-2.5-flash:generateContent']);
   assert.equal(result.gemini.options.headers['x-goog-api-key'], 'test-gemini');
   const sent = JSON.parse(result.gemini.options.body), parts = sent.contents[0].parts;
@@ -92,12 +100,15 @@ test('a recording goes inline to Gemini with today, the calendar and the areas, 
   assert.equal(context.hoje, '2026-10-16 sexta-feira');
   assert.equal(context.calendario[7], '2026-10-23 sexta-feira');
   assert.deepEqual(context.areas, AREAS);
+  assert.deepEqual(context.projetos, PROJECTS);
   assert.equal(context.texto, undefined);
   assert.equal(sent.generationConfig.temperature, 0);
-  assert.deepEqual(sent.generationConfig.responseSchema.required, ['transcript', 'title', 'description', 'areaId', 'dueDate', 'dateEvidence', 'subtasks']);
+  assert.deepEqual(sent.generationConfig.responseSchema.required, ['transcript', 'title', 'areaId', 'projectId', 'description', 'dueDate', 'dateEvidence', 'duration', 'subtasks']);
+  assert.deepEqual(sent.generationConfig.responseSchema.properties.duration, {type: 'INTEGER'});
   assert.deepEqual(sent.generationConfig.responseSchema.properties.subtasks, {type: 'ARRAY', items: {type: 'STRING'}});
   const instruction = sent.systemInstruction.parts[0].text;
-  assert.match(instruction, /1\) o nome da demanda; 2\) a descrição; 3\) a classificação, isto é, a área; 4\) a data do prazo; e, se quiser, 5\) as subtarefas/);
+  assert.match(instruction, /1\) o nome da demanda; 2\) a classificação, que é uma área ou um projeto .*; 3\) a descrição, opcional; 4\) a data em que vai fazer, opcional .*; 5\) o ΔT, isto é, o tempo previsto, opcional .*; e 6\) as subtarefas/);
+  assert.match(instruction, /"uma hora" é 60/);
   assert.match(instruction, /nunca invente subtarefas/);
   assert.match(instruction, /sem inventar/);
 });

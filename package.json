@@ -21,7 +21,7 @@
     "test:google-refresh": "node --test tests/google-refresh.test.mjs && python3 scripts/run-browser-tests.py google-refresh",
     "test:time": "python3 tests/time-report-smoke.py",
     "test:app": "python3 tests/app-workflow-smoke.py",
-    "test:drag": "python3 tests/pipeline-drag-smoke.py",
+    "test:today": "node --test tests/schedule.test.mjs && python3 scripts/run-browser-tests.py app-today",
     "test:gmail-addon": "node --test tests/gmail-addon.test.mjs",
     "test:areas": "python3 tests/area-projects-smoke.py",
     "test:gmail-review": "node --test tests/gmail-review.test.mjs tests/gmail-read-errors.test.mjs tests/gmail-inbox.test.mjs tests/gmail-bridge.test.mjs && python3 scripts/run-browser-tests.py gmail-review gmail-performance",

@@ -6,6 +6,7 @@ through the page's own globals so each recovery path is exercised deterministica
 import asyncio
 import json
 import os
+from datetime import date, timedelta
 from tempfile import TemporaryDirectory
 from playwright.async_api import async_playwright, expect
 
@@ -18,7 +19,7 @@ FLUSHED = "(key)=>{window.dispatchEvent(new Event('flow:persist-flush'));return 
 
 def backup(title, **extra):
     task = {'id': 'imported-task', 'title': title, 'project': 'folha', 'status': 'todo', 'priority': 'medium',
-            'dueDate': '2026-10-20', 'plannedDate': '', 'plannedTime': '', 'description': 'Contexto importado',
+            'dueDate': (date.today() - timedelta(days=1)).isoformat(), 'plannedDate': '', 'plannedTime': '', 'description': 'Contexto importado',
             'subtasks': [], 'sessions': [], 'startedAt': None, 'createdAt': 1, 'completedAt': None}
     task.update(extra.pop('task', {}))
     data = {'version': 1, 'classificationCatalogVersion': 5,
@@ -112,9 +113,8 @@ async def run(profile):
         assert await page.evaluate(FLUSHED, KEY) == before
         await expect(page.locator('#active-modal-form')).to_be_visible()
         await page.locator('[data-action="close-modal"]').click()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await page.locator('#board-date-filter').select_option('all')
-        await expect(page.locator('.pipeline-task').filter(has_text='Tarefa importada')).to_be_visible()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await expect(page.locator('.today-item').filter(has_text='Tarefa importada')).to_be_visible()
         await page.locator('#sidebar-nav [data-page="tempo"]').click()
         await expect(page.locator('#time-total')).to_be_visible()
         passed('Malformed, unreadable or unrenderable backups leave the stored workspace and the UI intact')
@@ -127,11 +127,9 @@ async def run(profile):
         assert json.loads(await page.evaluate(FLUSHED, KEY))['tasks'][0]['title'] == 'Segunda tentativa válida'
         passed('A second attempt in the same import dialog works after a rejected file')
 
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await page.locator('#board-date-filter').select_option('all')
-        demand = page.locator('.pipeline-task').filter(has_text='Segunda tentativa válida')
-        await demand.locator('summary').click()
-        await demand.locator('[data-action="task-detail"]').click()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        demand = page.locator('.today-item').filter(has_text='Segunda tentativa válida')
+        await demand.locator('.today-open').click()
         await page.evaluate("""(key)=>{window.__writes=0;const set=Storage.prototype.setItem;
           Storage.prototype.setItem=function(name,value){if(name===key)window.__writes++;return set.call(this,name,value)}}""", KEY)
         field = page.locator('#edit-description')
@@ -149,10 +147,8 @@ async def run(profile):
         await expect(page.locator('.app-shell')).not_to_have_attribute('aria-busy', 'true')
         stored = json.loads(await page.evaluate('(key)=>localStorage.getItem(key)', KEY))
         assert stored['tasks'][0]['description'] == 'Contexto importado' + typed + ' e salvo ao recarregar'
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await page.locator('#board-date-filter').select_option('all')
-        await demand.locator('summary').click()
-        await demand.locator('[data-action="task-detail"]').click()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await demand.locator('.today-open').click()
         await field.click()
         await field.press('End')
         await page.keyboard.type(' e ao sair do campo', delay=5)
@@ -186,20 +182,25 @@ async def run(profile):
         await expect(page.locator('#modal-backdrop')).to_have_class('modal-backdrop hidden')
         assert not await page.locator('.app-shell').evaluate('(node)=>node.inert')
         assert await page.evaluate("document.activeElement.dataset.action") == 'new-task'
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await page.locator('#board-date-filter').select_option('all')
-        await page.locator('[data-drag-task]').first.click()
-        await expect(page.locator('#active-modal-form [name="stage"]')).to_be_focused()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await page.locator('[data-action="plan-task"]').first.click()
+        await expect(page.locator('#active-modal-form [name="project"]')).to_be_focused()
         await page.locator('[data-action="close-modal"]').click()
-        assert await page.evaluate("document.activeElement.hasAttribute('data-drag-task')")
+        assert await page.evaluate("document.activeElement.dataset.action") == 'plan-task'
         passed('Dialogs make the app inert, trap Tab, close with Escape and return focus to the opener')
 
         await page.evaluate("""()=>{window.__ranges=[];const show=FlowCalendar.showRange;FlowCalendar.showRange=(...args)=>{window.__ranges.push(args[0]??null);return show(...args)}}""")
         await page.locator('#sidebar-nav [data-page="agenda"]').click()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await page.locator('#sidebar-nav [data-page="foco"]').click()
         ranges = await page.evaluate('window.__ranges')
-        assert ranges and ranges[0] is not None and ranges[-1] is None, ranges
-        passed('Leaving Agenda tells the calendar to stop reading the visible week')
+        # Saindo de Hoje para a Agenda, a leitura de hoje para antes da semana começar.
+        assert len(ranges) >= 2 and ranges[-2] is not None and ranges[-1] is None, ranges
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        today = await page.evaluate("(()=>{const d=new Date();d.setHours(0,0,0,0);return d.toISOString()})()")
+        assert (await page.evaluate('window.__ranges'))[-1] == today
+        await page.locator('#sidebar-nav [data-page="foco"]').click()
+        assert (await page.evaluate('window.__ranges'))[-1] is None
+        passed('Agenda reads the visible week and Hoje reads only today; leaving either stops the calendar reading')
 
         await page.evaluate("sessionStorage.setItem('fail-render','1')")
         await page.reload()
@@ -208,8 +209,8 @@ async def run(profile):
         await page.locator('.workspace-settings').click()
         await expect(page.locator('[data-action="import-data"]')).to_be_visible()
         await page.locator('[data-action="close-modal"]').click()
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(page.locator('.pipeline-board')).to_be_visible()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await expect(page.locator('.today-layout')).to_be_visible()
         await page.evaluate("sessionStorage.removeItem('fail-render')")
         passed('A failing first screen still unlocks the menu and keeps Dados do UlbraFlow reachable')
 

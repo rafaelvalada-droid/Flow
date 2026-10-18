@@ -157,10 +157,13 @@ async def until(page, expression, timeout=15):
 
 
 async def board(page):
-    """Opens the pipeline with every date visible (the default filter only shows today)."""
-    await page.locator('#sidebar-nav [data-page="esteira"]').click()
-    await expect(page.locator('.pipeline-board')).to_be_visible()
-    await page.locator('#board-date-filter').select_option('all')
+    """Opens Hoje; every demand here has a past day, so all of them show up as overdue."""
+    await page.locator('#sidebar-nav [data-page="hoje"]').click()
+    await expect(page.locator('.today-layout')).to_be_visible()
+
+
+def demands(page):
+    return page.locator('.today-todo .today-item')
 
 
 async def capture(page, title):
@@ -202,7 +205,7 @@ async def main():
         await expect(page.locator('.app-shell')).to_be_visible()
         await expect(page.locator('.startup-heading h1')).to_have_text('Entrada')
         assert await page.locator('#login-screen').count() == 0
-        assert await page.locator('.pipeline-task,.gmail-review-card').count() == 0
+        assert await page.locator('.today-item,.gmail-review-card').count() == 0
         assert await page.locator('.sidebar').evaluate('(el)=>el.inert')
         boot_release.set()
         await expect(page.locator('#google-login')).to_be_visible()
@@ -215,7 +218,7 @@ async def main():
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert len(services.authorizations) == len(services.exchanges) == 1
         assert 'provider_token' not in await page.evaluate('JSON.parse(localStorage.getItem("flow.auth.session.v1"))'), 'A plain sign-in keeps no Google token' 
-        assert await page.locator('.pipeline-task').count() == 0
+        assert await demands(page).count() == 0
         assert services.rows[A]['data']['tasks'] == []
         assert await page.evaluate('JSON.parse(localStorage.getItem("flow.workspace.v1")).tasks[0].id') == 'legacy-task'
         passed('Google PKCE sign-in loads a verified account and leaves old browser data separate')
@@ -223,12 +226,12 @@ async def main():
         await page.locator('#account-button').click()
         page.once('dialog', lambda dialog: dialog.accept())
         await page.locator('[data-action="import-local"]').click()
-        await expect(page.locator('.pipeline-task')).to_have_count(1)
+        await expect(demands(page)).to_have_count(1)
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert services.rows[A]['data']['tasks'][0]['id'] == 'legacy-task'
         await page.reload()
         await board(page)
-        await expect(page.locator('.pipeline-task')).to_have_count(1)
+        await expect(demands(page)).to_have_count(1)
         passed('Explicit local import preserves task IDs and survives a cloud reload')
 
         services.fail_save = True
@@ -265,15 +268,16 @@ async def main():
         assert duplicate['ok'] and len(services.rows[A]['data']['tasks']) == 3
         passed('Gmail waits for the cloud response and retries the same capture without duplicates')
 
-        card = page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador')
-        await card.locator('summary').click()
-        await card.locator('[data-action="advance-task"]').click()
-        await expect(page.locator('.pipeline-lane[data-stage="doing"] .pipeline-task').filter(has_text='Tarefa antiga do navegador')).to_be_visible()
-        await card.locator('[data-task]').first.click()
+        card = demands(page).filter(has_text='Tarefa antiga do navegador')
+        await card.locator('.today-open').click()
+        await page.locator('#edit-status').select_option('doing')
+        # Com ΔT, o dia de execução fica separado do prazo (15/10); sem ΔT, o dia é a própria data da demanda.
+        await page.locator('#edit-duration').select_option('30')
         await page.locator('#edit-planned').fill('2026-10-13')
         await page.locator('#edit-planned').dispatch_event('change')
-        await page.locator('#edit-time').fill('09:00')
-        await page.locator('#edit-time').dispatch_event('change')
+        await page.locator('[data-action="detail-back"]').click()
+        await expect(card).to_contain_text('Em andamento')
+        await expect(card.locator('.today-time')).to_have_text('08:00–08:30')
         await page.evaluate('FlowCloud.flush()')
         await page.locator('#sidebar-nav [data-page="agenda"]').click()
         await page.locator('[data-action="calendar-connect"]').click()
@@ -282,10 +286,10 @@ async def main():
         assert 'calendar.events' in services.authorizations[-1]['scopes'][0]
         assert len(services.events) == 1
         event = next(iter(services.events.values()))
-        assert event['start']['dateTime'] == '2026-10-13T12:00:00.000Z'
-        assert event['end']['dateTime'] == '2026-10-13T12:25:00.000Z'
+        assert event['start']['dateTime'] == '2026-10-13T11:00:00.000Z'
+        assert event['end']['dateTime'] == '2026-10-13T11:30:00.000Z'
         assert '2026-10-15' in event['description'] and event['visibility'] == 'private'
-        passed('Rightward advance works; Google Agenda uses execution time and keeps the deadline separate')
+        passed('Dia and ΔT reserve the first free time of the day; Google Agenda gets that block and keeps the deadline separate')
         await page.locator('#sidebar-nav [data-page="agenda"]').click()
         await until(page, '!FlowCalendar.info().reading && FlowCalendar.info().events.length===1')
         await expect(page.locator('.google-calendar-event')).to_have_count(7)
@@ -298,21 +302,18 @@ async def main():
         await board(page)
 
 
-        await page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador').locator('summary').click()
-        await page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador').locator('[data-task]').first.click()
+        await demands(page).filter(has_text='Tarefa antiga do navegador').locator('.today-open').click()
         await page.locator('#edit-planned').fill('2026-10-14')
         await page.locator('#edit-planned').dispatch_event('change')
-        await page.locator('#edit-time').fill('')
-        await page.locator('#edit-time').dispatch_event('change')
         await page.evaluate('FlowCalendar.synchronize()')
         assert len(services.events) == 1
         event = next(iter(services.events.values()))
-        assert event['start'] == {'date': '2026-10-14'} and event['end'] == {'date': '2026-10-15'}
-        await page.locator('#edit-planned').fill('')
-        await page.locator('#edit-planned').dispatch_event('change')
+        assert event['start']['dateTime'] == '2026-10-14T11:00:00.000Z' and event['end']['dateTime'] == '2026-10-14T11:30:00.000Z'
+        await page.locator('#edit-duration').select_option('')
         await page.evaluate('FlowCalendar.synchronize()')
         assert len(services.events) == 0
-        passed('Calendar edits update one event; clearing the execution date removes only the Flow-owned event')
+        assert await page.evaluate('JSON.parse(localStorage.getItem("flow.workspace.v1:'+A+'")).tasks.find(t=>t.id==="legacy-task").dueDate') == '2026-10-14'
+        passed('Moving the day moves the one reserved event; removing the ΔT removes only the Flow-owned event and keeps the day')
 
         # The phone add-on writes a task directly in Supabase and bumps the revision.
         await page.evaluate('FlowCloud.flush()')
@@ -325,7 +326,7 @@ async def main():
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         titles = [task['title'] for task in services.rows[A]['data']['tasks']]
         assert 'Captura do celular' in titles and 'Alteração local durante a captura' in titles, titles
-        await expect(page.locator('.pipeline-task').filter(has_text='Captura do celular')).to_be_visible()
+        await expect(demands(page).filter(has_text='Captura do celular')).to_be_visible()
         assert await page.evaluate('JSON.parse(localStorage.getItem("flow.workspace.v1:'+A+'")).tasks.some(t=>t.id==="phone-capture")')
         passed('A 409 from a phone capture merges automatically, saves once and shows both demands without a conflict')
 
@@ -338,14 +339,14 @@ async def main():
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
         saved_revision, conflicts = services.rows[A]['revision'], services.conflicts
         await board(other)
-        await expect(other.locator('.pipeline-task').filter(has_text='Salva na primeira aba')).to_be_visible()
+        await expect(demands(other).filter(has_text='Salva na primeira aba')).to_be_visible()
         await capture(other, 'Salva na segunda aba')
         await expect(other.locator('#account-button')).to_have_text('Salvo na nuvem')
         assert services.rows[A]['revision'] == saved_revision + 1 and services.conflicts == conflicts, 'No 409 round trip'
         titles = [task['title'] for task in services.rows[A]['data']['tasks']]
         assert 'Salva na primeira aba' in titles and 'Salva na segunda aba' in titles, titles
         await other.close()
-        await expect(page.locator('.pipeline-task').filter(has_text='Salva na segunda aba')).to_be_visible()
+        await expect(demands(page).filter(has_text='Salva na segunda aba')).to_be_visible()
         passed('A second tab adopts the revision saved by the first and saves without a conflict')
 
         await page.locator('#sidebar-nav [data-page="agenda"]').click()
@@ -363,10 +364,7 @@ async def main():
         legacy = next(task for task in remote_tasks if task['id'] == 'legacy-task')
         legacy['title'] = 'Título alterado no celular'
         await board(page)
-        card = page.locator('.pipeline-task').filter(has_text='Tarefa antiga do navegador')
-        if not await card.locator('[data-task]').first.is_visible():
-            await card.locator('summary').click()
-        await card.locator('[data-task]').first.click()
+        await demands(page).filter(has_text='Tarefa antiga do navegador').locator('.today-open').click()
         await page.locator('#edit-title').fill('Título alterado no computador')
         await page.locator('#edit-title').dispatch_event('change')
         await expect(page.locator('#account-button')).to_have_text('Conflito de alterações')
@@ -385,7 +383,7 @@ async def main():
         await page.locator('#google-login').click()
         await board(page)
         await expect(page.locator('#account-button')).to_have_text('Salvo na nuvem')
-        assert await page.locator('.pipeline-task').count() == 0
+        assert await demands(page).count() == 0
         assert services.rows[B]['data']['tasks'] == []
         assert await page.evaluate('localStorage.getItem("flow.workspace.v1:'+A+'.pending")') == '1'
         assert not errors, errors

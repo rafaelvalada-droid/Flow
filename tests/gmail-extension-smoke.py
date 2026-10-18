@@ -226,24 +226,17 @@ async def main(profile):
         assert task['gmailSender'] == 'coordenacao@example.test' and task['gmailUrl'] == CANONICAL
         assert task['gmailThreadId'] == THREAD and task['gmailMessageId'] == '18b2c3d4e5f6a7c0'
         assert len(db['tasks']) == 5
-        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
-        await flow.locator('#board-date-filter').select_option('all')
-        await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
+        await flow.locator('#sidebar-nav [data-page="hoje"]').click()
+        await flow.locator('[data-action="today-tab"][data-tab="proximos"]').click()
+        demand = flow.locator('.today-item').filter(has_text='Organizar planejamento')
+        await expect(demand).to_be_visible()
         passed('Save writes the chosen project, title, sender, Gmail API thread ID and canonical link; Flow updates immediately')
-        demand = flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')
-        await expect(demand.get_by_role('button', name='Abrir Gmail')).to_be_hidden()
-        await demand.locator('summary').click()
-        await expect(demand.get_by_role('button', name='Abrir Gmail')).to_be_visible()
-        await demand.locator('summary').click()
-        await expect(demand.get_by_role('button', name='Abrir Gmail')).to_be_hidden()
-        await demand.locator('summary').click()
-        passed('Demand accordion starts compact, expands its actions and collapses on another click')
         async with flow.expect_popup() as popup_info:
-            await flow.locator('.pipeline-task').filter(has_text='Organizar planejamento').get_by_role('button', name='Abrir Gmail').click()
+            await demand.get_by_role('button', name='Abrir e-mail no Gmail').click()
         email_page = await popup_info.value
         await email_page.wait_for_url(CANONICAL)
         await email_page.close()
-        passed('The explicit Abrir Gmail button on the pipeline card opens the original conversation')
+        passed('The Gmail button on the demand row in Próximos opens the original conversation')
 
         await gmail.get_by_role('button', name='Ver no UlbraFlow').click()
         await expect(gmail.locator('#flow-gmail-dialog')).to_have_count(0)
@@ -321,16 +314,14 @@ async def main(profile):
 
         def stored_status(task_id):
             return flow.evaluate("id => JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.find(t=>t.id===id).status", task_id)
-        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
-        # Filtro escolhido pelo usuário antes de ir ao Gmail: precisa continuar igual na volta.
-        await flow.locator('#board-date-filter').select_option('specific')
-        await flow.locator('#board-specific-date').fill('2026-12-10')
-        await flow.locator('#board-specific-date').dispatch_event('change')
-        demand = flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')
-        if not await demand.get_by_role('button', name='Abrir Gmail').is_visible():
-            await demand.locator('summary').click()
+        await flow.locator('#sidebar-nav [data-page="hoje"]').click()
+        # Filtro e aba escolhidos pelo usuário antes de ir ao Gmail: precisam continuar iguais na volta.
+        late_chip = flow.locator('[data-action="today-filter"][data-filter="late"]')
+        await late_chip.click()
+        await flow.locator('[data-action="today-tab"][data-tab="proximos"]').click()
+        demand = flow.locator('.today-item').filter(has_text='Organizar planejamento')
         async with flow.expect_popup() as popup_info:
-            await demand.get_by_role('button', name='Abrir Gmail').click()
+            await demand.get_by_role('button', name='Abrir e-mail no Gmail').click()
         email_page = await popup_info.value
         await email_page.wait_for_url(CANONICAL)
         email_id = adapter.register(email_page, active=True, opener=flow_id)
@@ -344,19 +335,21 @@ async def main(profile):
         assert await stored_status(task['id']) == 'done'
         await expect(flow.locator('.page-head h1')).to_have_text('Detalhe da tarefa')
         await expect(flow.get_by_role('button', name='← Reabrir tarefa')).to_be_visible()
-        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(flow.locator('#board-date-filter')).to_have_value('specific')
-        await expect(flow.locator('#board-specific-date')).to_have_value('2026-12-10')
-        await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_have_count(1)
-        # Ver no UlbraFlow (flow:open-capture) também abre a tarefa sem trocar o filtro da esteira.
+        await flow.locator('[data-action="detail-back"]').click()
+        await expect(flow.locator('[data-action="today-tab"][data-tab="proximos"]')).to_have_attribute('aria-selected', 'true')
+        await expect(demand).to_have_count(0)
+        await flow.locator('[data-action="today-tab"][data-tab="hoje"]').click()
+        await expect(late_chip).to_have_attribute('aria-pressed', 'true')
+        await expect(flow.locator('.today-done .today-item').filter(has_text='Organizar planejamento')).to_have_count(1)
+        # Ver no UlbraFlow (flow:open-capture) também abre a tarefa sem trocar o filtro de Hoje.
         open_task = "id => window.dispatchEvent(new CustomEvent('flow:open-capture',{detail:{taskId:id}}))"
         await flow.evaluate(open_task, task['id'])
         await expect(flow.locator('.page-head h1')).to_have_text('Detalhe da tarefa')
-        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(flow.locator('#board-date-filter')).to_have_value('specific')
+        await flow.locator('[data-action="detail-back"]').click()
+        await expect(late_chip).to_have_attribute('aria-pressed', 'true')
         await flow.evaluate(open_task, task['id'])
         await expect(flow.get_by_role('button', name='← Reabrir tarefa')).to_be_visible()
-        passed('Concluir e voltar ao UlbraFlow in a conversation opened by Flow completes the task, returns to Flow, closes that tab and keeps the board filter')
+        passed('Concluir e voltar ao UlbraFlow in a conversation opened by Flow completes the task, returns to Flow, closes that tab and keeps the Hoje tab and filter')
 
         await flow.get_by_role('button', name='← Reabrir tarefa').click()
         assert await stored_status(task['id']) != 'done'
@@ -374,9 +367,8 @@ async def main(profile):
         passed('In the main Gmail tab the task is completed and Gmail returns to the inbox without closing the tab; done tasks show no button')
 
         await flow.reload()
-        await flow.locator('#sidebar-nav [data-page="esteira"]').click()
-        await flow.locator('#board-date-filter').select_option('all')
-        await expect(flow.locator('.pipeline-task').filter(has_text='Organizar planejamento')).to_be_visible()
+        await flow.locator('#sidebar-nav [data-page="hoje"]').click()
+        await expect(flow.locator('.today-done .today-item').filter(has_text='Organizar planejamento')).to_be_visible()
         await flow.locator('#sidebar-nav [data-page="projetos"]').click()
         await flow.locator('[data-action="new-project"]').click()
         await flow.locator('#active-modal-form [name="name"]').fill('Minha nova lista')

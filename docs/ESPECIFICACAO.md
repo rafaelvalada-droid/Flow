@@ -1,22 +1,22 @@
-# UlbraFlow — especificação funcional 1.7
+# UlbraFlow — especificação funcional 1.8
 
 ## Propósito
 
-Receber demandas de várias frentes, classificá-las por destino e urgência, organizar a execução em uma esteira comum e dedicar atenção a uma única tarefa por vez.
+Receber demandas de várias frentes na Entrada, classificá-las, dar a cada uma um dia e um ΔT (tempo previsto), organizar o dia na aba Hoje e dedicar atenção a uma única tarefa por vez.
 
-## Classificação antes da execução
+## Classificação, dia e ΔT
 
-As duas perguntas são **“Para onde vai?”** (área) e **“Para quando?”** (data/prazo). O catálogo solicitado é: Ubra IA; Oferta de turmas; Carga horária docente; Incidências em folha; Contratos docentes PJ; Folha docente; Plano docente; Operação Lato Sensu Ulbra S.A.; Pendências de pagamento PJ; Suporte operacional; CPA Ulbra S.A.; Capacitação. O singular/plural de contrato docente PJ representa uma única classificação.
+A classificação responde **“Para onde vai?”** (área, ou um projeto dentro da área). O catálogo solicitado é: Ubra IA; Oferta de turmas; Carga horária docente; Incidências em folha; Contratos docentes PJ; Folha docente; Plano docente; Operação Lato Sensu Ulbra S.A.; Pendências de pagamento PJ; Suporte operacional; CPA Ulbra S.A.; Capacitação. O singular/plural de contrato docente PJ representa uma única classificação.
 
-Uma demanda sem área existente ou data válida permanece na **Entrada / A classificar**, mesmo que já tenha uma das respostas. A captura não atribui automaticamente a primeira área ou um prazo arbitrário. A classificação é condição para entrar em foco.
+O **dia** responde “quando vou fazer?” e o **ΔT**, “quanto tempo preciso?”. Com dia e ΔT, o horário é reservado no primeiro espaço livre do dia (depois de agora, se for hoje; a partir das 8h nos demais dias), contornando outras demandas abertas daquele dia, as atrasadas (que aparecem junto com hoje) e os compromissos do Google Agenda já lidos. Sem espaço livre, o bloco encaixa no início e pode sobrepor; o usuário ajusta arrastando. Dia sem ΔT é apenas a data da demanda, sem horário. Uma demanda sem dia fica nos **Lembretes · sem data** da Entrada.
 
-O prazo determina a urgência: atrasada, hoje, amanhã ou programada. A prioridade manual antiga é preservada nos dados, mas não governa a interface nem a ordenação. A execução planejada e o horário são opcionais e continuam separados do prazo final.
+O detalhe da tarefa mantém o **Prazo final** separado: com ΔT, o dia de execução nunca fica depois do prazo (o prazo acompanha); sem ΔT, o dia é a própria data da demanda. Classificação e dia são condição para entrar em foco. A prioridade manual antiga é preservada nos dados, mas não governa a interface.
 
-## Esteira única
+## Entrada e Hoje
 
-Todas as tarefas, de qualquer área, compartilham **A classificar → A fazer → Em andamento → Aguardando → Concluídas**. Aguardando é uma situação operacional, não uma etapa obrigatória. A área acompanha a tarefa sem criar um fluxo independente. O filtro por área apenas restringe a visualização.
+A **Entrada** é o primeiro ponto de toda demanda: o gravador **Criar demanda com Gemini** (nome, classificação, descrição, data e ΔT ditos ou escritos), os lembretes sem data e os e-mails para revisar.
 
-Uma linha conecta as etapas da esquerda para a direita. Avançar move para a próxima etapa sem iniciar o cronômetro. As tarefas são ordenadas pela data mais próxima em cada coluna. Mover etapa permite encaminhar ou reabrir uma demanda; o detalhe reúne contexto, subtarefas, histórico e vínculo ao Gmail. Em andamento pode ter várias demandas iniciadas ou pausadas; apenas uma pode estar em foco ativo.
+A aba **Hoje** substitui a antiga esteira. Mostra uma lista contínua **A fazer** com as demandas de hoje e as atrasadas (filtros Hoje e atrasadas, Só hoje, Só atrasadas), ordenadas pelo horário reservado, e a caixa **Concluídas hoje**. Concluir pelo quadrado leva a demanda direto para Concluídas; desmarcar reabre na situação anterior. Cada linha abre o detalhe e, se houver e-mail, o Gmail. A **linha do tempo** do dia (00:00–24:00) mostra os blocos reservados e os compromissos do Google; arrastar um bloco muda o horário em passos de 15 minutos, a borda de baixo muda o ΔT, as setas do teclado fazem o mesmo e, no toque, é preciso segurar o bloco antes de arrastar. Arrastar uma atrasada a traz para hoje. **Próximos** agrupa os dias seguintes. Em andamento e Aguardando continuam como situação no detalhe e aparecem como etiqueta.
 
 ## Foco e Pomodoro
 
@@ -41,7 +41,7 @@ A migração preserva áreas, tarefas, notas e sessões; acrescenta padrões de 
 
 ## Gmail
 
-A extensão Chrome 1.7 adiciona **Incluir no UlbraFlow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva entra na esteira comum com o assunto, remetente visível e link da conversa. Com **Arquivar o e-mail no Gmail depois de incluir** (marcado por padrão), a conversa é arquivada só depois de salva, pelo botão Arquivar do Gmail ou, sem ele, pela conexão Gmail da Entrada. Em conversas com tarefa aberta, **Concluir e voltar ao UlbraFlow** conclui a tarefa pela regra do app, ativa a aba do UlbraFlow com os detalhes e fecha a aba do e-mail apenas quando ela foi aberta pelo UlbraFlow; na aba principal do Gmail, volta para a caixa de entrada.
+A extensão Chrome 1.7 adiciona **Incluir no UlbraFlow** ao lado do assunto. A caixa permite ajustar o título e responder área e data. A tarefa salva vai para o dia escolhido (Hoje ou Próximos) com o assunto, remetente visível e link da conversa. Com **Arquivar o e-mail no Gmail depois de incluir** (marcado por padrão), a conversa é arquivada só depois de salva, pelo botão Arquivar do Gmail ou, sem ele, pela conexão Gmail da Entrada. Em conversas com tarefa aberta, **Concluir e voltar ao UlbraFlow** conclui a tarefa pela regra do app, ativa a aba do UlbraFlow com os detalhes e fecha a aba do e-mail apenas quando ela foi aberta pelo UlbraFlow; na aba principal do Gmail, volta para a caixa de entrada.
 
 A extensão usa uma aba do UlbraFlow no mesmo perfil e domínio configurado, preservando a navegação no Gmail. Não lê o corpo da mensagem nem envia respostas. Retentativas da mesma captura não duplicam tarefas. Áreas removidas e datas inválidas são recusadas. Capturas de versões anteriores sem data permanecem compatíveis e ficam a classificar.
 
@@ -51,7 +51,7 @@ A instalação real é feita pelo usuário no Chrome desktop. O teste automatiza
 
 O símbolo de caminhos convergindo para um ponto reúne fluxo operacional e atenção concentrada. Azul `#295F9B`, marinho `#182B48`, verde `#159B8B` e superfícies claras.
 
-Navegação: Entrada, Esteira, Foco, Áreas, Agenda, Gmail, Alertas e Gestão do Tempo. Detalhe de tarefa é uma visão acessada a partir das demandas.
+Navegação: Entrada, Hoje, Foco, Áreas, Agenda, Meus Projetos, Alertas e Gestão do Tempo. Detalhe de tarefa é uma visão acessada a partir das demandas.
 
 ## Gestão do Tempo e relatórios
 
@@ -65,4 +65,4 @@ Google Agenda pede consentimento separado. Cria/atualiza eventos privados no cal
 
 A extensão 1.7 seleciona a base da conta ativa e espera confirmação de nuvem antes de afirmar sucesso, lê o identificador da conversa para não duplicar capturas da Entrada ou do celular e acompanha a mesclagem automática quando outro aparelho salvou antes. Sem autenticação ativa em um ambiente que exige Google, orienta entrar no UlbraFlow.
 
-Gemini permanece opcional, com chave no servidor, acionamento por clique e revisão. Alertas salvam preferências sem envio ativo. A interface usa cinza claro no conjunto e destaques verdes Ulbra S.A. (#045A52) com letras brancas, inclusive no acesso, na esteira, no foco, na agenda e na Gestão do Tempo. As cores das áreas ficam preservadas nos dados; a apresentação usa indicadores verdes. A impressão/PDF usa fundo claro e texto escuro. O slogan foi retirado, e a marca verde Ulbra S.A. enviada está no acesso e na barra superior.
+Gemini permanece opcional, com chave no servidor, acionamento por clique e revisão. Alertas salvam preferências sem envio ativo. A interface usa cinza claro no conjunto e destaques verdes Ulbra S.A. (#045A52) com letras brancas, inclusive no acesso, em Hoje, no foco, na agenda e na Gestão do Tempo. As cores das áreas ficam preservadas nos dados; a apresentação usa indicadores verdes. A impressão/PDF usa fundo claro e texto escuro. O slogan foi retirado, e a marca verde Ulbra S.A. enviada está no acesso e na barra superior.

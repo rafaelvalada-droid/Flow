@@ -1,16 +1,17 @@
 # UlbraFlow — Workspace
 
-Classifique cada demanda por área e prazo, organize o trabalho em uma esteira comum e concentre-se em uma tarefa de cada vez.
+Capture as demandas na Entrada, dê a cada uma um dia e um ΔT (tempo previsto) e faça tudo pela aba Hoje, uma tarefa de cada vez.
 
 Acesse **https://flow-blue-theta.vercel.app/**. O repositório está conectado à Vercel; pushes para `main` acionam deployment.
 
 ## Uso
 
-- **Entrada:** área e data respondem “para onde?” e “para quando?”.
-- **Esteira:** arraste os cartões entre as etapas, use a alça no celular ou escolha a etapa pelo teclado. Setas, Avançar e Mover etapa continuam disponíveis; todas as áreas usam a mesma fila. Aguardando é opcional. O filtro Prazo final abre em **Hoje e atrasadas**: o que vence hoje e o que já venceu e continua aberto; Amanhã, Todas as datas e Escolher data continuam disponíveis.
+- **Entrada:** o primeiro ponto de toda demanda. Tem o gravador **Criar demanda com Gemini**, os **Lembretes · sem data** (demandas que ainda não têm dia) e os e-mails para revisar. **Dia e ΔT** leva um lembrete para Hoje ou Próximos.
+- **Hoje** (substitui a antiga Esteira): uma lista contínua **A fazer** com as demandas de hoje e as atrasadas (filtros Hoje e atrasadas, Só hoje, Só atrasadas) e a caixa **Concluídas hoje**. Marcar o quadrado conclui; desmarcar reabre. A **linha do tempo** do dia mostra os horários reservados pelo ΔT e os compromissos do Google Agenda: arraste um bloco para mudar o horário (passos de 15 min), puxe a borda de baixo para mudar o ΔT, use as setas (Shift+setas muda o ΔT) ou, no celular, segure o bloco antes de arrastar. Arrastar uma atrasada a traz para hoje. A aba **Próximos** mostra os dias seguintes (Amanhã, Depois de amanhã…).
+- **Dia e ΔT:** o dia é quando a demanda será feita; o ΔT é o tempo previsto. Com os dois, o UlbraFlow reserva o primeiro horário livre do dia (depois de agora, se for hoje; a partir das 8h nos outros dias), sem passar por cima de outras demandas, das atrasadas nem dos compromissos do Google. Sem horário livre, encaixa no início e você ajusta arrastando. Dia sem ΔT é só a data da demanda; só horários reservados vão para o Google Agenda, com a duração do ΔT. Sem dia, a demanda fica nos lembretes da Entrada.
 - **Foco:** ciclos de 25 minutos de trabalho e 5 de descanso, ajustáveis, com uma tarefa ativa. Pausas e ausência após o término do ciclo não contam como trabalho.
 - **Áreas:** catálogo de 12 classificações e áreas personalizadas. IDs, vínculos e históricos anteriores são preservados.
-- **Agenda:** data de execução separada do prazo. Conexão direta com Google Agenda após ativação; exportação .ics continua disponível.
+- **Agenda:** semana com as demandas de horário reservado e os compromissos do Google. Conexão direta com Google Agenda após ativação; exportação .ics continua disponível.
 - **Gmail:** extensão 1.7 com Incluir no UlbraFlow, escolha de área/data, arquivamento do e-mail depois de incluir (opcional, marcado por padrão) e retorno ao e-mail. Terminado o e-mail, **Concluir e voltar ao UlbraFlow** conclui a tarefa, volta para o UlbraFlow e fecha a aba que o UlbraFlow abriu. Atualize o ZIP instalado separadamente do site.
 - **Gestão do Tempo:** análise do dia, semana e mês, tempo por área e tarefa, relatório CSV e impressão/PDF. Usa sessões reais; descansos ficam fora.
 
@@ -57,17 +58,15 @@ Leia [a especificação funcional](docs/ESPECIFICACAO.md) e [a extensão](extens
 
 A Agenda mostra tarefas e compromissos da agenda principal do Google na semana visível. A leitura expande recorrências, respeita o fuso local, pagina resultados e omite cópias das próprias tarefas. Compromissos externos são somente leitura e ficam apenas em memória. Atualiza ao trocar de semana, sincronizar, voltar à aba e a cada minuto enquanto a aba está visível. Não funciona com o UlbraFlow fechado. Cards de áreas usam cores suaves derivadas da cor de cada área.
 
-Nova demanda inclui data e hora de execução separadas do prazo final. Pela Agenda, a data de execução é obrigatória e começa no dia atual ou na semana consultada; ao salvar, a Agenda permanece aberta na semana escolhida. Sem horário, a demanda aparece como dia inteiro.
+Nova demanda pede nome, classificação, dia e ΔT; só o nome é obrigatório. Pela Agenda, o dia é obrigatório e começa no dia atual ou na semana consultada; ao salvar, a Agenda permanece aberta na semana escolhida. O detalhe da tarefa mantém o Prazo final separado para quem precisa.
 
-A esteira oferece Retornar de Em andamento para A fazer, de Aguardando para Em andamento e de Concluídas para Aguardando, preservando a classificação e o histórico de tempo. Conexão da Agenda e instruções do Gmail ficam em controles compactos com detalhes expansíveis.
+As situações Em andamento e Aguardando continuam no detalhe da tarefa e aparecem como etiqueta na lista de Hoje. Conexão da Agenda e instruções do Gmail ficam em controles compactos com detalhes expansíveis.
 
 O relatório de Gestão do Tempo baixa um PDF direto no navegador, sem diálogo de impressão. Cabeçalho com UlbraFlow e Ulbra S.A., fontes incorporadas, indicadores, gráficos e tarefas paginadas. jsPDF 3.0.3 e fontes DejaVu estão incluídos localmente com licenças em vendor/ e assets/fonts/. Dados permanecem no navegador; não são enviados para gerar o PDF.
 
-Ocultar concluídas recolhe a coluna de entregues sem excluir dados; Mostrar concluídas restaura a esteira completa. Os indicadores superiores são compactos. A Agenda mantém conexão e navegação da semana junto do cabeçalho.
+A Agenda mantém conexão e navegação da semana junto do cabeçalho.
 
-Concluídas aparecem como cartões compactos com título e área. Clicar abre os detalhes, incluindo Reabrir tarefa; a coluna acompanha a altura do conteúdo. Desmarcar o quadrado de uma concluída (na esteira ou na lista do projeto) reabre a tarefa na etapa em que estava ao ser concluída; concluídas antes desse registro voltam para Aguardando.
-
-A esteira diferencia as etapas por tons suaves de azul, com destaque mais forte em Em andamento. Colunas, cards e marcadores compartilham a cor da etapa; a classificação por área fica preservada.
+Concluídas hoje mostram horário, título e área. Clicar abre os detalhes, incluindo Reabrir tarefa. Desmarcar o quadrado de uma concluída (em Hoje ou na lista do projeto) reabre a tarefa na situação em que estava ao ser concluída; concluídas antes desse registro voltam para Aguardando.
 
 ## Gmail no Android
 
@@ -75,7 +74,7 @@ Complemento Google Workspace preparado em `gmail-addon/`, com pacote `downloads/
 
 ## Projetos dentro das áreas
 
-Clique numa área para criar tarefas com a área preenchida e projetos que agrupam tarefas. Os projetos ficam em `initiatives`; `projects` continua representando o catálogo de áreas legado. Cada tarefa pode ter `initiativeId`. Todas seguem na esteira comum.
+Clique numa área para criar tarefas com a área preenchida e projetos que agrupam tarefas. Os projetos ficam em `initiatives`; `projects` continua representando o catálogo de áreas legado. Cada tarefa pode ter `initiativeId`. As de hoje e as atrasadas aparecem em Hoje.
 
 ## Entrada unificada e Gemini
 
@@ -85,7 +84,7 @@ A análise Gemini consulta os modelos disponíveis quando o configurado retorna 
 
 ### Criar demanda com Gemini
 
-No topo da Entrada, **Falar demanda** grava pelo microfone do navegador (até 3 minutos, com relógio, medidor de volume e tela do celular sempre acesa); o campo **Ou escreva** faz o mesmo com texto. Fale na ordem combinada: nome da demanda, descrição, área e prazo; para subtarefas, diga "subtarefas" e enumere ("Relatório de matrículas. Consolidar os números do semestre. Área Oferta de turmas. Até sexta-feira. Subtarefas: um, levantar os dados; dois, montar a planilha"). O Gemini também entende as partes fora de ordem. A gravação inteira vai de uma vez para `/api/voice-note`, junto com as áreas ativas e a data de hoje; o Gemini devolve o nome dito como título, a descrição, a área (só uma da lista), o prazo resolvido num calendário dos próximos 70 dias e as subtarefas enumeradas (até 30, criadas dentro da demanda; nunca inventadas). A demanda é criada na hora, marcada "🎙 Criada com Gemini": com área e prazo vai direto para a Esteira (A fazer); sem um deles fica na Entrada para completar com **Classificar →**. O cartão de resultado mostra o que foi entendido, com **Abrir demanda** e **Desfazer**. Só a demanda é salva; o áudio fica na tela apenas se algo falhar, para **Tentar de novo**. Se o Gemini recusar o formato do navegador (webm/mp4) ou não ouvir fala, o app reenvia a gravação convertida em WAV mono. A rota usa a mesma conta Google, `FLOW_ALLOWED_EMAILS`, cota diária e `GEMINI_REVIEW_MODEL` da análise de e-mails e exige login Google. Testes: `npm run test:voice`.
+No topo da Entrada, **Falar demanda** grava pelo microfone do navegador (até 3 minutos, com relógio, medidor de volume e tela do celular sempre acesa); o campo **Ou escreva** faz o mesmo com texto. Fale na ordem combinada: nome da demanda, classificação (área ou projeto), descrição, data e ΔT; só o nome e a classificação são obrigatórios. Para subtarefas, diga "subtarefas" e enumere ("Atualizar a ouvidoria. Classificação ouvidoria. Atualizar as demandas represadas dos últimos 3 dias. Hoje. Reserve 30 minutos."). O Gemini também entende as partes fora de ordem. A gravação inteira vai de uma vez para `/api/voice-note`, junto com as áreas e projetos ativos e a data de hoje; o Gemini devolve o nome dito como título, a área (ou o projeto e sua área; só da lista), a descrição, o dia resolvido num calendário dos próximos 70 dias, o ΔT em minutos e as subtarefas enumeradas (até 30, nunca inventadas). A demanda é criada na hora, marcada "🎙 Criada com Gemini": com dia vai para Hoje ou Próximos, com o horário reservado se houver ΔT; sem dia fica nos lembretes da Entrada, com **Dia e ΔT →**. O cartão de resultado mostra o que foi entendido, com **Abrir demanda** e **Desfazer**. Só a demanda é salva; o áudio fica na tela apenas se algo falhar, para **Tentar de novo**. Se o Gemini recusar o formato do navegador (webm/mp4) ou não ouvir fala, o app reenvia a gravação convertida em WAV mono. A rota usa a mesma conta Google, `FLOW_ALLOWED_EMAILS`, cota diária e `GEMINI_REVIEW_MODEL` da análise de e-mails e exige login Google. Testes: `npm run test:voice`.
 
 ## Instalar no Android
 

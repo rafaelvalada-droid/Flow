@@ -24,12 +24,10 @@ async def main(folder):
         resource_requests=[]
         page.on('request',lambda r:resource_requests.append(r.url) if '/assets/fonts/' in r.url else None)
         await page.goto(BASE)
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await expect(page.locator('.pipeline-direction li')).to_have_count(5)
-        positions = await page.locator('.pipeline-direction li').evaluate_all('(items)=>items.map(el=>el.getBoundingClientRect().x)')
-        assert positions == sorted(positions)
-        await page.screenshot(path='/tmp/flow-pipeline-preview.png', full_page=True)
-        passed('Connected stages are visibly ordered from left to right')
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await expect(page.locator('.today-tabs [role="tab"]')).to_have_count(2)
+        await page.screenshot(path='/tmp/flow-today-preview.png', full_page=True)
+        passed('Hoje opens with the Hoje and Próximos tabs')
         await page.evaluate("""() => {
             const key='flow.workspace.v1', db=JSON.parse(localStorage.getItem(key));
             db.tasks[0].sessions=[{start:+new Date('2026-10-10T09:00:00'),end:+new Date('2026-10-10T09:25:00')}];

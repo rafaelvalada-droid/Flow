@@ -7,6 +7,7 @@ import copy
 import json
 import os
 import time
+from datetime import date, timedelta
 from urllib.parse import urlsplit, parse_qs
 from playwright.async_api import async_playwright, expect
 
@@ -19,7 +20,7 @@ NOW = int(time.time() * 1000)
 
 
 def task(id, title, project='carga', **extra):
-    return {'id': id, 'title': title, 'project': project, 'status': 'todo', 'priority': 'medium', 'dueDate': '2026-10-20',
+    return {'id': id, 'title': title, 'project': project, 'status': 'todo', 'priority': 'medium', 'dueDate': (date.today() - timedelta(days=1)).isoformat(),
             'plannedDate': '', 'plannedTime': '', 'description': '', 'subtasks': [], 'sessions': [], 'startedAt': None,
             'createdAt': extra.pop('createdAt', 1), 'completedAt': None, **extra}
 
@@ -113,15 +114,13 @@ async def main():
         merged['tasks'].insert(0, task('merged-task', 'Tarefa mesclada da nuvem', createdAt=7))
         count = len(saves)
         await page.evaluate("(data)=>window.dispatchEvent(new CustomEvent('flow:cloud-remote-merged',{detail:{data}}))", merged)
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await page.locator('#board-date-filter').select_option('all')
-        await expect(page.locator('.pipeline-task').filter(has_text='Tarefa mesclada da nuvem')).to_be_visible()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        await expect(page.locator('.today-item').filter(has_text='Tarefa mesclada da nuvem')).to_be_visible()
         assert any(t['id'] == 'merged-task' for t in json.loads(await page.evaluate('(key)=>localStorage.getItem(key)', KEY))['tasks'])
         await page.wait_for_timeout(1500)
         assert len(saves) == count, 'A merged version is cached locally without being uploaded again'
-        demand = page.locator('.pipeline-task').filter(has_text='Tarefa da nuvem')
-        await demand.locator('summary').click()
-        await demand.locator('[data-action="task-detail"]').click()
+        demand = page.locator('.today-item').filter(has_text='Tarefa da nuvem')
+        await demand.locator('.today-open').click()
         await page.locator('#edit-description').click()
         await page.keyboard.type('Anotação em andamento', delay=5)
         merged['tasks'].insert(0, task('merged-second', 'Segunda tarefa mesclada', createdAt=8))

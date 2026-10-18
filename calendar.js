@@ -127,7 +127,9 @@
       const from = new Date(`${task.plannedDate}T${task.plannedTime}:00`);
       const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       start = {dateTime: from.toISOString(), timeZone: zone};
-      end = {dateTime: new Date(from.getTime() + (database.preferences?.focusMinutes || 25)*60000).toISOString(), timeZone: zone};
+      // O ΔT da tarefa vira a duração do evento; sem ΔT, vale um ciclo de foco (eventos antigos não mudam).
+      const minutes = FlowWorkflow.validDuration(task.duration) ? task.duration : (database.preferences?.focusMinutes || 25);
+      end = {dateTime: new Date(from.getTime() + minutes*60000).toISOString(), timeZone: zone};
     } else {
       const until = new Date(`${task.plannedDate}T12:00:00Z`);
       until.setUTCDate(until.getUTCDate() + 1);
@@ -149,7 +151,7 @@
   function inputSignature(){
     const db=workspace(),tasks=Array.isArray(db.tasks)?db.tasks:[];return JSON.stringify({owner:FlowCloud.info().user?.id,minutes:db.preferences?.focusMinutes||25,
       areas:[...(Array.isArray(db.projects)?db.projects:[]),...(Array.isArray(db.archivedProjects)?db.archivedProjects:[])].map(p=>[p?.id,p?.name]),
-      tasks:tasks.filter(t=>t?.plannedDate).map(t=>[t.id,t.title,t.project,t.plannedDate,t.plannedTime,t.dueDate,t.description])});
+      tasks:tasks.filter(t=>t?.plannedDate).map(t=>[t.id,t.title,t.project,t.plannedDate,t.plannedTime,t.dueDate,t.description,t.duration])});
   }
   // Remove only UlbraFlow-owned events; a cancelled one is already deleted.
   async function remove(db, owner, taskId) {
