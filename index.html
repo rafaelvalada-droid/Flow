@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#3166dc" />
-  <meta name="description" content="UlbraFlow — classifique por área e data, organize todas as demandas em uma esteira e trabalhe com foco." />
+  <meta name="description" content="UlbraFlow — capture demandas na Entrada, dê dia e ΔT e faça tudo em Hoje, com foco." />
   <title>UlbraFlow — Workspace</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/assets/icons/ulbraflow-blue-192.png" />
@@ -44,10 +44,10 @@
         <span class="fo-phase fo-fade"><span>Foco 25 min</span><span>Pausa 5 min</span></span>
       </div>
       <section class="fo-beat fo-beat-board fo-fade" data-fo-beat="2" aria-labelledby="fo-b2">
-        <h2 id="fo-b2">Cada demanda percorre a esteira</h2>
-        <p>Classifique, prepare, execute, aguarde e entregue, com todas as áreas na mesma fila.</p>
+        <h2 id="fo-b2">Cada demanda encontra o seu dia</h2>
+        <p>Capture, classifique, dê dia e tempo, faça e conclua, com todas as áreas no mesmo Hoje.</p>
         <div class="fo-board" aria-hidden="true">
-          <ol class="fo-stages"><li><b>01</b>Classificar</li><li><b>02</b>Preparar</li><li><b>03</b>Executar</li><li><b>04</b>Aguardar</li><li><b>05</b>Entregar</li></ol>
+          <ol class="fo-stages"><li><b>01</b>Capturar</li><li><b>02</b>Classificar</li><li><b>03</b>Agendar</li><li><b>04</b>Executar</li><li><b>05</b>Concluir</li></ol>
           <div class="fo-lanes"><i></i><i></i><i></i><i></i><i></i>
             <div class="fo-card" style="--r:0;--x:0;--c:#418d9d;--d:.6s"><div class="fo-card-in"><span class="fo-chk"></span><strong>Conferir folha docente</strong><span class="fo-live"></span></div></div>
             <div class="fo-card is-focus" style="--r:1;--x:2;--c:#507ee9;--d:-2.9s"><div class="fo-card-in"><span class="fo-chk"></span><strong>Revisar oferta de turmas</strong><span class="fo-live"></span></div></div>
@@ -69,11 +69,11 @@
   </div>
   <div class="app-shell" aria-busy="true">
     <aside class="sidebar" aria-label="Menu principal" inert>
-      <a class="brand" href="#esteira" aria-label="UlbraFlow, início"><span class="brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span></span></a>
+      <a class="brand" href="#hoje" aria-label="UlbraFlow, início"><span class="brand-word"><span class="brand-u">Ulbra</span><span class="brand-flow">Flow</span></span></a>
       <div class="sidebar-caption">PRINCIPAL</div>
       <nav id="sidebar-nav">
         <button type="button" data-page="entrada" class="active"><span class="nav-icon">↘</span><span>Entrada</span><span id="inbox-count" class="nav-count" hidden></span></button>
-        <button type="button" data-page="esteira"><span class="nav-icon">▤</span><span>Esteira</span></button>
+        <button type="button" data-page="hoje"><span class="nav-icon">☀</span><span>Hoje</span><span id="today-count" class="nav-count" hidden></span></button>
         <button type="button" data-page="foco"><span class="nav-icon">◉</span><span>Foco</span></button>
         <button type="button" data-page="projetos"><span class="nav-icon">▦</span><span>Áreas</span></button>
         <button type="button" data-page="agenda"><span class="nav-icon">▤</span><span>Agenda</span></button>
@@ -90,7 +90,7 @@
         <div class="top-actions" inert><button id="account-button" type="button" class="button" data-action="account">Entrar com Google</button><button id="active-clock" type="button" class="active-clock" data-action="open-active">◉ Entrar em foco</button><button type="button" class="button primary" data-action="new-task">+ Nova demanda</button></div>
       </header>
       <main id="screen" class="screen" aria-live="polite" aria-busy="true">
-        <div class="startup-heading"><div class="eyebrow">ULBRAFLOW / WORKSPACE</div><h1>Entrada</h1><p>Revise e-mails e registros manuais antes de incluí-los na esteira.</p></div>
+        <div class="startup-heading"><div class="eyebrow">ULBRAFLOW / WORKSPACE</div><h1>Entrada</h1><p>Tudo começa aqui: fale ou escreva demandas, guarde lembretes sem data e revise os e-mails.</p></div>
         <section id="workspace-access" class="card startup-access"><p id="login-message" role="status">Carregando suas demandas…</p><div class="actionbar"><button id="google-login" type="button" class="button primary" hidden>Entrar com Google</button><button id="login-retry" type="button" class="button" hidden>Tentar novamente</button></div></section>
       </main>
     </div>

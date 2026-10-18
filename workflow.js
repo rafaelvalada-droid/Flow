@@ -12,6 +12,63 @@
     const number = typeof value === 'number' || (typeof value === 'string' && value.trim()) ? Number(value) : NaN;
     return Number.isFinite(number) && number >= 1 && number <= max ? Math.round(number) : fallback;
   };
+  // Dia, ΔT e horário. O dia é a data de execução (em tarefas antigas, o prazo); o ΔT é a duração prevista em
+  // minutos; o horário é reservado sozinho no primeiro espaço livre do dia e pode ser arrastado na aba Hoje.
+  const DAY_START = 8 * 60;
+  const validTime = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  const toMinutes = value => validTime(value) ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3)) : null;
+  const clock = total => `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  const validDuration = value => Number.isInteger(value) && value >= 5 && value <= 720;
+  const durationLabel = value => !validDuration(value) ? '' : value < 60 ? `${value} min` : `${Math.floor(value / 60)}h${value % 60 ? String(value % 60).padStart(2, '0') : ''}`;
+  const dayOf = task => validDate(task?.plannedDate) ? task.plannedDate : validDate(task?.dueDate) ? task.dueDate : '';
+  function slotOf(task) {
+    const start = toMinutes(task?.plannedTime);
+    return start === null || !validDuration(task.duration) ? null : {start, end: Math.min(1440, start + task.duration)};
+  }
+  // Primeiro espaço livre de `duration` minutos a partir de `from`; sem espaço depois, procura entre `earliest` e
+  // `from`; sem espaço nenhum, aceita sobrepor em `from` (o usuário ajusta arrastando).
+  function freeSlot(busy, duration, from = DAY_START, earliest = 0) {
+    const fits = start => start + duration <= 1440 && busy.every(b => start >= b.end || start + duration <= b.start);
+    const first = Math.min(1440, Math.ceil(from / 5) * 5), ends = busy.map(b => b.end);
+    const after = [first, ...ends.filter(end => end > first)].sort((a, b) => a - b);
+    const before = [earliest, ...ends.filter(end => end >= earliest && end < first)].sort((a, b) => a - b);
+    return [...after, ...before].find(fits) ?? Math.max(0, Math.min(first, 1440 - duration));
+  }
+  // Horários ocupados no dia: tarefas abertas daquele dia e, no dia de hoje, as atrasadas, que aparecem junto.
+  function busyOn(db, day, today, exceptId) {
+    return db.tasks.filter(t => t.id !== exceptId && t.status !== 'done' && (dayOf(t) === day || (day === today && dayOf(t) && dayOf(t) < today))).map(slotOf).filter(Boolean);
+  }
+  function schedule(db, task, now = Date.now(), extra = []) {
+    const day = dayOf(task);
+    if (!day || !validDuration(task.duration)) { task.plannedTime = ''; return null; }
+    const current = new Date(now), today = localDate(current), nowMinutes = current.getHours() * 60 + current.getMinutes();
+    const busy = [...busyOn(db, day, today, task.id), ...extra];
+    const start = day === today ? freeSlot(busy, task.duration, Math.max(nowMinutes, DAY_START), nowMinutes) : freeSlot(busy, task.duration);
+    task.plannedTime = clock(start);
+    return slotOf(task);
+  }
+  // Define dia e ΔT e reserva o horário. Sem dia, a tarefa volta para a Entrada. Dia sem ΔT é só a data da demanda
+  // (prazo): não reserva horário nem cria evento no Google Agenda, que recebe apenas os horários reservados.
+  // Com ΔT, o dia vira data de execução e o prazo nunca fica antes dele.
+  // `busy` traz horários ocupados de fora do UlbraFlow (compromissos do Google Agenda daquele dia).
+  function plan(db, task, {day = dayOf(task), duration = task.duration, now = Date.now(), busy = []} = {}) {
+    const before = {day: dayOf(task), time: task.plannedTime};
+    task.duration = validDuration(duration) ? duration : null;
+    if (!validDate(day)) { task.plannedDate = ''; task.dueDate = ''; task.plannedTime = ''; return null; }
+    if (!task.duration) { task.plannedDate = ''; task.plannedTime = ''; task.dueDate = day; return null; }
+    task.plannedDate = day;
+    if (!validDate(task.dueDate) || task.dueDate < day) task.dueDate = day;
+    if (before.day === day && validTime(before.time)) return slotOf(task);
+    return schedule(db, task, now, busy);
+  }
+  // Arrastar na linha do tempo: novo início (e ΔT) no dia indicado.
+  function move(task, day, start, duration = task.duration) {
+    if (!validDate(day) || !validDuration(duration)) return false;
+    const begin = Math.max(0, Math.min(1440 - duration, Math.round(start / 5) * 5));
+    task.duration = duration; task.plannedDate = day; task.plannedTime = clock(begin);
+    if (!validDate(task.dueDate) || task.dueDate < day) task.dueDate = day;
+    return true;
+  }
   const classified = (db, task) => [...db.projects,...(db.archivedProjects||[])].some(area => area.id === task.project) && validDate(task.dueDate);
   const stage = (db, task) => task.status === 'done' ? 'done' : !classified(db, task) ? 'inbox' : ['todo','doing','waiting'].includes(task.status) ? task.status : 'todo';
   const byDue = (a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || (a.createdAt || 0) - (b.createdAt || 0);
@@ -77,6 +134,7 @@
       if (task.title != null && typeof task.title !== 'string' && typeof task.title !== 'object') task.title = String(task.title);
       const cycles = Math.floor(Number(task.focusCycles));
       task.focusCycles = Number.isFinite(cycles) && cycles > 0 ? cycles : 0;
+      if (task.duration != null && !validDuration(task.duration)) { const value = Math.round(Number(task.duration)); task.duration = validDuration(value) ? value : null; }
       if (task.startedAt && !Number.isFinite(task.startedAt)) { recover(db, {from: 'task.startedAt', taskId: task.id, value: task.startedAt}); task.startedAt = null; }
     }
     // Cronômetro anterior ao Pomodoro (startedAt sem focus): o intervalo até a migração não é verificável
@@ -143,5 +201,6 @@
     if (db.focus?.taskId === taskId) db.focus = null;
   }
   const remaining = (db, now = Date.now()) => db.focus ? Math.max(0, db.focus.endsAt ? db.focus.endsAt - now : db.focus.remainingMs) : db.preferences.focusMinutes * 60000;
-  globalThis.FlowWorkflow = Object.freeze({defaults, localDate, validDate, classified, stage, byDue, urgency, normalize, reconcile, start, pause, resumeBreak, cancel, remaining});
+  globalThis.FlowWorkflow = Object.freeze({defaults, localDate, validDate, classified, stage, byDue, urgency, normalize, reconcile, start, pause, resumeBreak, cancel, remaining,
+    DAY_START, validTime, toMinutes, clock, validDuration, durationLabel, dayOf, slotOf, freeSlot, schedule, plan, move});
 })();

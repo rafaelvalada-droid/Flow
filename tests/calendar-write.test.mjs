@@ -110,6 +110,11 @@ test('updates use one full PUT, replacing all-day with timed events without PATC
   const stored=google.store.get(db.calendar.events.a.id);
   assert.equal(stored.summary,'Novo título');assert.ok(stored.start.dateTime);assert.equal(stored.start.date,undefined,'All-day date must not survive');
   assert.equal(Date.parse(stored.end.dateTime)-Date.parse(stored.start.dateTime),25*60000);
+  // O ΔT da tarefa define a duração do evento reservado.
+  google.reset();db.tasks[0].duration=90;await calendar.synchronize();
+  assert.deepEqual(google.log.map(r=>r.method),['PUT']);
+  const reserved=google.store.get(db.calendar.events.a.id);
+  assert.equal(Date.parse(reserved.end.dateTime)-Date.parse(reserved.start.dateTime),90*60000);
   google.reset();db.tasks[0].plannedTime='';await calendar.synchronize();
   const back=google.store.get(db.calendar.events.a.id);
   assert.deepEqual(back.start,{date:'2026-10-14'});assert.equal(back.start.dateTime,undefined);

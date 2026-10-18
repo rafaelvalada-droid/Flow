@@ -1,4 +1,4 @@
-"""Tarefa concluída pode ser desmarcada para reabrir na esteira (a lista do projeto é coberta em project-generator-smoke)."""
+"""Tarefa concluída em Hoje pode ser desmarcada para reabrir (a lista do projeto é coberta em project-generator-smoke)."""
 import asyncio
 import os
 from datetime import datetime, timezone
@@ -9,7 +9,8 @@ from playwright.async_api import async_playwright, expect
 BASE = os.environ.get('FLOW_TEST_URL', 'http://127.0.0.1:3000')
 TASKS = [
     {'id': 'em-andamento', 'title': 'Revisar contrato', 'project': 'carga', 'status': 'doing', 'dueDate': '2026-10-09'},
-    {'id': 'antiga', 'title': 'Concluída antes da mudança', 'project': 'carga', 'status': 'done', 'dueDate': '2026-10-09', 'completedAt': 1},
+    # Concluída hoje, mas antes do registro da etapa de origem (sem reopenStatus).
+    {'id': 'antiga', 'title': 'Concluída antes da mudança', 'project': 'carga', 'status': 'done', 'dueDate': '2026-10-09', 'completedAt': int(datetime(2026, 10, 9, 13, tzinfo=timezone.utc).timestamp() * 1000)},
 ]
 
 
@@ -32,24 +33,27 @@ async def run(profile):
         }""", TASKS)
         await page.reload()
         await expect(page.locator('.page-head h1')).to_have_text('Entrada')
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
         stored = lambda id: page.evaluate("id => {window.dispatchEvent(new Event('flow:persist-flush'));return JSON.parse(localStorage.getItem('flow.workspace.v1')).tasks.find(t => t.id === id)}", id)
-        lane = lambda stage, title: page.locator(f'.pipeline-lane[data-stage="{stage}"] .pipeline-task').filter(has_text=title)
+        section = {'todo': '.today-todo', 'done': '.today-done'}
+        lane = lambda where, title: page.locator(f'{section[where]} .today-item').filter(has_text=title)
 
-        await lane('doing', 'Revisar contrato').locator('[data-complete-task]').click()
+        await expect(lane('todo', 'Revisar contrato')).to_contain_text('Em andamento')
+        await lane('todo', 'Revisar contrato').locator('[data-complete-task]').click()
         card = lane('done', 'Revisar contrato')
         box = card.locator('[data-complete-task]')
         await expect(box).to_be_checked()
         await expect(box).to_be_enabled()
         await box.click()
-        await expect(lane('doing', 'Revisar contrato')).to_have_count(1)
-        await expect(lane('doing', 'Revisar contrato').locator('[data-complete-task]')).not_to_be_checked()
+        await expect(lane('todo', 'Revisar contrato')).to_have_count(1)
+        await expect(lane('done', 'Revisar contrato')).to_have_count(0)
+        await expect(lane('todo', 'Revisar contrato').locator('[data-complete-task]')).not_to_be_checked()
         task = await stored('em-andamento')
         assert task['status'] == 'doing' and task['completedAt'] is None and 'reopenStatus' not in task, task
-        print('PASS A task completed by mistake is unchecked and returns to the stage it was in (Em andamento)', flush=True)
+        print('PASS A task completed by mistake goes to Concluídas hoje; unchecking returns it to A fazer, still Em andamento', flush=True)
 
         await lane('done', 'Concluída antes da mudança').locator('[data-complete-task]').click()
-        await expect(lane('waiting', 'Concluída antes da mudança')).to_have_count(1)
+        await expect(lane('todo', 'Concluída antes da mudança')).to_contain_text('Aguardando')
         assert (await stored('antiga'))['status'] == 'waiting'
         print('PASS A task completed before this change reopens in Aguardando, like Reabrir tarefa', flush=True)
 

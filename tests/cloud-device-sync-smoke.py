@@ -7,6 +7,7 @@ import copy
 import json
 import os
 import time
+from datetime import date, timedelta
 from urllib.parse import urlsplit, parse_qs
 from playwright.async_api import async_playwright, expect
 
@@ -18,7 +19,7 @@ AREA = {'id': 'carga', 'name': 'Carga horária docente', 'color': '#9270d4'}
 
 
 def task(id, title, **extra):
-    return {'id': id, 'title': title, 'project': 'carga', 'status': 'todo', 'priority': 'medium', 'dueDate': '2026-10-20',
+    return {'id': id, 'title': title, 'project': 'carga', 'status': 'todo', 'priority': 'medium', 'dueDate': (date.today() - timedelta(days=1)).isoformat(),
             'plannedDate': '', 'plannedTime': '', 'description': '', 'subtasks': [], 'sessions': [], 'startedAt': None,
             'focusCycles': 0, 'createdAt': 1, 'completedAt': None, **extra}
 
@@ -72,9 +73,8 @@ async def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         await page.clock.install(time=time.time())
         await page.goto(BASE)
-        await page.locator('#sidebar-nav [data-page="esteira"]').click()
-        await page.locator('#board-date-filter').select_option('all')
-        lane = lambda stage: page.locator(f'.pipeline-lane[data-stage="{stage}"] .pipeline-task')
+        await page.locator('#sidebar-nav [data-page="hoje"]').click()
+        lane = lambda stage: page.locator(f'.today-{stage} .today-item')
         await expect(lane('done')).to_have_count(0)
         # A abertura completa campos padrão do workspace e salva uma vez; a contagem começa depois disso.
         await page.clock.fast_forward(1000)
@@ -97,12 +97,12 @@ async def main():
         print('PASS An open app shows a task completed on another device within a minute, without reloading or uploading', flush=True)
 
         # Concluir aqui enquanto o celular inclui uma tarefa na nuvem: o envio recebe 409, junta e as duas mudanças ficam.
-        await page.locator('.pipeline-task').filter(has_text='Enviar planilha').locator('[data-complete-task]').check()
+        await lane('todo').filter(has_text='Enviar planilha').locator('[data-complete-task]').click()
         phone = copy.deepcopy(row['data'])
         phone['tasks'].insert(0, task('c', 'Capturada no celular'))
         row.update(data=phone, revision=row['revision'] + 1)
         await page.clock.fast_forward(1000)
-        await expect(page.locator('.pipeline-task').filter(has_text='Capturada no celular')).to_have_count(1)
+        await expect(lane('todo').filter(has_text='Capturada no celular')).to_have_count(1)
         await expect(lane('done').filter(has_text='Enviar planilha')).to_have_count(1)
         for _ in range(100):
             if any(t['id'] == 'c' for t in (saves[-1]['tasks'] if saves else [])):
@@ -119,7 +119,7 @@ async def main():
         uploads = len(saves)
         await page.clock.fast_forward(16000)
         await page.evaluate("window.dispatchEvent(new Event('focus'))")
-        await expect(page.locator('.pipeline-task').filter(has_text='Incluída no computador')).to_have_count(1)
+        await expect(lane('todo').filter(has_text='Incluída no computador')).to_have_count(1)
         assert len(saves) == uploads
         print('PASS Returning to the app checks the cloud at once and shows what another device added', flush=True)
         assert revision_checks, 'Only the revision is checked before downloading the workspace'

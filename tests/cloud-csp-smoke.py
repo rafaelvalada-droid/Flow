@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 from playwright.async_api import async_playwright, expect
 
 BASE = os.environ.get('FLOW_TEST_URL', 'http://127.0.0.1:3000').rstrip('/')
-PAGES = ['entrada', 'esteira', 'foco', 'projetos', 'agenda', 'meus-projetos', 'alertas', 'tempo']
+PAGES = ['entrada', 'hoje', 'foco', 'projetos', 'agenda', 'meus-projetos', 'alertas', 'tempo']
 
 
 async def main(folder):
